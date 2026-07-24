@@ -1,0 +1,17 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Orange rounded rectangle background -->
+  <rect x="10" y="10" width="180" height="180" rx="20" ry="20" fill="#FF8C00" stroke="#FFA500" stroke-width="4"/>
+  
+  <!-- Black inner rectangle -->
+  <rect x="20" y="20" width="160" height="160" rx="10" ry="10" fill="#000000"/>
+  
+  <!-- Pink Z letter -->
+  <path d="M35 40 L125 40 L125 65 L75 100 L125 100 L125 125 L35 125 L35 100 L85 65 L35 65 Z" fill="#FF1493"/>
+  
+  <!-- Blue I letter -->
+  <rect x="135" y="40" width="20" height="85" fill="#1E90FF"/>
+  
+  <!-- PREMIUM SERVICES text -->
+  <text x="100" y="155" text-anchor="middle" fill="#FFFFFF" font-size="14" font-weight="bold" font-family="Arial">PREMIUM SERVICES</text>
+  
+  </svg>

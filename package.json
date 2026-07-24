@@ -1,0 +1,12 @@
+{
+  "name": "zi-premium-shop-root",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Root project container for frontend (Vite+React) and backend (Express)",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build"
+  }
+}
