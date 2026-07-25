@@ -26,7 +26,7 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
 
-// Global error handler
+// Global error handler ok
 app.use(errorHandler);
 
 export default app;
