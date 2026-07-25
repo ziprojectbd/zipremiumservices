@@ -1,4 +1,4 @@
-import { devLog } from './devLogger';
+import { devLog } from './devLogger.js';
 
 // In-memory cache for IP lookups to avoid hitting the API on every request
 const geoCache = new Map<string, { country: string; countryCode: string }>();
@@ -71,7 +71,7 @@ export async function getGeoFromIP(
       devLog('Geo lookup returned non-ok status:', res.status);
       return { country: 'Unknown', countryCode: '' };
     }
-    const data = await res.json();
+    const data = await res.json() as { country: string; countryCode: string };
     if (data && data.countryCode) {
       const result = { country: data.country || '', countryCode: data.countryCode };
       geoCache.set(ip, result);

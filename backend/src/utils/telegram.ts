@@ -18,7 +18,8 @@ export async function sendTelegramNotification(
         parse_mode: 'HTML',
       }),
     });
-    const data = await res.json();
+    type TelegramResponse = { ok: boolean; [key: string]: unknown };
+    const data = await res.json() as TelegramResponse;
     if (!data.ok) {
       console.warn('Telegram sendMessage failed:', data);
     }
