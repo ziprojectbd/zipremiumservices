@@ -1,4 +1,5 @@
-import mongoose, { Model, type HydratedDocument } from 'mongoose';
+import mongoose, { Model } from 'mongoose';
+import type { HydratedDocument } from 'mongoose';
 
 export type MaintenanceType = 'marquee' | 'fullscreen';
 
