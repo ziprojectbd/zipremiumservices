@@ -18,6 +18,11 @@ dist-ssr
 out
 build
 
+# Compiled JS and declarations alongside TS source (backend/src)
+src/**/*.js
+src/**/*.d.ts
+src/**/*.d.ts.map
+
 # Environment variables
 .env
 .env.local
@@ -53,3 +58,7 @@ coverage
 
 .openclaude/
 cookies*.txt
+
+# Coolify
+*.env.production
+.env.production.local

@@ -16,11 +16,17 @@ export default async function connectDB() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(env.MONGODB_URI, {
+    const mongooseOptions = {
       bufferCommands: false,
       tls: true,
-      tlsAllowInvalidCertificates: true,
-    });
+    };
+
+    // ⚠️ Only allow invalid certs in development — never in production
+    if (env.NODE_ENV !== 'production') {
+      mongooseOptions.tlsAllowInvalidCertificates = true;
+    }
+
+    cached.promise = mongoose.connect(env.MONGODB_URI, mongooseOptions);
   }
 
   cached.conn = await cached.promise;

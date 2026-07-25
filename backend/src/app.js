@@ -8,6 +8,9 @@ import env from './config/env.js';
 
 const app = express();
 
+// Trust proxy — required for accurate rate limiting behind nginx/Cloudflare
+app.set('trust proxy', 1);
+
 const allowedOrigins = env.NODE_ENV === 'production'
   ? [env.CLIENT_URL]
   : ['http://localhost:3000', 'http://localhost:5173'];

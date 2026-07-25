@@ -22,8 +22,11 @@ export function errorHandler(err, _req, res, _next) {
     });
   }
 
-  res.status(err.status || 500).json({
+  const status = err.status || 500;
+
+  res.status(status).json({
     success: false,
     error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
   });
 }
