@@ -12,13 +12,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install all deps including dev for build step
-RUN npm install --frozen-lockfile
+RUN npm ci
 
 # Copy source code
-COPY . .
+COPY tsconfig.json ./
+COPY src ./src
 
-# Build (TypeScript transpile if any; safe to skip for pure JS)
-RUN npm run build || true
+# Build (TypeScript → JS, then rewrite path aliases)
+RUN npm run build
 
 # ===== Production Stage =====
 FROM node:22-alpine AS runner
@@ -34,11 +35,11 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy production dependencies only
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev --ignore-scripts && \
+RUN npm ci --omit=dev --ignore-scripts && \
     npm cache clean --force
 
-# Copy built source from builder
-COPY --from=builder /app/src ./src
+# Copy built output from builder
+COPY --from=builder /app/dist ./dist
 
 # Expose port
 EXPOSE 5000
@@ -50,6 +51,6 @@ USER nodeuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:5000/health || exit 1
 
-# Use dumb-init for signal handling
+# Use dumb-init for signal handling + module-alias for runtime alias resolution
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "src/index.js"]
+CMD ["node", "-r", "module-alias/register", "dist/server.js"]

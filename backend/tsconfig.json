@@ -5,10 +5,11 @@
     "outDir": "./dist",
 
     /* Environment */
-    "module": "nodenext",
+    "module": "preserve",
     "target": "esnext",
     "types": ["node"],
     "lib": ["esnext"],
+    "moduleResolution": "bundler",
 
     /* Output */
     "sourceMap": true,
@@ -22,12 +23,27 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noUncheckedSideEffectImports": true,
-
-    /* Relaxed for gradual migration */
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
     "noImplicitReturns": false,
     "noUnusedLocals": false,
-    "noUnusedParameters": false
-  }
+    "noUnusedParameters": false,
+
+    /* Path Aliases */
+    "paths": {
+      "*": ["./*"],
+      "@/*": ["./src/*"],
+      "@db/*": ["./src/db/*"],
+      "@controllers/*": ["./src/controllers/*"],
+      "@services/*": ["./src/services/*"],
+      "@models/*": ["./src/models/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@middlewares/*": ["./src/middleware/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@config/*": ["./src/config/*"],
+      "@types/*": ["./src/types/*"],
+      "@interfaces/*": ["./src/interfaces/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
 }

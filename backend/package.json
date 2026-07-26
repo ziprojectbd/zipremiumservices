@@ -3,10 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "_moduleAliases": {
+    "@": "dist",
+    "@controllers": "dist/controllers",
+    "@services": "dist/services",
+    "@models": "dist/models",
+    "@routes": "dist/routes",
+    "@middlewares": "dist/middleware",
+    "@utils": "dist/utils",
+    "@config": "dist/config",
+    "@types": "dist/types",
+    "@interfaces": "dist/interfaces"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.js",
-    "start": "node src/index.js",
-    "build": "tsc || echo 'No tsc config'"
+    "dev": "tsx watch src/server.ts",
+    "start": "node -r module-alias/register dist/server.js",
+    "build": "tsc && tsc-alias -f -fe '.js'",
+    "type-check": "tsc --noEmit",
+    "postinstall": "npm rebuild bcryptjs --build-from-source 2>/dev/null || true"
   },
   "dependencies": {
     "@google/genai": "^2.12.0",
@@ -21,13 +35,23 @@
     "google-auth-library": "^9.15.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
+    "module-alias": "^2.3.4",
     "mongoose": "^9.0.0",
     "multer": "^1.4.5-lts.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/module-alias": "^2.0.4",
+    "@types/multer": "^2.2.0",
     "@types/node": "^26.1.1",
+    "tsc-alias": "^1.9.1",
     "tsx": "^4.19.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "zod": "^4.4.3"
   }
 }
