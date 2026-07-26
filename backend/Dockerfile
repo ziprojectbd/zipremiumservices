@@ -29,7 +29,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY package.json package-lock.json ./
 
 # Install only production deps — smaller image, fewer vulnerabilities
-RUN npm ci --omit=dev --ignore-scripts && \
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy built source from builder
