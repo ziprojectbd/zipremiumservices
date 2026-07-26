@@ -1,41 +1,46 @@
+# ============================================
+# ZI Premium Services — Backend Dockerfile
+# Production-ready: Node.js 22 LTS (Alpine)
+# ============================================
+
 # ===== Build Stage =====
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Separate layer: install deps first (leveraging Docker cache)
+# Copy package files first (Docker layer caching)
 COPY package.json package-lock.json ./
-RUN npm install
+
+# Install all deps including dev for build step
+RUN npm install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
-# Build TypeScript (if any); ok if it fails — .js files run directly
+# Build (TypeScript transpile if any; safe to skip for pure JS)
 RUN npm run build || true
 
 # ===== Production Stage =====
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
-# Security: install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Security: proper init system + timezone support
+RUN apk add --no-cache dumb-init tzdata
 
 WORKDIR /app
 
-# Create non-root user (uid 1001)
+# Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 --ingroup nodejs nodeuser
 
-# Copy production dependencies
+# Copy production dependencies only
 COPY package.json package-lock.json ./
-
-# Install only production deps — smaller image, fewer vulnerabilities
 RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy built source from builder
 COPY --from=builder /app/src ./src
 
-# Expose backend port
+# Expose port
 EXPOSE 5000
 
 # Switch to non-root user
@@ -45,6 +50,6 @@ USER nodeuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:5000/health || exit 1
 
-# Use dumb-init as PID 1 for proper signal forwarding and zombie reaping
+# Use dumb-init for signal handling
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "src/index.js"]

@@ -30,8 +30,8 @@
 
 | Component | Technology | Package Manager | Build Command | Start Command | Port |
 |-----------|-----------|----------------|---------------|---------------|------|
-| **Frontend** | React 18 + Vite 6 + TypeScript + Tailwind CSS | npm | `npm run build` | nginx (static) | 80 |
-| **Backend** | Express 4 + Mongoose 9 (ES Modules) | npm | `npm run build` (optional) | `node src/index.js` | 5000 |
+| **Frontend** | React 18 + Vite 6 + TypeScript + Tailwind CSS | npm | `npm run build` | nginx 1.27 (static) | 80 |
+| **Backend** | Express 4 + Mongoose 9 (ES Modules) | npm | `npm run build` (optional) | `node src/index.js` (Node.js 22) | 5000 |
 
 ### Key Design Decisions (Security-First)
 
@@ -317,11 +317,20 @@ Backend throws on startup if `JWT_SECRET` is missing. Add it in Coolify env vars
 
 | File | Purpose |
 |------|---------|
-| `frontend/Dockerfile` | Multi-stage build: Node 20 build → nginx 1.27-alpine serve |
+| `frontend/Dockerfile` | Multi-stage build: Node.js 22 build → nginx 1.27-alpine serve |
 | `frontend/nginx.conf` | SPA routing, API proxy, security headers, caching |
 | `frontend/.dockerignore` | Excludes dev files from Docker context |
 | `frontend/.env.example` | Example frontend env vars |
-| `backend/Dockerfile` | Multi-stage: Node 20 build → production deps, dumb-init, non-root |
+| `frontend/.npmrc` | Safe npm install settings for Docker builds |
+| `backend/Dockerfile` | Multi-stage: Node.js 22 build → production deps, dumb-init, non-root |
+| `backend/.dockerignore` | Excludes dev files from Docker context |
+| `backend/.env.example` | Example backend env vars |
+| `backend/.npmrc` | Safe npm install settings for Docker builds |
+| `docker-compose.yaml` | Production: both services, health checks, resource limits (Node.js 22) |
+| `docker-compose.coolify.yaml` | Coolify-specific: same config, optimized for auto-deploy |
+| `.dockerignore` | Root dockerignore |
+| `.env.example` | Root env template for Coolify |
+| `COOLIFY_DEPLOYMENT.md` | This document |
 | `backend/.dockerignore` | Excludes dev files from Docker context |
 | `backend/.env.example` | Example backend env vars |
 | `docker-compose.yml` | Orchestrates both services with health checks & resource limits |
