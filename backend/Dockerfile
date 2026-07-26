@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Separate layer: install deps first (leveraging Docker cache)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
