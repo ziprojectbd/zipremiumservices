@@ -10,8 +10,6 @@ x-common-backend: &common-backend
     args:
       NODE_ENV: production
   restart: unless-stopped
-  networks:
-    - zipremium-network
   deploy:
     resources:
       limits:
@@ -72,17 +70,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - zipremium-network
     deploy:
       resources:
         limits:
           memory: 256M
           cpus: "0.25"
-
-# -------------------------------------------------
-# Network
-# -------------------------------------------------
-networks:
-  zipremium-network:
-    driver: bridge
