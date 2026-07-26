@@ -141,6 +141,60 @@ export async function getUser(req, res) {
   }));
 }
 
+// POST /api/auth/google
+export async function googleAuthWithCredential(req, res) {
+  if (!googleClient) {
+    return res.status(500).json(error('Google OAuth is not configured'));
+  }
+
+  const { credential } = req.body;
+  if (!credential) {
+    return res.status(400).json(error('Google credential is required'));
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email,
+        password: await bcrypt.hash(email + env.JWT_SECRET, 12),
+        image: picture,
+        role: email === env.ADMIN_EMAIL ? 'admin' : 'user',
+        kycStatus: 'none',
+      });
+    } else if (email === env.ADMIN_EMAIL && user.role !== 'admin') {
+      user.role = 'admin';
+      user.image = picture || user.image;
+      await user.save();
+    }
+
+    const token = signToken(user);
+    return res.json(success({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        image: user.image,
+        isTrader: user.isTrader,
+        kycStatus: user.kycStatus,
+      },
+    }));
+  } catch (err) {
+    return res.status(401).json(error('Google authentication failed'));
+  }
+}
+
 // GET /api/auth/google
 export async function googleAuth(req, res) {
   if (!googleClient) {

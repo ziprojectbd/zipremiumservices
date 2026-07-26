@@ -21,6 +21,7 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   signup: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+  googleLogin: (credential: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   setAuthFromToken: (token: string) => Promise<User | null>;
@@ -108,6 +109,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const googleLogin = useCallback(async (credential: string) => {
+    try {
+      const res = await api.post('/auth/google', { credential });
+      if (res.data.success) {
+        const { token: newToken, user: userData } = res.data.data;
+        setToken(newToken);
+        setUser(userData);
+        localStorage.setItem('token', newToken);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return { success: true, user: userData };
+      }
+      return { success: false, error: res.data.error || 'Google sign-in failed' };
+    } catch (err: any) {
+      return { success: false, error: err.response?.data?.error || 'Google sign-in failed' };
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
@@ -139,6 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin: user?.role === 'admin',
     login,
     signup,
+    googleLogin,
     logout,
     refreshUser,
     setAuthFromToken,
