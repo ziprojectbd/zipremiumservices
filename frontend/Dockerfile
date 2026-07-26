@@ -1,6 +1,6 @@
 # ============================================
 # ZI Premium Services — Frontend Dockerfile
-# Production-ready: Node.js 22 LTS + nginx 1.27 (Alpine)
+# Coolify + Traefik Optimized
 # ============================================
 
 # ===== Build Stage =====
@@ -8,37 +8,36 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files first (Docker layer caching)
+# Copy package files
 COPY package.json package-lock.json ./
 
-# Install deps with fallback (avoids npm ci lockfile errors)
+# Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy source
 COPY . .
 
-# Build Vite/React production bundle
+# Build Vite app
 RUN npm run build
 
 # ===== Production Stage =====
 FROM nginx:1.27-alpine
 
-# Security: remove default nginx config + unnecessary packages
-RUN rm -f /etc/nginx/conf.d/default.conf && \
-    apk del --purge apk-tools || true
+# Remove default config
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
+# Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets from builder
+# Copy dist build
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port 80
+# Expose internal port only
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:80/ || exit 1
+# Fixed healthcheck (IPv4)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=5 \
+  CMD wget -q --spider http://127.0.0.1:80/ || exit 1
 
-# Run nginx in foreground
+# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
