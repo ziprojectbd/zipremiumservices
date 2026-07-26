@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install all deps including dev for build step
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY tsconfig.json ./
@@ -35,7 +35,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy production dependencies only
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && \
+RUN npm install --omit=dev --ignore-scripts && \
     npm cache clean --force
 
 # Copy built output from builder
