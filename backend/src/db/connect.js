@@ -1,10 +1,6 @@
 import mongoose from 'mongoose';
 import env from '../config/env.js';
 
-if (!env.MONGODB_URI) {
-  throw new Error('Please define MONGODB_URI in backend/.env');
-}
-
 /** @type {{ conn: typeof mongoose | null, promise: Promise<typeof mongoose> | null }} */
 const cached = global.mongooseCache ?? { conn: null, promise: null };
 
@@ -13,6 +9,10 @@ if (!global.mongooseCache) {
 }
 
 export default async function connectDB() {
+  if (!env.MONGODB_URI) {
+    throw new Error('Please define MONGODB_URI in backend/.env');
+  }
+
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
