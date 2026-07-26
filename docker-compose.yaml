@@ -10,6 +10,8 @@ x-common-backend: &common-backend
     args:
       NODE_ENV: production
   restart: unless-stopped
+  networks:
+    - coolify
   deploy:
     resources:
       limits:
@@ -59,6 +61,8 @@ services:
       dockerfile: Dockerfile
     container_name: zipremium-frontend
     restart: unless-stopped
+    networks:
+      - coolify
     expose:
       - "80"
     depends_on:
@@ -75,3 +79,7 @@ services:
         limits:
           memory: 256M
           cpus: "0.25"
+
+networks:
+  coolify:
+    external: true
