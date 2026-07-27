@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import User from '@models/User';
-import { signToken } from '@utils/jwt';
 import { success, error } from '@utils/apiResponse';
 import env from '@config/env';
 import { getClientIP, getGeoFromIP } from '@utils/geo';
+import { authenticateUser, refreshUserToken, logoutUser, logoutAllSessions } from '@services/auth.service';
+import { getRedis } from '@config/redis';
+import logger from '@config/logger';
 
 const GOOGLE_REDIRECT_URI = `${(env.CLIENT_URL as string).replace(/\/$/, '')}/api/auth/google/callback`;
 
@@ -20,7 +22,10 @@ export async function login(req: import('express').Request, res: import('express
     return res.status(400).json(error('Email and password are required'));
   }
 
-  // 1. Check ENV admin credentials first (same priority as auth.config.ts)
+  const ip = getClientIP(req);
+  const userAgent = req.headers['user-agent'] || '';
+
+  // 1. Check ENV admin credentials first
   if (email === env.ADMIN_EMAIL && password === env.ADMIN_PASSWORD) {
     let user = await User.findOne({ email });
     if (!user) {
@@ -35,9 +40,9 @@ export async function login(req: import('express').Request, res: import('express
       await user.save();
     }
 
-    const token = signToken(user);
+    const result = await authenticateUser(email, password, ip, userAgent);
     return res.json(success({
-      token,
+      ...result,
       user: {
         id: user._id,
         name: user.name,
@@ -51,29 +56,97 @@ export async function login(req: import('express').Request, res: import('express
   }
 
   // 2. Check DB user login
-  const user = await User.findOne({ email }).select('+password');
-  if (!user) {
-    return res.status(401).json(error('Invalid email or password'));
+  try {
+    const result = await authenticateUser(email, password, ip, userAgent);
+    return res.json(success({
+      ...result,
+      user: {
+        id: result.user._id,
+        name: result.user.name,
+        email: result.user.email,
+        role: result.user.role,
+        image: result.user.image,
+        isTrader: result.user.isTrader,
+        kycStatus: result.user.kycStatus,
+      },
+    }));
+  } catch (err: unknown) {
+    const appErr = err as { statusCode?: number; message?: string };
+    return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Authentication failed'));
+  }
+}
+
+// POST /api/auth/refresh
+export async function refresh(req: import('express').Request, res: import('express').Response) {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json(error('Refresh token is required'));
   }
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(401).json(error('Invalid email or password'));
-  }
+  try {
+    const ip = getClientIP(req);
+    const userAgent = req.headers['user-agent'] || '';
+    const result = await refreshUserToken(refreshToken, ip, userAgent);
 
-  const token = signToken(user);
-  return res.json(success({
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      image: user.image,
-      isTrader: user.isTrader,
-      kycStatus: user.kycStatus,
-    },
-  }));
+    return res.json(success({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: {
+        id: result.user._id,
+        name: result.user.name,
+        email: result.user.email,
+        role: result.user.role,
+        image: result.user.image,
+        isTrader: result.user.isTrader,
+        kycStatus: result.user.kycStatus,
+      },
+    }));
+  } catch (err: unknown) {
+    const appErr = err as { statusCode?: number; message?: string };
+    return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Token refresh failed'));
+  }
+}
+
+// POST /api/auth/logout
+export async function logout(req: import('express').Request, res: import('express').Response) {
+  const { refreshToken } = req.body;
+
+  try {
+    if (req.user?._id && refreshToken) {
+      await logoutUser(req.user._id.toString(), refreshToken);
+    }
+    return res.json(success({ message: 'Logged out successfully' }));
+  } catch {
+    return res.json(success({ message: 'Logged out successfully' }));
+  }
+}
+
+// POST /api/auth/logout-all
+export async function logoutAll(req: import('express').Request, res: import('express').Response) {
+  try {
+    if (req.user?._id) {
+      await logoutAllSessions(req.user._id.toString());
+    }
+    return res.json(success({ message: 'All sessions logged out' }));
+  } catch {
+    return res.json(success({ message: 'All sessions logged out' }));
+  }
+}
+
+// POST /api/auth/check-lock
+export async function checkLock(req: import('express').Request, res: import('express').Response) {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json(error('Email is required'));
+  }
+  try {
+    const { checkAccountLocked } = await import('@services/auth.service');
+    const locked = await checkAccountLocked(email);
+    return res.json(success({ locked }));
+  } catch {
+    return res.json(success({ locked: false }));
+  }
 }
 
 // POST /api/signup
@@ -91,7 +164,7 @@ export async function signup(req: import('express').Request, res: import('expres
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  // Capture IP and geolocation (same as original signup route)
+  // Capture IP and geolocation
   const ipAddress = getClientIP(req);
   let geo = { country: '', countryCode: '', countryFlag: '' };
   try {
@@ -177,9 +250,10 @@ export async function googleAuthWithCredential(req: import('express').Request, r
       await user.save();
     }
 
-    const token = signToken(user);
+    const { signTokenPair } = await import('@utils/jwt');
+    const tokens = signTokenPair(user);
     return res.json(success({
-      token,
+      ...tokens,
       user: {
         id: user._id,
         name: user.name,
@@ -191,6 +265,7 @@ export async function googleAuthWithCredential(req: import('express').Request, r
       },
     }));
   } catch (err) {
+    logger.error('Google auth failed', { error: err instanceof Error ? err.message : String(err) });
     return res.status(401).json(error('Google authentication failed'));
   }
 }
@@ -246,9 +321,11 @@ export async function googleCallback(req: import('express').Request, res: import
       await user.save();
     }
 
-    const token = signToken(user);
-    return res.redirect(`${env.CLIENT_URL}/?token=${token}`);
+    const { signTokenPair } = await import('@utils/jwt');
+    const tokens2 = signTokenPair(user);
+    return res.redirect(`${env.CLIENT_URL}/?token=${tokens2.accessToken}&refreshToken=${tokens2.refreshToken}`);
   } catch (err) {
+    logger.error('Google callback failed', { error: err instanceof Error ? err.message : String(err) });
     return res.status(401).json(error('Google authentication failed'));
   }
 }

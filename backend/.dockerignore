@@ -3,7 +3,7 @@ node_modules
 .pnp
 .pnp.js
 
-# Environment files
+# Environment files — injected at runtime by docker-compose / orchestrator
 .env
 .env.local
 .env.*.local
@@ -23,7 +23,8 @@ node_modules
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs (these should be volumes in production)
+logs/
 *.log
 npm-debug.log*
 
@@ -32,13 +33,22 @@ npm-debug.log*
 .tsbuildinfo
 .eslintcache
 
-# Docker
+# Docker build context
 Dockerfile
 .dockerignore
 docker-compose*.yml
 docker-compose*.yaml
 
-# Misc
+# Docs
 *.md
+README*
+
+# Tests
+__tests__
 coverage
 .nyc_output
+
+# Source maps are in dist — no need for raw src in production
+src/
+tsconfig.json
+.npmrc

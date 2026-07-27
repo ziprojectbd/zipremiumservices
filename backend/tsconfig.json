@@ -42,7 +42,10 @@
       "@utils/*": ["./src/utils/*"],
       "@config/*": ["./src/config/*"],
       "@types/*": ["./src/types/*"],
-      "@interfaces/*": ["./src/interfaces/*"]
+      "@interfaces/*": ["./src/interfaces/*"],
+      "@docs/*": ["./src/docs/*"],
+      "@jobs/*": ["./src/jobs/*"],
+      "@repositories/*": ["./src/repositories/*"]
     }
   },
   "include": ["src/**/*.ts"]

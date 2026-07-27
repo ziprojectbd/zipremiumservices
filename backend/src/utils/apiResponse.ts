@@ -1,19 +1,11 @@
-export interface ApiSuccessResponse<T = unknown> {
-  success: true;
-  data: T;
-  message?: unknown;
-}
+// Standardized API responses
 
-export interface ApiErrorResponse {
-  success: false;
-  error: string;
-  code?: string | number;
-}
-
-export interface PaginatedResponse<T = unknown> {
-  success: true;
-  data: T[];
-  pagination: {
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: Record<string, unknown>;
+  pagination?: {
     page: number;
     limit: number;
     total: number;
@@ -21,12 +13,14 @@ export interface PaginatedResponse<T = unknown> {
   };
 }
 
-export function success<T>(data: T, message?: unknown): ApiSuccessResponse<T> {
-  return { success: true as const, data, message };
+export function success<T>(data: T, message = 'Success'): ApiResponse<T> {
+  return { success: true, message, data };
 }
 
-export function error(message: string, code?: string | number): ApiErrorResponse {
-  return { success: false as const, error: message, code };
+export function error(message: string, code?: string | number): ApiResponse<never> {
+  const err: Record<string, unknown> = {};
+  if (code !== undefined) err.code = code;
+  return { success: false, message, error: err };
 }
 
 export function paginated<T>(
@@ -34,9 +28,10 @@ export function paginated<T>(
   total: number,
   page: number,
   limit: number,
-): PaginatedResponse<T> {
+): ApiResponse<T[]> {
   return {
-    success: true as const,
+    success: true,
+    message: 'Success',
     data,
     pagination: {
       page,
@@ -46,8 +41,3 @@ export function paginated<T>(
     },
   };
 }
-
-export type ApiResponse<T = unknown> =
-  | ApiSuccessResponse<T>
-  | ApiErrorResponse
-  | PaginatedResponse<T>;

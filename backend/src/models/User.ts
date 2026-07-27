@@ -1,5 +1,22 @@
 import mongoose from 'mongoose';
 
+export interface ILoginHistoryEntry {
+  ip: string;
+  device?: string;
+  userAgent?: string;
+  timestamp: Date;
+  success: boolean;
+  failureReason?: string;
+}
+
+export interface IRefreshTokenEntry {
+  token: string;
+  device?: string;
+  userAgent?: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 export interface IUser {
   _id: mongoose.Types.ObjectId;
   name: string;
@@ -14,7 +31,32 @@ export interface IUser {
   totalOrders?: number;
   createdAt: Date;
   updatedAt: Date;
+
+  // Security fields
+  loginAttempts: number;
+  lockUntil: Date | null;
+  refreshTokens: IRefreshTokenEntry[];
+  loginHistory: ILoginHistoryEntry[];
+  lastLogin: Date | null;
+  lastLoginIp: string;
 }
+
+const loginHistorySchema = new mongoose.Schema<ILoginHistoryEntry>({
+  ip: { type: String, required: true },
+  device: { type: String, default: '' },
+  userAgent: { type: String, default: '' },
+  timestamp: { type: Date, default: Date.now },
+  success: { type: Boolean, required: true },
+  failureReason: { type: String, default: '' },
+}, { _id: false });
+
+const refreshTokenSchema = new mongoose.Schema<IRefreshTokenEntry>({
+  token: { type: String, required: true },
+  device: { type: String, default: '' },
+  userAgent: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, required: true },
+}, { _id: false });
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -86,13 +128,56 @@ const userSchema = new mongoose.Schema({
     required: false,
     default: '',
   },
+  // Security fields
+  loginAttempts: {
+    type: Number,
+    default: 0,
+  },
+  lockUntil: {
+    type: Date,
+    default: null,
+  },
+  refreshTokens: {
+    type: [refreshTokenSchema],
+    default: [],
+  },
+  loginHistory: {
+    type: [loginHistorySchema],
+    default: [],
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+  },
+  lastLoginIp: {
+    type: String,
+    default: '',
+  },
 }, {
   timestamps: true,
 });
 
 userSchema.index({ role: 1 });
 userSchema.index({ kycStatus: 1 });
-// email already indexed via unique: true on the field
+userSchema.index({ status: 1 });
+userSchema.index({ 'refreshTokens.token': 1 });
+userSchema.index({ 'loginHistory.timestamp': 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }); // Auto-expire login history after 90 days
+
+// Virtual: check if account is locked
+userSchema.virtual('isLocked').get(function () {
+  return !!(this.lockUntil && this.lockUntil > new Date());
+});
+
+userSchema.set('toJSON', {
+  virtuals: true,
+  transform(_doc: unknown, ret: Record<string, unknown>) {
+    delete ret.refreshTokens;
+    delete ret.loginHistory;
+    delete ret.loginAttempts;
+    delete ret.lockUntil;
+    return ret;
+  },
+});
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 

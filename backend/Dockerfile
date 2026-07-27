@@ -1,6 +1,6 @@
 # ============================================
 # ZI Premium Services — Backend Dockerfile
-# Production-ready: Node.js 22 LTS (Alpine)
+# Multi-stage: Production-grade build
 # ============================================
 
 # ===== Build Stage =====
@@ -12,20 +12,27 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install all deps including dev for build step
-RUN npm install
+RUN npm ci
 
 # Copy source code
-COPY tsconfig.json ./
+COPY tsconfig.json .npmrc ./
 COPY src ./src
 
 # Build (TypeScript → JS, then rewrite path aliases)
 RUN npm run build
 
+# Prune dev dependencies (keep only production)
+RUN npm prune --omit=dev
+
 # ===== Production Stage =====
 FROM node:22-alpine AS runner
 
 # Security: proper init system + timezone support
-RUN apk add --no-cache dumb-init tzdata
+RUN apk add --no-cache dumb-init tzdata curl
+
+# Set timezone (configurable via build arg)
+ARG TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
@@ -33,13 +40,15 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 --ingroup nodejs nodeuser
 
-# Copy production dependencies only
-COPY package.json package-lock.json ./
-RUN npm install --omit=dev --ignore-scripts && \
-    npm cache clean --force
+# Copy production dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
 
 # Copy built output from builder
 COPY --from=builder /app/dist ./dist
+
+# Create log directory with correct permissions
+RUN mkdir -p /app/logs && chown -R nodeuser:nodejs /app/logs
 
 # Expose port
 EXPOSE 5000
@@ -48,9 +57,9 @@ EXPOSE 5000
 USER nodeuser
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 -O /dev/null http://localhost:5000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f --max-time 3 http://localhost:5000/health/live || exit 1
 
-# Use dumb-init for signal handling + module-alias for runtime alias resolution
+# Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "-r", "module-alias/register", "dist/server.js"]
