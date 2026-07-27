@@ -65,6 +65,8 @@ services:
       - coolify
     ports:
       - "80:80"
+    expose:
+      - "80"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(\`zipremiumservices.com\`) || Host(\`www.zipremiumservices.com\`)"
