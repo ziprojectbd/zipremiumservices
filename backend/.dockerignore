@@ -48,7 +48,6 @@ __tests__
 coverage
 .nyc_output
 
-# Source maps are in dist — no need for raw src in production
-src/
-tsconfig.json
-.npmrc
+# NOTE: src/, tsconfig.json, .npmrc are NOT excluded here
+# because the multi-stage Dockerfile needs them for the build stage.
+# Only the final runner stage copies dist/ (not src/).
