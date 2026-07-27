@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install all deps including dev for build step
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY tsconfig.json .npmrc ./
