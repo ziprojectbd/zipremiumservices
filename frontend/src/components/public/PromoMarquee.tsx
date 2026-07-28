@@ -1,9 +1,9 @@
 import React from "react";
-import { useRealtimePromoMarquee } from "../../hooks/useRealtimeData";
+import { useAppSettings } from "../../store/AppSettingsContext";
 
 const PromoMarquee = () => {
-    const { data, loading } = useRealtimePromoMarquee({ autoRefresh: true, pollInterval: 3000 });
-
+    const { settings, loading } = useAppSettings();
+    const data = settings.promoMarquee as { enabled?: boolean; message?: string } | null;
     const promoMarqueeEnabled = data?.enabled ?? true;
     const customMessage = data?.message || '';
 

@@ -3,6 +3,7 @@ import Header from '../public/Header';
 import Footer from '../public/Footer';
 import CartView from '../public/Cart';
 import EnhancedAlert from '../public/EnhancedAlert';
+import MaintenanceBar from '../public/MaintenanceBar';
 import { useShopContext } from '../../store/ShopContext';
 
 export default function RootLayout() {
@@ -27,6 +28,7 @@ export default function RootLayout() {
 
   return (
     <>
+      <MaintenanceBar />
       <Header />
       <main className="min-h-screen">
         <Outlet />

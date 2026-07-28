@@ -66,6 +66,10 @@ export interface EnvConfig {
 
   // Request Timeout
   REQUEST_TIMEOUT_MS: number;
+
+  // Maintenance Mode
+  MAINTENANCE_MODE: boolean;
+  MAINTENANCE_MESSAGE: string;
 }
 
 const env: EnvConfig = {
@@ -104,9 +108,9 @@ const env: EnvConfig = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
 
   // Rate Limiting
-  RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-  AUTH_RATE_LIMIT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '10', 10),
+  RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX || '60', 10),
+  AUTH_RATE_LIMIT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '15', 10),
 
   // Account Lockout
   MAX_LOGIN_ATTEMPTS: parseInt(process.env.MAX_LOGIN_ATTEMPTS || '5', 10),
@@ -123,6 +127,10 @@ const env: EnvConfig = {
 
   // Request Timeout
   REQUEST_TIMEOUT_MS: parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10),
+
+  // Maintenance Mode
+  MAINTENANCE_MODE: process.env.MAINTENANCE_MODE === 'true',
+  MAINTENANCE_MESSAGE: process.env.MAINTENANCE_MESSAGE || '🚧 We are currently under maintenance. Please check back soon.',
 };
 
 // Validate critical env vars

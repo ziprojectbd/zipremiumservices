@@ -16,7 +16,8 @@
     "@interfaces": "dist/interfaces",
     "@docs": "dist/docs",
     "@jobs": "dist/jobs",
-    "@repositories": "dist/repositories"
+    "@repositories": "dist/repositories",
+    "@socket": "dist/socket"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

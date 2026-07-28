@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Send } from 'lucide-react';
-import { useRealtimeFooter } from '../../hooks/useRealtimeData';
+import { useAppSettings } from '../../store/AppSettingsContext';
 
 interface FooterLink {
   name: string;
@@ -17,10 +17,9 @@ interface FooterSection {
 }
 
 export default function Footer() {
-  const { data: footerResponse, loading } = useRealtimeFooter({ autoRefresh: true, pollInterval: 5000 });
-  const footerData = footerResponse?.data || footerResponse;
-
-  const footerSections = footerData?.sections || [];
+  const { settings, loading } = useAppSettings();
+  const footerData = settings.footer;
+  const footerSections = (footerData as any)?.sections || [];
   const year = new Date().getFullYear();
 
   if (loading) {

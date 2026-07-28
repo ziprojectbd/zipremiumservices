@@ -4,9 +4,13 @@
   "version": "0.0.0",
   "description": "Root project container for frontend (Vite+React) and backend (Express)",
   "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,yellow \"cd frontend && npm run dev\" \"cd backend && npm run dev\"",
     "frontend:dev": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build",
     "backend:dev": "cd backend && npm run dev",
     "backend:build": "cd backend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }

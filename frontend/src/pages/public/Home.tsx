@@ -58,7 +58,7 @@ import CaptchaSolvesApiCards from "../../components/public/CaptchaSolvesApiCards
 import HeroSection from "../../components/public/HeroSection";
 import LiveOrderTicker from "../../components/public/LiveOrderTicker";
 import MarketplaceHeroBanner from "../../components/public/MarketplaceHeroBanner";
-import { useRealtimeMaintenance, useRealtimeSideSlider } from "../../hooks/useRealtimeData";
+import { useAppSettings } from "../../store/AppSettingsContext";
 import { useShopContext } from "../../store/ShopContext";
 
 import { devLog } from "../../utils/devLogger";
@@ -78,9 +78,10 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { settings: appSettings } = useAppSettings();
 
-  // Side slider settings from database (realtime via polling)
-  const { data: sideSliderSettings } = useRealtimeSideSlider({ autoRefresh: true, pollInterval: 5000 });
+  // Side slider settings from central AppSettingsContext (fetched every 60s)
+  const sideSliderSettings = appSettings.sideSlider as any;
 
   // Recent orders — fetched live from API every 30 seconds
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -106,11 +107,10 @@ export default function Home() {
   // Live orders for display: live API data first, fallback to static side slider data
   const liveOrders = (recentOrders.length > 0 ? recentOrders : (sideSliderSettings?.liveActivity?.orders || [])).slice(0, 10);
 
-  // Maintenance settings — realtime via polling
-  const { data: maintenanceData } = useRealtimeMaintenance({ autoRefresh: true, pollInterval: 3000 });
-  const maintenanceSettings = maintenanceData || {
+  // Maintenance from App.tsx (WebSocket-driven, no polling needed here)
+  const maintenanceSettings = {
     enabled: false,
-    type: 'marquee',
+    type: 'marquee' as const,
     message: ''
   };
 

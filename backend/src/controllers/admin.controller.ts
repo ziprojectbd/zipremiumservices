@@ -13,6 +13,8 @@ import PopupManagement from '@models/PopupManagement';
 import connectDB from '@db/connect';
 import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
+import { bustMaintenanceCache } from '@middlewares/maintenance';
+import { emitMaintenanceUpdate } from '@socket/index.js';
 
 // ---------------------------------------------------------------------------
 // Products
@@ -684,6 +686,20 @@ export const updateMaintenanceSettings = asyncHandler(async (req, res) => {
     { $set: { ...req.body, updatedAt: new Date() } },
     { new: true, upsert: true }
   );
+
+  // Bust middleware cache so change takes effect immediately
+  bustMaintenanceCache();
+
+  // Broadcast to all connected clients via WebSocket
+  try {
+    emitMaintenanceUpdate({
+      enabled: settings.enabled,
+      type: settings.type as 'marquee' | 'fullscreen',
+      message: settings.message || '',
+    });
+  } catch {
+    // Socket not initialized yet, non-blocking
+  }
 
   return res.json(success(settings, 'Maintenance settings updated'));
 });

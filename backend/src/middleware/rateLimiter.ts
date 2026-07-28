@@ -21,23 +21,23 @@ export const globalRateLimit = rateLimit({
 });
 
 export const strict = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
+  windowMs: 60 * 1000,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false as const, error: 'Too many requests, please try again later' },
 });
 
 export const standard = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 60 * 1000,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false as const, error: 'Too many requests, please try again later' },
 });
 
 export const auth = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 60 * 1000,
   max: env.AUTH_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
@@ -45,8 +45,8 @@ export const auth = rateLimit({
 });
 
 export const lenient = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: 60 * 1000,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false as const, error: 'Too many requests, please try again later' },

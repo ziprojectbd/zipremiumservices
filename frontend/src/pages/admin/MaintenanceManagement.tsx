@@ -25,7 +25,7 @@ export default function MaintenanceManagement() {
 
   const fetchMaintenanceSettings = async () => {
     try {
-      const res = await api.get(`/maintenance?t=${Date.now()}`);
+      const res = await api.get(`/public/maintenance?t=${Date.now()}`);
       if (res.data.success) {
         setMaintenanceMode(res.data.data.enabled);
         setMaintenanceType(res.data.data.type || 'marquee');
@@ -59,7 +59,7 @@ export default function MaintenanceManagement() {
 
   const updateMaintenanceSettings = async (enabled: boolean, message: string, type: 'marquee' | 'fullscreen') => {
     try {
-      const res = await api.post('/admin/maintenance', { enabled, message, type });
+      const res = await api.put('/admin/settings/maintenance', { enabled, message, type });
       if (res.data.success) {
         setMaintenanceMode(enabled);
         setMaintenanceType(res.data.data.type);

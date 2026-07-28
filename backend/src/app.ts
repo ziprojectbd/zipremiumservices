@@ -13,6 +13,8 @@ import { requestIdMiddleware, responseTimeMiddleware } from '@middlewares/reques
 import { globalRateLimit, globalSlowDown } from '@middlewares/rateLimiter';
 import { sanitize, xssClean } from '@middlewares/sanitizer';
 import { requestTimeout } from '@middlewares/timeout';
+import { maintenanceMode } from '@middlewares/maintenance';
+import publicRoutes from '@routes/public.routes';
 import { metricsMiddleware, getMetrics } from '@middlewares/metrics';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from '@docs/swagger';
@@ -96,7 +98,10 @@ app.use(globalRateLimit);
 // 11. Request timeout
 app.use(requestTimeout);
 
-// 12. Prometheus metrics
+// 12. Maintenance Mode (must be after metrics, before routes)
+app.use(maintenanceMode);
+
+// 13. Prometheus metrics
 app.use(metricsMiddleware);
 
 // =========================================================================

@@ -5,8 +5,10 @@ import logger, { logCriticalError } from '@config/logger';
 import { validateEnv } from '@config/env';
 import { closeRedis } from '@config/redis';
 import mongoose from 'mongoose';
+import { initSocketIO } from '@socket/index.js';
+import http from 'http';
 
-let server: ReturnType<typeof app.listen> | null = null;
+let server: http.Server | null = null;
 
 async function start(): Promise<void> {
   try {
@@ -19,12 +21,16 @@ async function start(): Promise<void> {
     logger.info('MongoDB connected');
 
     // Start server
-    server = app.listen(env.PORT, () => {
+    server = http.createServer(app).listen(env.PORT, () => {
       logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
       logger.info(`Health check: http://localhost:${env.PORT}/health`);
       logger.info(`API Docs: http://localhost:${env.PORT}/api-docs`);
       logger.info(`Metrics: http://localhost:${env.PORT}/metrics`);
     });
+
+    // Initialize Socket.IO
+    initSocketIO(server);
+    logger.info('Socket.IO initialized');
 
     // Handle server errors
     server.on('error', (error: NodeJS.ErrnoException) => {

@@ -45,7 +45,8 @@
       "@interfaces/*": ["./src/interfaces/*"],
       "@docs/*": ["./src/docs/*"],
       "@jobs/*": ["./src/jobs/*"],
-      "@repositories/*": ["./src/repositories/*"]
+      "@repositories/*": ["./src/repositories/*"],
+      "@socket/*": ["./src/socket/*"]
     }
   },
   "include": ["src/**/*.ts"]

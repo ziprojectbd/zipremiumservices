@@ -364,12 +364,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         };
         fetchPaymentSettingsRef.current = fetchPaymentSettings;
         fetchPaymentSettings();
-        const interval = setInterval(fetchPaymentSettings, 5000);
-        const onFocus = () => fetchPaymentSettings();
-        window.addEventListener('focus', onFocus);
+        // Poll every 60s instead of 5s (reduced from 12→1 req/min)
+        const interval = setInterval(fetchPaymentSettings, 60_000);
         return () => {
             clearInterval(interval);
-            window.removeEventListener('focus', onFocus);
         };
     }, []);
 
