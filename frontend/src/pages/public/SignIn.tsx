@@ -270,7 +270,7 @@ export default function UserSignInPage() {
                             setUserImage(userData.data.image || '');
                           }
                         } catch (error) {
-                          devLog('Failed to fetch user data:', error);
+                            devLog('Failed to fetch user data:', error);
                         }
                         navigate('/');
                       } else {
@@ -296,7 +296,7 @@ export default function UserSignInPage() {
                   size="large"
                   text="continue_with"
                   shape="rectangular"
-                  width="100%"
+                  width="400"
                 />
               </div>
 

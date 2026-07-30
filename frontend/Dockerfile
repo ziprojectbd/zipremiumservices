@@ -6,6 +6,9 @@
 # ===== Build Stage =====
 FROM node:22-alpine AS builder
 
+ARG VITE_API_URL=""
+ARG VITE_GOOGLE_CLIENT_ID=""
+
 WORKDIR /app
 
 # Copy package files
@@ -17,8 +20,10 @@ RUN npm install
 # Copy source
 COPY . .
 
-# Build Vite app
-RUN npm run build
+# Build Vite app (VITE_ prefixed env vars are baked into the static bundle)
+RUN VITE_API_URL="$VITE_API_URL" \
+    VITE_GOOGLE_CLIENT_ID="$VITE_GOOGLE_CLIENT_ID" \
+    npm run build
 
 # ===== Production Stage =====
 FROM nginx:1.27-alpine

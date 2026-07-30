@@ -1,7 +1,6 @@
 import { BrowserRouter } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ShopProvider } from './store/ShopContext';
 import { AppSettingsProvider } from './store/AppSettingsContext';
 import AppRoutes from './routes';
@@ -11,32 +10,13 @@ import maintenanceStore from './store/maintenanceStore';
 import { subscribeMaintenance } from './lib/socket';
 import api from './lib/axios';
 
-// Helper: decode JWT payload (handles base64url → JSON)
-function decodeJWT(token: string): Record<string, unknown> | null {
-  try {
-    // JWT uses base64url (no padding, - → +, _ → /)
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
-  } catch {
-    return null;
-  }
-}
-
-// Helper: check if the current user has admin role from stored token
-function isAdminUser(): boolean {
-  if (typeof window === 'undefined') return false;
-  const token = localStorage.getItem('token');
-  if (!token) return false;
-  const payload = decodeJWT(token);
-  return payload?.role === 'admin';
-}
-
-export default function App() {
+function AppContent() {
   const [maintenance, setMaintenance] = useState(() => ({
     active: maintenanceStore.isUnderMaintenance,
     message: maintenanceStore.maintenanceMessage,
   }));
   const [initialCheckDone, setInitialCheckDone] = useState(false);
+  const { isAdmin, loading: authLoading } = useAuth();
 
   useEffect(() => {
     // On mount: sync with actual backend state (so store doesn't get stuck)
@@ -45,7 +25,7 @@ export default function App() {
       .then((res) => {
         const data = res.data?.data || res.data;
         if (data?.enabled && data?.type === 'fullscreen') {
-          if (!isAdminUser()) {
+          if (!isAdmin) {
             maintenanceStore.setMaintenance(data.message || '');
           } else {
             maintenanceStore.clearMaintenance();
@@ -71,7 +51,7 @@ export default function App() {
     const unsubSocket = subscribeMaintenance((data) => {
       // Don't block admin users during fullscreen maintenance
       if (data.enabled && data.type === 'fullscreen') {
-        if (!isAdminUser()) {
+        if (!isAdmin) {
           maintenanceStore.setMaintenance(data.message);
         }
       } else if (!data.enabled) {
@@ -83,7 +63,7 @@ export default function App() {
       unsub();
       unsubSocket();
     };
-  }, []);
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Always allow login routes and admin users during maintenance
   const isAuthRoute =
@@ -92,29 +72,36 @@ export default function App() {
       window.location.pathname.startsWith('/sign-in') ||
       window.location.pathname.startsWith('/sign-up'));
 
-  const isAdmin = isAdminUser();
-  const showFullApp = !maintenance.active || isAuthRoute || isAdmin;
+  // Wait for auth to finish loading before deciding about maintenance
+  const showFullApp = authLoading || !maintenance.active || isAuthRoute || isAdmin;
 
-  const googleClientId = typeof window !== 'undefined'
-    ? import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-    : '';
+  // While auth is loading and we have no maintenance state yet, render nothing (avoid flash)
+  if (authLoading && !initialCheckDone && maintenance.active) {
+    return null;
+  }
 
   return (
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        {showFullApp ? (
-          <AuthProvider>
-            <AppSettingsProvider>
-              <ShopProvider>
-                <ScrollToTop />
-                <AppRoutes />
-              </ShopProvider>
-            </AppSettingsProvider>
-          </AuthProvider>
-        ) : (
-          <MaintenancePage message={maintenance.message} />
-        )}
-      </BrowserRouter>
-    </GoogleOAuthProvider>
+    <>
+      {showFullApp ? (
+        <AppSettingsProvider>
+          <ShopProvider>
+            <ScrollToTop />
+            <AppRoutes />
+          </ShopProvider>
+        </AppSettingsProvider>
+      ) : (
+        <MaintenancePage message={maintenance.message} />
+      )}
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

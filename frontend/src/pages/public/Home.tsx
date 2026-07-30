@@ -588,7 +588,10 @@ export default function Home() {
 
   // Preload product images
   React.useEffect(() => {
-    if (apiProducts.length === 0) return;
+    if (apiProducts.length === 0) {
+      setImagesLoaded(true);
+      return;
+    }
 
     const preloadProductImages = async () => {
       try {

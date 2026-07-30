@@ -5,12 +5,22 @@ let io: Server | null = null;
 
 export function initSocketIO(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
+    path: '/socket.io',
     cors: {
-      origin: '*',
+      origin: [
+        'https://zipremiumservices.com',
+        'https://www.zipremiumservices.com',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+      ],
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     pingInterval: 25000,
     pingTimeout: 20000,
+    transports: ['websocket', 'polling'],
   });
 
   io.on('connection', (socket: Socket) => {

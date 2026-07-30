@@ -13,7 +13,11 @@ const listeners = new Set<MaintenanceListener>();
 export function getSocket(): Socket {
   if (!socket) {
     const url = import.meta.env.VITE_API_URL || '';
-    socket = io(url, {
+    // Strip /api suffix so socket connects to server root with default namespace.
+    // Socket.IO interprets URL pathname as namespace, and the server has no /api namespace.
+    // When VITE_API_URL is empty (production), undefined = same origin (current page host).
+    const baseUrl = url ? url.replace(/\/api\/?$/, '') : undefined;
+    socket = io(baseUrl, {
       autoConnect: true,
       transports: ['websocket', 'polling'],
     });

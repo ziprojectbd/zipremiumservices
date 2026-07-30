@@ -41,6 +41,12 @@ async function getMaintenanceSettings(): Promise<IMaintenanceCache> {
 }
 
 function isAdminRequest(req: Request): boolean {
+  // If authenticate middleware already ran, use the verified user object
+  if (req.user) {
+    return req.user.role === 'admin';
+  }
+
+  // Fallback: verify JWT directly (app-level middleware runs before authenticate)
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
@@ -56,11 +62,12 @@ function isAdminRequest(req: Request): boolean {
 export async function maintenanceMode(req: Request, res: Response, next: NextFunction): Promise<void> {
   const path = req.path;
 
-  // Always allow: health, metrics, docs, auth/login/signup, public maintenance endpoint
+  // Always allow: health, metrics, docs, socket.io, auth/login/signup, public maintenance endpoint
   if (
     path.startsWith('/health') ||
     path === '/metrics' ||
     path.startsWith('/api-docs') ||
+    path.startsWith('/socket.io') ||
     path.startsWith('/api/auth') ||
     path === '/api/signup' ||
     path.includes('/public/maintenance') ||
@@ -99,6 +106,33 @@ export async function maintenanceMode(req: Request, res: Response, next: NextFun
   res.setHeader('X-Maintenance-Message', encodeURIComponent(settings.message || ''));
 
   next();
+}
+
+// Apply this middleware AFTER authenticate on route-level admin checks
+// For app-level maintenance, isAdminRequest falls back to JWT verification.
+// Once authenticate has run, req.user.role is used instead.
+export function maintenanceGuard(req: Request, res: Response, next: NextFunction): void {
+  void (async () => {
+    try {
+      const settings = await getMaintenanceSettings();
+      if (settings.enabled && settings.type === 'fullscreen') {
+        if (req.user?.role !== 'admin') {
+          res.status(503).json({
+            success: false,
+            message: settings.message || env.MAINTENANCE_MESSAGE,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              details: 'The application is currently under maintenance. Please try again later.',
+            },
+          });
+          return;
+        }
+      }
+      next();
+    } catch {
+      next();
+    }
+  })();
 }
 
 // Call after admin updates maintenance settings
