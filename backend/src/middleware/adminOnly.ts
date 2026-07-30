@@ -11,4 +11,4 @@ export function adminOnly(
     return;
   }
   next();
-}
+};
