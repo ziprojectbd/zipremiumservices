@@ -4,6 +4,7 @@ import api from "../lib/axios";
 import { devLog } from "../utils/devLogger";
 import { roundCurrency } from "../utils/formatPrice";
 import { useAuth } from "../context/AuthContext";
+import { useAppSettings } from "../store/AppSettingsContext";
 
 interface ShopContextType {
     cart: CartItem[];
@@ -130,6 +131,17 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     });
     const [showSurprisePopup, setShowSurprisePopup] = useState(false);
     const [paymentSettings, setPaymentSettings] = useState<any>(null);
+    const { settings: appSettings } = useAppSettings();
+
+    // Sync paymentSettings from AppSettingsContext (single source of truth)
+    useEffect(() => {
+        if (appSettings.paymentSettings && appSettings.paymentSettings !== paymentSettings) {
+            setPaymentSettings(appSettings.paymentSettings);
+            if ((appSettings.paymentSettings as any)?.exchangeRate) {
+                setExchangeRate((appSettings.paymentSettings as any).exchangeRate);
+            }
+        }
+    }, [appSettings.paymentSettings]);
     const [exchangeRate, setExchangeRate] = useState(110);
     const [couponCode, setCouponCode] = useState('');
     const [discountAmount, setDiscountAmount] = useState(0);
@@ -349,26 +361,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
     const showAlert = useCallback((type: 'success' | 'error' | 'warning' | 'info', title: string, message: string, onConfirm?: () => void) => {
         setAlertConfig({ isOpen: true, type, title, message, onConfirm });
-    }, []);
-
-    const fetchPaymentSettingsRef = useRef<() => void>(() => {});
-    useEffect(() => {
-        const fetchPaymentSettings = async () => {
-            try {
-                const res = await api.get('/public/payment-settings');
-                if (res.data.success) {
-                    setPaymentSettings(res.data.data);
-                    if (res.data.data?.exchangeRate) setExchangeRate(res.data.data.exchangeRate);
-                }
-            } catch (error) { devLog('Error fetching payment settings:', error); }
-        };
-        fetchPaymentSettingsRef.current = fetchPaymentSettings;
-        fetchPaymentSettings();
-        // Poll every 60s instead of 5s (reduced from 12→1 req/min)
-        const interval = setInterval(fetchPaymentSettings, 60_000);
-        return () => {
-            clearInterval(interval);
-        };
     }, []);
 
     const cartLoadedRef = useRef(false);

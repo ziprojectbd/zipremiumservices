@@ -22,38 +22,15 @@ export default function LoadingScreen({
   onFinish?: () => void;
   canFinish?: boolean;
 }) {
-  const [progress, setProgress] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    const start = Date.now();
-    const MIN_DURATION = 500;
-    let frame: number;
-    let done = false;
-
-    const tick = () => {
-      if (done) return;
-      const elapsed = Date.now() - start;
-      const cap = canFinish ? 100 : 95;
-      const pct = Math.min(cap, (elapsed / MIN_DURATION) * 100);
-      setProgress(pct);
-
-      if (!canFinish || pct < 100) {
-        frame = requestAnimationFrame(tick);
-      } else {
-        done = true;
-        setTimeout(() => {
-          setFadeOut(true);
-          setTimeout(() => onFinish?.(), 400);
-        }, 200);
-      }
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => {
-      done = true;
-      cancelAnimationFrame(frame);
-    };
+    if (!canFinish) return;
+    const timer = setTimeout(() => {
+      setFadeOut(true);
+      setTimeout(() => onFinish?.(), 400);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [onFinish, canFinish]);
 
   return (
@@ -161,23 +138,6 @@ export default function LoadingScreen({
             >
               ZI PREMIUM SERVICES
             </h1>
-          </div>
-
-          <div style={{ width: "min(260px, 75vw)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div style={{ width: "100%", height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 9999, overflow: "hidden" }}>
-              <div
-                style={{
-                  height: "100%",
-                  borderRadius: 9999,
-                  width: `${progress}%`,
-                  background: "linear-gradient(90deg, #fb923c, #ec4899, #8b5cf6)",
-                  transition: "width 50ms linear",
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 11, fontFamily: "monospace", color: "rgba(196,181,253,0.4)" }}>
-              {Math.round(progress)}%
-            </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -66,12 +66,12 @@ export default function CategoryFilterBar({ selectedCategory, router, containerC
                 onClick={() => router(slug === "all" ? "/" : `/${slug}`)}
                 className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-sm transition-all duration-200 border whitespace-nowrap ${
                   isActive
-                    ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg border-white/20 scale-105`
-                    : "bg-white/10 text-white/70 hover:text-white hover:bg-white/20 border-white/10"
+                    ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg shadow-purple-500/20 border-white/20 scale-105`
+                    : "bg-white/10 text-white/70 hover:text-white hover:bg-white/20 hover:shadow-lg hover:shadow-purple-500/10 border-white/10 hover:border-white/30"
                 }`}
               >
-                <span className="text-base">{category.icon}</span>
-                <span className="text-xs font-semibold tracking-tight">{category.name}</span>
+                <span className={`text-base ${isActive ? 'text-white' : 'text-white/70'}`}>{category.icon}</span>
+                <span className={`text-xs font-semibold tracking-tight ${isActive ? 'text-white' : 'text-white/70'}`}>{category.name}</span>
               </button>
             );
           })}
