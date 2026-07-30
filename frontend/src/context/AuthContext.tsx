@@ -42,6 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.history.replaceState({}, '', window.location.pathname);
       localStorage.setItem('token', urlToken);
       setToken(urlToken);
+      // Also store refreshToken from URL if present
+      const urlRefreshToken = params.get('refreshToken');
+      if (urlRefreshToken) {
+        localStorage.setItem('refreshToken', urlRefreshToken);
+      }
       // Fetch user info in background
       api.get('/auth/user').then((res) => {
         if (res.data.success) {
@@ -51,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => {
         // token invalid, clean up
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         setToken(null);
       });
       setLoading(false);
@@ -84,10 +90,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.post('/auth/login', { email, password });
       if (res.data.success) {
-        const { token: newToken, user: userData } = res.data.data;
-        setToken(newToken);
+        const { accessToken, refreshToken, user: userData } = res.data.data;
+        setToken(accessToken);
         setUser(userData);
-        localStorage.setItem('token', newToken);
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('refreshToken', refreshToken || '');
         localStorage.setItem('user', JSON.stringify(userData));
         return { success: true, user: userData };
       }
@@ -113,10 +120,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.post('/auth/google', { credential });
       if (res.data.success) {
-        const { token: newToken, user: userData } = res.data.data;
-        setToken(newToken);
+        const { accessToken, refreshToken, user: userData } = res.data.data;
+        setToken(accessToken);
         setUser(userData);
-        localStorage.setItem('token', newToken);
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('refreshToken', refreshToken || '');
         localStorage.setItem('user', JSON.stringify(userData));
         return { success: true, user: userData };
       }
@@ -130,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
   }, []);
 
