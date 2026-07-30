@@ -66,7 +66,7 @@ export default function Settings() {
 
   const fetchMaintenanceSettings = async () => {
     try {
-      const res = await api.get('/admin/maintenance');
+      const res = await api.get('/admin/settings/maintenance');
       if (res.data.success) {
         setMaintenanceMode(res.data.data.enabled);
         setMaintenanceType(res.data.data.type || 'marquee');
@@ -81,7 +81,7 @@ export default function Settings() {
 
   const fetchPromoMarqueeSettings = async () => {
     try {
-      const res = await api.get('/admin/promo-marquee');
+      const res = await api.get('/admin/settings/promo-marquee');
       if (res.data.success) {
         setPromoMarqueeEnabled(res.data.data.enabled);
         setPromoMarqueeMessage(res.data.data.message || '');
@@ -109,7 +109,7 @@ export default function Settings() {
 
   const updateMaintenanceSettings = async (enabled: boolean, message: string, type: string) => {
     try {
-      const res = await api.post('/admin/maintenance', { enabled, message, type });
+      const res = await api.put('/admin/settings/maintenance', { enabled, message, type });
       if (res.data.success) {
         setMaintenanceMode(enabled);
         setMaintenanceType(res.data.data.type);
@@ -136,7 +136,7 @@ export default function Settings() {
 
   const updatePromoMarqueeSettings = async (enabled: boolean, message: string) => {
     try {
-      const res = await api.post('/admin/promo-marquee', { enabled, message });
+      const res = await api.put('/admin/settings/promo-marquee', { enabled, message });
       if (res.data.success) {
         setPromoMarqueeEnabled(enabled);
         setSaved(true);

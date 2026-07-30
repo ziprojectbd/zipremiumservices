@@ -246,7 +246,7 @@ export default function Checkout() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white">
-            Checkout
+            Confirm Your Order
           </h2>
           <p className="text-gray-400">
             Complete your purchase securely

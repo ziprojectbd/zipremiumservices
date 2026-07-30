@@ -55,6 +55,14 @@ export default function AdminShell() {
 
   return (
     <div className="min-h-screen bg-slate-950">
+      {/* Mobile backdrop overlay — closes sidebar on tap outside */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}

@@ -44,20 +44,35 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [footerRes, promoRes, sliderRes, paymentRes] = await Promise.all([
-        api.get('/public/footer').catch(() => null),
-        api.get('/public/promo-marquee').catch(() => null),
-        api.get('/public/side-slider').catch(() => null),
-        api.get('/public/payment-settings').catch(() => null),
-      ]);
+      // Use combined settings endpoint (single request instead of 4+)
+      const res = await api.get('/public/settings').catch(() => null);
+      if (!res?.data?.success) {
+        // Fallback to individual calls if combined endpoint fails
+        const [footerRes, promoRes, sliderRes, paymentRes] = await Promise.all([
+          api.get('/public/footer').catch(() => null),
+          api.get('/public/promo-marquee').catch(() => null),
+          api.get('/public/side-slider').catch(() => null),
+          api.get('/public/payment-settings').catch(() => null),
+        ]);
+
+        if (!mountedRef.current) return;
+        setSettings({
+          footer: footerRes?.data?.data || footerRes?.data || null,
+          promoMarquee: promoRes?.data?.data || promoRes?.data || null,
+          sideSlider: sliderRes?.data?.data || sliderRes?.data || null,
+          paymentSettings: paymentRes?.data?.data || paymentRes?.data || null,
+          maintenance: null,
+        });
+        return;
+      }
 
       if (!mountedRef.current) return;
-
+      const data = res.data.data;
       setSettings({
-        footer: footerRes?.data?.data || footerRes?.data || null,
-        promoMarquee: promoRes?.data?.data || promoRes?.data || null,
-        sideSlider: sliderRes?.data?.data || sliderRes?.data || null,
-        paymentSettings: paymentRes?.data?.data || paymentRes?.data || null,
+        footer: data.footer || null,
+        promoMarquee: data.promoMarquee || null,
+        sideSlider: data.sideSlider || null,
+        paymentSettings: data.paymentSettings || null,
         maintenance: null, // handled separately in App.tsx
       });
     } catch (e) {

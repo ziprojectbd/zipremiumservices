@@ -107,7 +107,7 @@ export default function PaymentMethod({
           {showCryptoOnly ? 'Pay with Mobile' : 'Pay with Crypto'}
         </button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4">
         {enabledMethods.map((method) => {
           const colors = methodColors[method.id] || methodColors[method.id === 'paycrypto' ? 'paycrypto' : 'bkash'];
           const isSelected = paymentMethod === method.id;

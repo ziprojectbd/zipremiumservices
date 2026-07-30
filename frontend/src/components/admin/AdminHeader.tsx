@@ -43,7 +43,7 @@ export default function AdminHeader({ setSidebarOpen, activeTab, onLogout }: Hea
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-gray-400 hover:text-white p-2.5 hover:bg-white/10 rounded-xl transition-all border border-white/10 hover:border-blue-500/30"
+            className="lg:hidden text-white p-2.5 hover:bg-white/10 rounded-xl transition-all border border-white hover:border-blue-500/30"
           >
             <Menu className="w-6 h-6" />
           </button>
@@ -94,7 +94,7 @@ export default function AdminHeader({ setSidebarOpen, activeTab, onLogout }: Hea
 
             {/* Profile Dropdown Menu */}
             {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-56 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:w-auto max-sm:top-16 max-sm:z-50">
                 <div className="p-4 border-b border-white/10">
                   <p className="text-sm font-medium text-white">
                     {user?.name || user?.username || 'Admin User'}
@@ -109,20 +109,20 @@ export default function AdminHeader({ setSidebarOpen, activeTab, onLogout }: Hea
                       setShowProfileMenu(false);
                       navigate('/');
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 rounded-lg transition-all"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-white hover:text-white/80 hover:bg-white/5 rounded-xl transition-all font-bold"
                   >
                     <Home className="w-4 h-4" />
-                    <span className="text-sm font-medium">Back to Website</span>
+                    <span className="text-sm font-bold">Back to Website</span>
                   </button>
                   <button
                     onClick={() => {
                       setShowProfileMenu(false);
                       onLogout?.();
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-all"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all font-bold"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span className="text-sm font-medium">Logout</span>
+                    <span className="text-sm font-bold">Logout</span>
                   </button>
                 </div>
               </div>

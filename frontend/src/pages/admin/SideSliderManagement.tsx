@@ -55,7 +55,7 @@ export default function SideSliderManagement() {
 
   const fetchSettings = async () => {
     try {
-      const res = await api.get(`/admin/side-slider?t=${Date.now()}`);
+      const res = await api.get(`/admin/settings/side-slider?t=${Date.now()}`);
       if (res.data.success) {
         setSettings(res.data.data);
       }
@@ -69,7 +69,7 @@ export default function SideSliderManagement() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await api.post('/admin/side-slider', settings);
+      const res = await api.put('/admin/settings/side-slider', settings);
       if (res.data.success) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -147,7 +147,7 @@ export default function SideSliderManagement() {
             ),
           });
 
-      const res = await api.post('/admin/side-slider', newSettings);
+      const res = await api.put('/admin/settings/side-slider', newSettings);
       if (res.data.success) {
         await fetchSettings();
       }
@@ -170,7 +170,7 @@ export default function SideSliderManagement() {
       const newNavigation = settings.navigation.filter((_: any, i: number) => i !== index);
       setSettings({ ...settings, navigation: newNavigation });
 
-      const res = await api.post('/admin/side-slider', { ...settings, navigation: newNavigation });
+      const res = await api.put('/admin/settings/side-slider', { ...settings, navigation: newNavigation });
       if (res.data.success) {
         await fetchSettings();
       }

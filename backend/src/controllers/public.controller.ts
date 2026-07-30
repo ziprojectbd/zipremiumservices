@@ -139,3 +139,32 @@ export const getPaymentSettings = asyncHandler(async (req, res) => {
     return res.json(success({}));
   }
 });
+
+// GET /public/settings — combined endpoint returning all public settings in one call
+export const getAllPublicSettings = asyncHandler(async (req, res) => {
+  try {
+    const [footerData, marqueeData, sliderData, paymentData, maintenanceData] = await Promise.all([
+      Footer.findOne().catch(() => null),
+      PromoMarqueeSettings.getSettings().catch(() => null),
+      SideSliderSettings.findOne().catch(() => null),
+      PaymentSettings.findOne().lean().catch(() => null),
+      MaintenanceSettings.findOne().catch(() => null),
+    ]);
+
+    return res.json(success({
+      footer: footerData || {},
+      promoMarquee: marqueeData ? { enabled: marqueeData.enabled, message: marqueeData.message } : { enabled: true, message: '' },
+      sideSlider: sliderData || {},
+      paymentSettings: paymentData || {},
+      maintenance: maintenanceData || { enabled: false, type: 'marquee' },
+    }));
+  } catch (err) {
+    return res.json(success({
+      footer: {},
+      promoMarquee: { enabled: true, message: '' },
+      sideSlider: {},
+      paymentSettings: {},
+      maintenance: { enabled: false, type: 'marquee' },
+    }));
+  }
+});

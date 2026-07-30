@@ -64,7 +64,7 @@ export default function PopupManagement() {
 
   const fetchImages = async () => {
     try {
-      const response = await api.get('/admin/popup-images');
+      const response = await api.get('/admin/settings/popup-images');
       const data = response.data;
       if (data.success) {
         setImages(data.data);
@@ -78,7 +78,7 @@ export default function PopupManagement() {
 
   const fetchPopupSettings = async () => {
     try {
-      const response = await api.get('/admin/popup-settings');
+      const response = await api.get('/admin/settings/popup-settings');
       const data = response.data;
       if (data.success) {
         setPopupEnabled(data.data.enabled);
@@ -91,7 +91,7 @@ export default function PopupManagement() {
   const togglePopup = async () => {
     setToggling(true);
     try {
-      const response = await api.put('/admin/popup-settings', { enabled: !popupEnabled });
+      const response = await api.put('/admin/settings/popup-settings', { enabled: !popupEnabled });
       const data = response.data;
       if (data.success) {
         setPopupEnabled(data.data.enabled);
@@ -176,7 +176,7 @@ export default function PopupManagement() {
     if (!newImageUrl.trim()) return;
 
     try {
-      const response = await api.post('/admin/popup-images', {
+      const response = await api.post('/admin/settings/popup-images', {
         imageUrl: newImageUrl,
         altText: newImageAlt || 'New Image',
         offerUrl: newImageOfferUrl || undefined,
@@ -199,7 +199,7 @@ export default function PopupManagement() {
   // Update image
   const updateImage = async (id: string, updates: Partial<PopupManagement>) => {
     try {
-      const response = await api.put('/admin/popup-images', { id, ...updates });
+      const response = await api.put(`/admin/settings/popup-images/${id}`, updates);
       const data = response.data;
       if (data.success) {
         setEditingImage(null);
@@ -232,7 +232,7 @@ export default function PopupManagement() {
       }
 
       // Delete the popup image from database
-      const response = await api.delete(`/admin/popup-images?id=${id}`);
+      const response = await api.delete(`/admin/settings/popup-images/${id}`);
       const data = response.data;
       if (data.success) {
         fetchImages();
@@ -261,8 +261,8 @@ export default function PopupManagement() {
 
     try {
       await Promise.all([
-        api.put('/admin/popup-images', { id: newImages[index]._id, order: newImages[index].order }),
-        api.put('/admin/popup-images', { id: newImages[newIndex]._id, order: newImages[newIndex].order }),
+        api.put(`/admin/settings/popup-images/${newImages[index]._id}`, { order: newImages[index].order }),
+        api.put(`/admin/settings/popup-images/${newImages[newIndex]._id}`, { order: newImages[newIndex].order }),
       ]);
       fetchImages();
     } catch (error) {

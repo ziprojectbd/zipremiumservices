@@ -39,7 +39,7 @@ export default function FooterManagement() {
 
   const fetchFooterData = async () => {
     try {
-      const res = await api.get('/admin/footer');
+      const res = await api.get('/admin/settings/footer');
       if (res.data.success) {
         setSections(res.data.data.sections || []);
       }
@@ -53,7 +53,7 @@ export default function FooterManagement() {
   const saveFooterData = async () => {
     setSaving(true);
     try {
-      const res = await api.put('/admin/footer', { sections });
+      const res = await api.put('/admin/settings/footer', { sections });
       if (res.data.success) {
         showNotification('success', 'Footer data saved successfully!');
       } else {

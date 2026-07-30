@@ -10,6 +10,9 @@ import PaymentSettings from '@models/PaymentSettings';
 import MaintenanceSettings from '@models/MaintenanceSettings';
 import SideSliderSettings from '@models/SideSliderSettings';
 import PopupManagement from '@models/PopupManagement';
+import PopupSettings from '@models/PopupSettings';
+import PromoMarqueeSettings from '@models/PromoMarqueeSettings';
+import PromoOffer from '@models/PromoOffer';
 import connectDB from '@db/connect';
 import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
@@ -310,6 +313,20 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
     switch (action) {
       case 'verify_payment':
         order.paymentStatus = 'verified';
+        // Increment product sales & revenue
+        if (order.items && Array.isArray(order.items)) {
+          for (const item of order.items) {
+            const productId = item.product?.toString();
+            if (productId && productId.length === 24 && /^[a-f0-9]+$/i.test(productId)) {
+              await Product.findByIdAndUpdate(productId, {
+                $inc: {
+                  sales: item.quantity || 1,
+                  revenue: item.price || 0,
+                },
+              });
+            }
+          }
+        }
         break;
       case 'reject_payment':
         order.paymentStatus = 'rejected';
@@ -779,4 +796,143 @@ export const deletePopupImage = asyncHandler(async (req, res) => {
   }
 
   return res.json(success(null, 'Popup image deleted'));
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Popup Settings (toggle enabled/disabled)
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/settings/popup-settings
+export const getPopupSettingsToggle = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  let settings = await PopupSettings.findOne().lean();
+  if (!settings) {
+    settings = { enabled: true };
+  }
+
+  return res.json(success(settings));
+});
+
+// PUT /api/admin/settings/popup-settings
+export const updatePopupSettingsToggle = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const settings = await PopupSettings.findOneAndUpdate(
+    {},
+    { $set: { enabled: req.body.enabled } },
+    { new: true, upsert: true }
+  );
+
+  return res.json(success(settings, 'Popup settings updated'));
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Popup Images (update)
+// ---------------------------------------------------------------------------
+
+// PUT /api/admin/settings/popup-images/:id
+export const updatePopupImage = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const popup = await PopupManagement.findByIdAndUpdate(
+    req.params.id,
+    { $set: req.body },
+    { new: true, runValidators: true }
+  );
+
+  if (!popup) {
+    return res.status(404).json(error('Popup image not found'));
+  }
+
+  return res.json(success(popup, 'Popup image updated'));
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Promo Marquee
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/settings/promo-marquee
+export const getPromoMarqueeSettings = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const settings = await PromoMarqueeSettings.getSettings();
+  return res.json(success(settings));
+});
+
+// PUT /api/admin/settings/promo-marquee
+export const updatePromoMarqueeSettings = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const settings = await PromoMarqueeSettings.findOneAndUpdate(
+    {},
+    { $set: { ...req.body, updatedAt: new Date() } },
+    { new: true, upsert: true }
+  );
+
+  return res.json(success(settings, 'Promo marquee settings updated'));
+});
+
+// ---------------------------------------------------------------------------
+// Settings — Promo Offers (CRUD)
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/settings/promo-offers
+export const getAllPromoOffers = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const offers = await PromoOffer.find().sort({ order: 1 }).lean();
+  return res.json(success(offers));
+});
+
+// POST /api/admin/settings/promo-offers
+export const createPromoOffer = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const { title, description, imageUrl, link, order, type } = req.body;
+
+  if (!title || !description || !imageUrl) {
+    return res.status(400).json(error('title, description, and imageUrl are required'));
+  }
+
+  const offer = await PromoOffer.create({
+    title,
+    description,
+    imageUrl,
+    link: link || '',
+    order: order || 0,
+    type: type || 'image',
+  });
+
+  return res.status(201).json(success(offer, 'Promo offer created'));
+});
+
+// PUT /api/admin/settings/promo-offers/:id
+export const updatePromoOffer = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const offer = await PromoOffer.findByIdAndUpdate(
+    req.params.id,
+    { $set: req.body },
+    { new: true, runValidators: true }
+  );
+
+  if (!offer) {
+    return res.status(404).json(error('Promo offer not found'));
+  }
+
+  return res.json(success(offer, 'Promo offer updated'));
+});
+
+// DELETE /api/admin/settings/promo-offers/:id
+export const deletePromoOffer = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const offer = await PromoOffer.findByIdAndDelete(req.params.id);
+
+  if (!offer) {
+    return res.status(404).json(error('Promo offer not found'));
+  }
+
+  return res.json(success(null, 'Promo offer deleted'));
 });

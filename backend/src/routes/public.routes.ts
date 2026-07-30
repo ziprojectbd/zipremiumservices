@@ -9,6 +9,7 @@ import {
   getPopupImages,
   getPopupSettings,
   getPaymentSettings,
+  getAllPublicSettings,
 } from '@controllers/public.controller';
 
 const router = Router();
@@ -22,5 +23,8 @@ router.get('/maintenance', getMaintenance);
 router.get('/popup-images', getPopupImages);
 router.get('/popup-settings', getPopupSettings);
 router.get('/payment-settings', getPaymentSettings);
+
+// Combined settings endpoint (reduces parallel requests)
+router.get('/settings', getAllPublicSettings);
 
 export default router;

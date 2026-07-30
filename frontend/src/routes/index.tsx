@@ -59,6 +59,7 @@ const AdminCampaigns = lazy(() => import('../pages/admin/Campaigns'));
 const AdminCoupons = lazy(() => import('../pages/admin/Coupons'));
 const AdminPopupManagement = lazy(() => import('../pages/admin/PopupManagement'));
 const AdminSpecialPromo = lazy(() => import('../pages/admin/SpecialPromo'));
+const AdminAddSpecialPromo = lazy(() => import('../pages/admin/AddSpecialPromo'));
 const AdminAirdrops = lazy(() => import('../pages/admin/Airdrops'));
 const AdminSettings = lazy(() => import('../pages/admin/Settings'));
 const AdminFooterManagement = lazy(() => import('../pages/admin/FooterManagement'));
@@ -87,7 +88,7 @@ export default function AppRoutes() {
                 <Route path="/sign-up" element={<LazyPage Component={SignUp} />} />
                 <Route path="/category/:slug" element={<LazyPage Component={CategoryPage} />} />
                 <Route path="/product/:slug/*" element={<LazyPage Component={ProductDetail} />} />
-                <Route path="/checkout" element={<LazyPage Component={Checkout} />} />
+                <Route path="/payment-and-confirmation" element={<LazyPage Component={Checkout} />} />
                 <Route path="/about-us" element={<LazyPage Component={AboutUs} />} />
                 <Route path="/contact-us" element={<LazyPage Component={ContactUs} />} />
                 <Route path="/privacy-policy" element={<LazyPage Component={PrivacyPolicy} />} />
@@ -139,6 +140,7 @@ export default function AppRoutes() {
                     <Route path="/admin/special-offer/coupons" element={<LazyPage Component={AdminCoupons} />} />
                     <Route path="/admin/special-offer/popup-management" element={<LazyPage Component={AdminPopupManagement} />} />
                     <Route path="/admin/special-offer/special-promo" element={<LazyPage Component={AdminSpecialPromo} />} />
+                    <Route path="/admin/special-offer/special-promo/new" element={<LazyPage Component={AdminAddSpecialPromo} />} />
                     <Route path="/admin/airdrops" element={<LazyPage Component={AdminAirdrops} />} />
                     <Route path="/admin/settings" element={<LazyPage Component={AdminSettings} />} />
                     <Route path="/admin/settings/footer-management" element={<LazyPage Component={AdminFooterManagement} />} />

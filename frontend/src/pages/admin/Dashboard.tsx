@@ -28,6 +28,9 @@ interface Order {
 interface Product {
   _id?: string;
   name: string;
+  price: number;
+  priceUSDT?: number;
+  priceBDT?: number;
   sales: number;
   revenue: number | string;
   trend: string;
@@ -205,6 +208,20 @@ export default function AdminDashboard() {
     { title: "Today's Orders", value: todayOrdersCount.toString(), change: todayRevenue.usdt > 0 || todayRevenue.bdt > 0 ? 'Active' : '0', icon: TrendingUp, bgColor: 'bg-gradient-to-br from-cyan-500 to-teal-600', sub: todayRevenue.usdt > 0 || todayRevenue.bdt > 0 ? `$${formatPrice(todayRevenue.usdt, 2)} / ৳${formatPrice(todayRevenue.bdt, 2)}` : undefined },
   ];
 
+  const cardBgMap: Record<string, string> = {
+    'bg-gradient-to-br from-green-500 to-emerald-600': 'bg-gradient-to-br from-green-500/10 to-emerald-600/10',
+    'bg-gradient-to-br from-blue-500 to-cyan-600': 'bg-gradient-to-br from-blue-500/10 to-cyan-600/10',
+    'bg-gradient-to-br from-orange-500 to-red-600': 'bg-gradient-to-br from-orange-500/10 to-red-600/10',
+    'bg-gradient-to-br from-cyan-500 to-teal-600': 'bg-gradient-to-br from-cyan-500/10 to-teal-600/10',
+  };
+
+  const cardHoverMap: Record<string, string> = {
+    'bg-gradient-to-br from-green-500 to-emerald-600': 'hover:bg-gradient-to-br hover:from-green-500/20 hover:to-emerald-600/20',
+    'bg-gradient-to-br from-blue-500 to-cyan-600': 'hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-cyan-600/20',
+    'bg-gradient-to-br from-orange-500 to-red-600': 'hover:bg-gradient-to-br hover:from-orange-500/20 hover:to-red-600/20',
+    'bg-gradient-to-br from-cyan-500 to-teal-600': 'hover:bg-gradient-to-br hover:from-cyan-500/20 hover:to-teal-600/20',
+  };
+
   const getCustomerName = (customer: Order['customer']) => {
     if (typeof customer === 'string') return customer;
     return customer?.name || 'Guest';
@@ -305,7 +322,7 @@ export default function AdminDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6">
         {stats.map((stat, index) => (
-          <div key={index} className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-6 hover:bg-white/10 transition-all">
+          <div key={index} className={`${cardBgMap[stat.bgColor] || 'bg-white/5'} backdrop-blur-lg rounded-xl border ${stat.bgColor.includes('green') ? 'border-green-500/20' : stat.bgColor.includes('blue') ? 'border-blue-500/20' : stat.bgColor.includes('orange') ? 'border-orange-500/20' : stat.bgColor.includes('cyan') ? 'border-cyan-500/20' : 'border-white/10'} p-4 sm:p-6 ${cardHoverMap[stat.bgColor] || 'hover:bg-white/10'} transition-all`}>
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <div className={`p-2 sm:p-3 rounded-xl ${stat.bgColor}`}>
                 <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -337,7 +354,7 @@ export default function AdminDashboard() {
             </div>
             <button
               onClick={handleViewAllOrders}
-              className="px-4 py-2 text-sm font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 rounded-xl border border-blue-500/30 transition-all"
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900/80 hover:bg-gray-800 rounded-xl border border-gray-700 transition-all"
             >
               View All
             </button>
@@ -453,7 +470,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-white font-medium text-xs sm:text-sm truncate group-hover:text-blue-300 transition-colors">{product.name}</p>
-                      <p className="text-gray-500 text-xs">{product.sales} sales</p>
+                      <p className="text-gray-500 text-xs">{product.sales} sales · <span className="text-gray-400">${formatPrice(product.price || 0, 2)}</span></p>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-2">

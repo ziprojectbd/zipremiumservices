@@ -37,6 +37,15 @@ import {
   getPopupSettings,
   addPopupImage,
   deletePopupImage,
+  getPopupSettingsToggle,
+  updatePopupSettingsToggle,
+  updatePopupImage,
+  getPromoMarqueeSettings,
+  updatePromoMarqueeSettings,
+  getAllPromoOffers,
+  createPromoOffer,
+  updatePromoOffer,
+  deletePromoOffer,
 } from '@controllers/admin.controller';
 
 const router = Router();
@@ -96,8 +105,23 @@ router.get('/settings/side-slider', getSideSliderSettings);
 router.put('/settings/side-slider', updateSideSliderSettings);
 
 // Settings - Popup
-router.get('/settings/popup', getPopupSettings);
-router.post('/settings/popup', addPopupImage);
-router.delete('/settings/popup/:id', deletePopupImage);
+router.get('/settings/popup-images', getPopupSettings);
+router.post('/settings/popup-images', addPopupImage);
+router.put('/settings/popup-images/:id', updatePopupImage);
+router.delete('/settings/popup-images/:id', deletePopupImage);
+
+// Settings - Popup Settings (toggle)
+router.get('/settings/popup-settings', getPopupSettingsToggle);
+router.put('/settings/popup-settings', updatePopupSettingsToggle);
+
+// Settings - Promo Marquee
+router.get('/settings/promo-marquee', getPromoMarqueeSettings);
+router.put('/settings/promo-marquee', updatePromoMarqueeSettings);
+
+// Settings - Promo Offers
+router.get('/settings/promo-offers', getAllPromoOffers);
+router.post('/settings/promo-offers', createPromoOffer);
+router.put('/settings/promo-offers/:id', updatePromoOffer);
+router.delete('/settings/promo-offers/:id', deletePromoOffer);
 
 export default router;
