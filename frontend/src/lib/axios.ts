@@ -2,7 +2,7 @@ import axios from 'axios';
 import maintenanceStore from '../store/maintenanceStore';
 
 // Helper: decode JWT payload (handles base64url → JSON)
-function decodeJWT(token: string): Record<string, unknown> | null {
+export function decodeJWT(token: string): Record<string, unknown> | null {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
     return JSON.parse(atob(base64));

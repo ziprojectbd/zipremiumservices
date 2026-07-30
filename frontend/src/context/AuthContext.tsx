@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../lib/axios';
+import api, { decodeJWT } from '../lib/axios';
 
 interface User {
   id?: string;
@@ -65,11 +65,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
-    if (storedToken) {
+    if (storedToken && storedToken !== 'undefined' && decodeJWT(storedToken)) {
       setToken(storedToken);
       if (storedUser) {
         try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
       }
+    } else if (storedToken) {
+      // Stored token is invalid — clean up
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
     }
     setLoading(false);
   }, []);
