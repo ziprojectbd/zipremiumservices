@@ -56,8 +56,10 @@ export default function ProductReviews({ productId, accentHue, isLoggedIn, usern
     try {
       const res = await api.get(`/reviews?productId=${productId}`);
       if (res.data.success) {
-        setReviews(res.data.data || []);
-        setStats(res.data.stats || res.data.message || { totalReviews: 0, averageRating: 0 });
+        setReviews(Array.isArray(res.data.data) ? res.data.data : []);
+        const apiStats = res.data.stats || res.data.message || {};
+        const safeStats = typeof apiStats === 'object' ? apiStats : {};
+        setStats({ totalReviews: 0, averageRating: 0, ...safeStats });
       }
     } catch (error) {
       devLog("Failed to fetch reviews:", error);
@@ -130,7 +132,7 @@ export default function ProductReviews({ productId, accentHue, isLoggedIn, usern
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-4xl font-bold" style={{ color: accentColor }}>
-              {stats.averageRating.toFixed(1)}
+              {(stats.averageRating ?? 0).toFixed(1)}
             </span>
             <div className="flex">{renderStars(Math.round(stats.averageRating), "w-6 h-6")}</div>
           </div>
