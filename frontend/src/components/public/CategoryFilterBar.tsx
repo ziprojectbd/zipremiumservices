@@ -54,7 +54,7 @@ export default function CategoryFilterBar({ selectedCategory, router, containerC
 
         <div
           ref={scrollRef}
-          className="flex gap-2 overflow-x-auto scrollbar-hide py-2 px-1 snap-x snap-mandatory"
+          className="flex flex-nowrap gap-2 overflow-x-auto scrollbar-hide py-2 px-1 snap-x snap-mandatory"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
         >
           {categories.map((category) => {
@@ -95,7 +95,7 @@ export default function CategoryFilterBar({ selectedCategory, router, containerC
 
         <div
           ref={scrollRef}
-          className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1 snap-x snap-mandatory"
+          className="flex flex-nowrap gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1 snap-x snap-mandatory"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
         >
           {categories.map((category) => {
