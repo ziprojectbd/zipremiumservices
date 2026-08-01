@@ -129,7 +129,7 @@ export default function Checkout() {
     .map((p: any) => p.method.toLowerCase());
   const isBDMobileMethod = mobileMethodIds.includes(paymentMethod.toLowerCase());
   const payerFilled = isPayCrypto
-    ? payerNumber.trim().length >= 10
+    ? (paymentType === 'uid' ? /^\d{9,}$/.test(payerNumber.trim()) : payerNumber.trim().length >= 10)
     : payerNumber.trim().length >= 6;
   const trxFilled = trxId.trim().length >= 6;
 
@@ -180,10 +180,11 @@ export default function Checkout() {
       const response = await api.post('/orders', {
         email: effectiveEmail,
         username,
-        walletAddress: payerNumber,
+        payerNumber: isPayCrypto ? '' : payerNumber,
+        walletAddress: isPayCrypto && paymentType === 'network' ? payerNumber : '',
         senderUid: isPayCrypto && paymentType === 'uid' ? payerNumber : '',
-        txHash: txHash || trxId,
-        trxId,
+        txHash: isPayCrypto && paymentType === 'network' ? (txHash || trxId) : '',
+        trxId: isPayCrypto ? '' : trxId,
         paymentMethod,
         cryptoCurrency: isPayCrypto ? (cryptoCurrency || 'USDT') : '',
         paymentType,
@@ -224,17 +225,28 @@ export default function Checkout() {
 
       setCart([]);
       removeCoupon();
+      setPayerNumber('');
+      setTrxId('');
+      setTxHash('');
+      setCryptoCurrency('');
+      setPaymentType('network');
+      setSelectedNetwork('');
+      setSelectedPlatform('');
       showAlert(
         'success',
         'Order Submitted',
         'Thank you! Your order has been submitted. We will verify payment and contact you shortly.',
         () => navigate('/order/success')
       );
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.response?.data?.error || (error instanceof Error ? error.message : 'Failed to submit order');
+      console.log('Order creation failed - full error:', error);
+      console.log('Response status:', error?.response?.status);
+      console.log('Response data:', JSON.stringify(error?.response?.data));
       showAlert(
         'error',
         'Order Failed',
-        error instanceof Error ? error.message : 'Failed to submit order'
+        msg
       );
     } finally {
       setSubmittingOrder(false);

@@ -480,9 +480,11 @@ export default function Home() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const PAGE_SIZE = 50;
   const lastCategoryRef = useRef<string>('');
+  const requestIdRef = useRef(0);
 
   // Fetch a page of products
   const fetchProductsPage = useCallback(async (page: number, categoryName: string, append: boolean = false) => {
+    const requestId = requestIdRef.current;
     try {
       const params = new URLSearchParams();
       params.set('page', page.toString());
@@ -493,6 +495,7 @@ export default function Home() {
 
       devLog(`Fetching products: /api/products?${params.toString()}`);
       const res = await api.get(`/products?${params.toString()}`);
+      if (requestId !== requestIdRef.current) return;
       const json = res.data;
       if (json.success && json.data) {
         const mapped: ShopProduct[] = json.data.map((p: any, idx: number) => {
@@ -502,7 +505,7 @@ export default function Home() {
             .filter((l: string) => l.length > 0)
             .slice(0, 5);
           return {
-            id: 100 + idx,
+            id: p._id || `product-${idx}`,
             name: p.name,
             description: descLines.length > 0 ? '' : (p.description || ''),
             price: p.priceBDT || p.priceUSDT || p.price || 0,
@@ -530,12 +533,14 @@ export default function Home() {
           };
         });
 
+        if (requestId !== requestIdRef.current) return;
         setApiProducts(prev => append ? [...prev, ...mapped] : mapped);
         setHasMoreProducts(json.pagination?.page < json.pagination?.pages);
         setTotalProducts(json.pagination?.total || 0);
         setCurrentPage(page);
       }
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       devLog('Failed to fetch products:', e);
     }
   }, []);
@@ -545,13 +550,17 @@ export default function Home() {
     if (lastCategoryRef.current === selectedCategory && !shouldRefetchProducts) return;
     lastCategoryRef.current = selectedCategory;
 
+    // Increment request ID to cancel in-flight requests
+    requestIdRef.current += 1;
+
+    // Clear old products and set loading in the same synchronous batch
     setApiProducts([]);
+    setApiLoading(true);
     setCurrentPage(1);
     setHasMoreProducts(false);
     setIsLoadingMore(false);
 
     async function loadProducts() {
-      setApiLoading(true);
       await fetchProductsPage(1, selectedCategory, false);
       setApiLoading(false);
       setProductsLoaded(true);
@@ -904,13 +913,9 @@ export default function Home() {
 
             {/* Products Grid */}
             {selectedCategory !== "Trade" && selectedCategorySlug !== 'captcha-solver-api' && (
-              <div
-                className={`transform transition-all duration-300 ease-out ${
-                  isCategorySwitching ? "opacity-0 translate-y-2" : "opacity-100 translate-y-0"
-                }`}
-              >
+              <div className="transform transition-all duration-300 ease-out opacity-100 translate-y-0">
                 <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {isCategorySwitching
+                  {apiLoading
                     ? Array.from({ length: 6 }).map((_, index) => (
                         <div
                           key={`product-skeleton-${index}`}
@@ -933,7 +938,7 @@ export default function Home() {
                       ))}
                 </div>
 
-                {!isCategorySwitching && hasMoreProducts && (
+                {hasMoreProducts && (
                   <div className="text-center mb-16">
                     <button
                       onClick={handleLoadMore}
@@ -955,7 +960,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {!isCategorySwitching && !apiLoading && !hasMoreProducts && apiProducts.length > 0 && (
+                {!apiLoading && !hasMoreProducts && apiProducts.length > 0 && (
                   <div className="text-center mb-16 text-gray-500 text-sm">
                     Showing all {totalProducts} products
                   </div>

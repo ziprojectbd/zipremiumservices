@@ -81,7 +81,7 @@ export default function PaymentDetails({
               <input
                 type="text"
                 value={trxId}
-                onChange={(e) => setTrxId(e.target.value)}
+                onChange={(e) => setTrxId(e.target.value.toUpperCase())}
                 placeholder="Enter transaction ID"
                 className="w-full px-3 py-2 sm:px-3 sm:py-2 border rounded-lg bg-slate-900/60 border-white/10 text-white text-sm"
               />
@@ -98,10 +98,22 @@ export default function PaymentDetails({
               <input
                 type="text"
                 value={payerNumber}
-                onChange={(e) => setPayerNumber(e.target.value)}
-                placeholder={paymentType === "network" ? "Enter your wallet address" : "Enter your UID"}
+                onChange={(e) => {
+                  let v = e.target.value;
+                  if (paymentType === "uid") {
+                    v = v.replace(/\D/g, "");
+                  }
+                  setPayerNumber(v);
+                }}
+                placeholder={paymentType === "network" ? "Enter your wallet address" : "Enter your UID (min 9 digits)"}
                 className="w-full px-3 py-2 sm:px-3 sm:py-2 border rounded-lg bg-slate-900/60 border-white/10 text-white text-sm"
+                maxLength={paymentType === "uid" ? 20 : undefined}
               />
+              {paymentType === "uid" && payerNumber && payerNumber.length < 9 && (
+                <p className="mt-1 text-[10px] sm:text-xs text-amber-400">
+                  UID must be at least 9 digits.
+                </p>
+              )}
             </div>
             {paymentType === "network" && (
               <div>
@@ -111,7 +123,7 @@ export default function PaymentDetails({
                 <input
                   type="text"
                   value={trxId}
-                  onChange={(e) => setTrxId(e.target.value)}
+                  onChange={(e) => setTrxId(e.target.value.toUpperCase())}
                   placeholder="Enter transaction ID"
                   className="w-full px-3 py-2 sm:px-3 sm:py-2 border rounded-lg bg-slate-900/60 border-white/10 text-white text-sm"
                 />
@@ -124,7 +136,9 @@ export default function PaymentDetails({
         <div className="text-[10px] sm:text-xs text-gray-300 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-2 sm:px-3 sm:py-2">
           {isBDMobileMethod
             ? "Make sure you have sent to correct account and pasted the correct Transaction ID. Your payment will be verified manually for security."
-            : "Make sure you have sent to correct address/UID. Your payment will be verified manually for security."}
+            : paymentType === "network"
+              ? "Wallet Address may be used multiple times, but each on-chain network payment must have a unique Transaction Hash (TXID). Duplicate TXIDs will not be accepted."
+              : "Your UID may be used multiple times. Your payment will be verified manually for security."}
         </div>
         <div>
           <button

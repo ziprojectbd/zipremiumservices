@@ -298,11 +298,20 @@ orderSchema.index({ transactionId: 1 }, {
   }
 });
 
-// Generate order number before saving
+// txHash must be unique for on-chain network payments (duplicate TXIDs rejected)
+orderSchema.index({ txHash: 1 }, {
+  unique: true,
+  partialFilterExpression: {
+    txHash: { $type: 'string', $ne: '' }
+  }
+});
+
+// Generate order number before saving (collision-safe)
 orderSchema.pre('save', async function() {
   if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderNumber = `ORD-${String(count + 1).padStart(3, '0')}`;
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
+    this.orderNumber = `ORD-${ts}${rand}`;
   }
 
   if (typeof this.paymentMethod === 'string') {

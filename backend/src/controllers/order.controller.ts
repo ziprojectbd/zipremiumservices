@@ -153,6 +153,9 @@ export const createOrder = asyncHandler(async (req, res) => {
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json(error('At least one item is required'));
   }
+  if (isCrypto && payType === 'uid' && (!senderUid || !/^\d{9,}$/.test(String(senderUid).trim()))) {
+    return res.status(400).json(error('UID must be at least 9 digits'));
+  }
 
   // -----------------------------------------------------------------------
   // Server-side price validation with active campaigns
@@ -329,6 +332,16 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
+  // Duplicate txHash check (on-chain network payments — each TXID must be unique)
+  if (isCrypto && normalizedBody.txHash) {
+    const existingTx = await Order.findOne({ txHash: normalizedBody.txHash }).lean();
+    if (existingTx) {
+      return res
+        .status(400)
+        .json(error('This Transaction Hash (TXID) has already been used. Each on-chain network payment must have a unique TXID.'));
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Build order data & create
   // -----------------------------------------------------------------------
@@ -366,8 +379,8 @@ export const createOrder = asyncHandler(async (req, res) => {
     captchaApiKey: (normalizedBody.captchaApiKey as string) || undefined,
 
     // Payment details
-    paymentNumber: normalizedBody.paymentNumber as string,
-    transactionId: normalizedBody.transactionId as string,
+    paymentNumber: isCrypto ? undefined : (normalizedBody.paymentNumber as string),
+    transactionId: isCrypto ? undefined : (normalizedBody.transactionId as string),
     txHash: normalizedBody.txHash as string,
     walletAddress: normalizedBody.walletAddress as string,
     senderUid: normalizedBody.senderUid as string,

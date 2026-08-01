@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bot, ChevronRight } from "lucide-react";
 import ProductCard from "./ProductCard";
@@ -18,23 +18,22 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
   const { addToCart, lastAddedProductId, setIsLoading } = useShopContext();
 
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
-  // Resolve categorySlug → category name
-  useEffect(() => {
+  // Resolve categorySlug → category name synchronously (no render gap)
+  const selectedCategory = useMemo(() => {
+    if (!categories.length) return "All";
     const cat = categories.find(
       (c) =>
         c.slug === categorySlug ||
         c.name.toLowerCase().replace(/\s+/g, "-") === categorySlug
     );
-    if (cat) {
-      setSelectedCategory(cat.name);
-    } else if (categorySlug === "all" || categories.length === 0) {
-      setSelectedCategory("All");
-    } else {
-      setSelectedCategory("All");
-    }
+    return cat ? cat.name : "All";
   }, [categorySlug, categories]);
+
+  // Track which category the currently-rendered products belong to.
+  // Updated after a successful fetch, so the render can detect mismatches
+  // synchronously — before the useEffect that clears apiProducts fires.
+  const productsCategoryRef = useRef<string>("All");
 
   // Fetch categories
   useEffect(() => {
@@ -73,9 +72,11 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const PAGE_SIZE = 50;
   const lastCategoryRef = useRef<string>("");
+  const requestIdRef = useRef(0);
 
   const fetchProductsPage = useCallback(
     async (page: number, categoryName: string, append: boolean = false) => {
+      const requestId = requestIdRef.current;
       try {
         const params: any = { page: page.toString(), limit: PAGE_SIZE.toString() };
         if (categoryName && categoryName !== "All") {
@@ -83,6 +84,8 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
         }
 
         const res = await api.get("/products", { params });
+        // Discard stale responses when a newer request is in flight
+        if (requestId !== requestIdRef.current) return;
         const json = res.data;
         if (json.success && json.data) {
           const mapped: ShopProduct[] = json.data.map((p: any, idx: number) => {
@@ -92,7 +95,7 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
               .filter((l: string) => l.length > 0)
               .slice(0, 5);
             return {
-              id: 100 + idx,
+              id: p._id || `product-${idx}`,
               name: p.name,
               description: descLines.length > 0 ? "" : p.description || "",
               price: p.priceBDT || p.priceUSDT || p.price || 0,
@@ -119,12 +122,14 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
             };
           });
 
+          if (requestId !== requestIdRef.current) return;
           setApiProducts((prev) => (append ? [...prev, ...mapped] : mapped));
           setHasMoreProducts(json.pagination?.page < json.pagination?.pages);
           setTotalProducts(json.pagination?.total || 0);
           setCurrentPage(page);
         }
       } catch (e) {
+        if (requestId !== requestIdRef.current) return;
         devLog("Failed to fetch products:", e);
       }
     },
@@ -136,14 +141,19 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
     if (lastCategoryRef.current === selectedCategory) return;
     lastCategoryRef.current = selectedCategory;
 
+    // Increment request ID to cancel any in-flight requests
+    requestIdRef.current += 1;
+
+    // Clear old products and set loading immediately in the same batch
     setApiProducts([]);
+    setApiLoading(true);
     setCurrentPage(1);
     setHasMoreProducts(false);
     setIsLoadingMore(false);
 
     async function loadProducts() {
-      setApiLoading(true);
       await fetchProductsPage(1, selectedCategory, false);
+      productsCategoryRef.current = selectedCategory;
       setApiLoading(false);
     }
     loadProducts();
@@ -222,10 +232,13 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
       )}
 
       {/* Products Grid */}
-      {!isTradeCategory && !isCaptchaCategory && (
+      {!isTradeCategory && !isCaptchaCategory && (() => {
+          const categoryMismatch = selectedCategory !== productsCategoryRef.current;
+          const showSkeletons = apiLoading || categoryMismatch;
+          return (
         <div className="transform transition-all duration-300 ease-out">
           <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {apiLoading
+            {showSkeletons
               ? Array.from({ length: 6 }).map((_, index) => (
                   <div
                     key={`product-skeleton-${index}`}
@@ -276,13 +289,16 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
             </div>
           )}
         </div>
-      )}
+      )})()}
 
       {/* Trade category: products ARE shown here */}
-      {isTradeCategory && !isCaptchaCategory && (
+      {isTradeCategory && !isCaptchaCategory && (() => {
+          const categoryMismatch = selectedCategory !== productsCategoryRef.current;
+          const showSkeletons = apiLoading || categoryMismatch;
+          return (
         <div className="transform transition-all duration-300 ease-out">
           <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {apiLoading
+            {showSkeletons
               ? Array.from({ length: 6 }).map((_, index) => (
                   <div
                     key={`product-skeleton-${index}`}
@@ -305,7 +321,7 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
                 ))}
           </div>
         </div>
-      )}
+      )})()}
 
       {/* Get In Touch section */}
       <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-3xl shadow-2xl p-5 sm:p-8 mb-16 border border-gray-700 overflow-hidden">

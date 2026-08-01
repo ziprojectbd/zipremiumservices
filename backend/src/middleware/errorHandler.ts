@@ -52,11 +52,17 @@ export function errorHandler(
   }
 
   // MongoDB duplicate key error
-  const mongoError = err as { code?: number };
+  const mongoError = err as { code?: number; keyPattern?: Record<string, unknown> };
   if (mongoError.code === 11000) {
+    const field = mongoError.keyPattern ? Object.keys(mongoError.keyPattern)[0] : 'field';
+    const messages: Record<string, string> = {
+      orderNumber: 'An order with this number already exists. Please try again.',
+      transactionId: 'This transaction ID has already been used for a previous order.',
+      txHash: 'This Transaction Hash (TXID) has already been used. Each on-chain network payment must have a unique TXID.',
+    };
     res.status(409).json({
       success: false,
-      message: 'Duplicate field value. This record already exists.',
+      message: messages[field] || `A duplicate value was detected for "${field}". Please try again.`,
       error: {},
     });
     return;
