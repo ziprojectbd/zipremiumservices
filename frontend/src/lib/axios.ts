@@ -12,7 +12,7 @@ export function decodeJWT(token: string): Record<string, unknown> | null {
 }
 
 // Check if token is expired
-function isTokenExpired(token: string): boolean {
+export function isTokenExpired(token: string): boolean {
   const payload = decodeJWT(token);
   if (!payload?.exp) return true;
   return Date.now() >= (payload.exp as number) * 1000;
@@ -36,13 +36,86 @@ function processQueue(error: unknown, token: string | null = null) {
   failedQueue = [];
 }
 
+// Callback for notifying AuthContext of token/user updates after a silent refresh
+type RefreshCallback = (data: { accessToken: string; refreshToken?: string; user?: Record<string, unknown> }) => void;
+let onTokenRefreshed: RefreshCallback | null = null;
+export function setOnTokenRefreshed(cb: RefreshCallback | null) {
+  onTokenRefreshed = cb;
+}
+
+// Refresh the access token (exported for proactive use)
+export async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const storedRefreshToken = localStorage.getItem('refreshToken');
+  if (!storedRefreshToken) return null;
+
+  try {
+    const res = await axios.post('/api/auth/refresh', { refreshToken: storedRefreshToken });
+    if (res.data.success) {
+      const { accessToken, refreshToken: newRefreshToken, user: userData } = res.data.data;
+      localStorage.setItem('token', accessToken);
+      if (newRefreshToken) {
+        localStorage.setItem('refreshToken', newRefreshToken);
+      }
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+      // Notify AuthContext
+      if (onTokenRefreshed) {
+        onTokenRefreshed({ accessToken, refreshToken: newRefreshToken, user: userData });
+      }
+      return accessToken;
+    }
+  } catch {
+    // Refresh failed
+  }
+  return null;
+}
+
+// Determine the correct login URL based on the current page context
+function getLoginRedirectUrl(): string {
+  if (typeof window === 'undefined') return '/sign-in';
+  const path = window.location.pathname;
+  if (path.startsWith('/admin')) return '/admin/login';
+  return '/sign-in';
+}
+
+function clearAuthAndRedirect() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('token');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  const path = window.location.pathname;
+  const loginUrl = path.startsWith('/admin') ? '/admin/login' : '/sign-in';
+  if (!path.startsWith('/sign-in') && !path.startsWith('/sign-up') && !path.startsWith('/admin/login')) {
+    window.location.href = loginUrl;
+  }
+}
+
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   if (typeof window !== 'undefined') {
+    // Skip proactive refresh for auth endpoints to avoid refresh loops and for the refresh request itself
+    const isAuthEndpoint = config.url?.startsWith('/auth/') || config.url === '/signup';
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem('token');
+      if (token && isTokenExpired(token)) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          config.headers.Authorization = `Bearer ${newToken}`;
+          return config;
+        }
+        // Refresh failed — clear auth and reject so the response interceptor
+        // doesn't try to refresh again (we already tried)
+        clearAuthAndRedirect();
+        return Promise.reject(new axios.Cancel('Token expired, refresh failed'));
+      }
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -54,6 +127,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Don't handle cancelled requests (from our own request interceptor)
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
 
     // Maintenance mode detection — skip for auth routes and admin users
@@ -79,15 +157,7 @@ api.interceptors.response.use(
       const storedRefreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
 
       if (!storedRefreshToken) {
-        // No refresh token — can't recover, redirect to login
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          if (!window.location.pathname.startsWith('/sign-in') && !window.location.pathname.startsWith('/sign-up')) {
-            window.location.href = '/sign-in';
-          }
-        }
+        clearAuthAndRedirect();
         return Promise.reject(error);
       }
 
@@ -107,10 +177,17 @@ api.interceptors.response.use(
       try {
         const res = await axios.post('/api/auth/refresh', { refreshToken: storedRefreshToken });
         if (res.data.success) {
-          const { accessToken, refreshToken: newRefreshToken } = res.data.data;
+          const { accessToken, refreshToken: newRefreshToken, user: userData } = res.data.data;
           localStorage.setItem('token', accessToken);
           if (newRefreshToken) {
             localStorage.setItem('refreshToken', newRefreshToken);
+          }
+          if (userData) {
+            localStorage.setItem('user', JSON.stringify(userData));
+          }
+          // Notify AuthContext
+          if (onTokenRefreshed) {
+            onTokenRefreshed({ accessToken, refreshToken: newRefreshToken, user: userData });
           }
           processQueue(null, accessToken);
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -118,15 +195,7 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Refresh failed — clear everything and redirect
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          if (!window.location.pathname.startsWith('/sign-in') && !window.location.pathname.startsWith('/sign-up')) {
-            window.location.href = '/sign-in';
-          }
-        }
+        clearAuthAndRedirect();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -135,12 +204,7 @@ api.interceptors.response.use(
 
     // Legacy 401 handler — only if refresh wasn't attempted
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      if (!window.location.pathname.startsWith('/sign-in') && !window.location.pathname.startsWith('/sign-up')) {
-        window.location.href = '/sign-in';
-      }
+      clearAuthAndRedirect();
     }
     return Promise.reject(error);
   }

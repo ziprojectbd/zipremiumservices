@@ -53,7 +53,6 @@ export default function AdminDashboard() {
   const [bdtRevenueChange, setBdtRevenueChange] = useState('+0%');
   const [todayOrdersCount, setTodayOrdersCount] = useState(0);
   const [todayRevenue, setTodayRevenue] = useState({ usdt: 0, bdt: 0 });
-  const [monthlyDailyStats, setMonthlyDailyStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
 
@@ -106,7 +105,6 @@ export default function AdminDashboard() {
 
         if (Array.isArray(d.data.recentOrders)) setRecentOrders(d.data.recentOrders);
         if (Array.isArray(d.data.topProducts)) setTopProducts(d.data.topProducts);
-        if (Array.isArray(d.data.monthlyDailyStats)) setMonthlyDailyStats(d.data.monthlyDailyStats);
       }
     } catch (err) {
       devLog('Failed to fetch dashboard data:', err);
@@ -487,86 +485,6 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Monthly Revenue Chart */}
-      <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-4 sm:p-6">
-        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-          <div className="p-1.5 sm:p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl">
-            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </div>
-          <div>
-            <h3 className="text-base sm:text-xl font-bold text-white">Monthly Revenue (This Month)</h3>
-            <p className="text-xs text-gray-400">Daily verified revenue by currency</p>
-          </div>
-        </div>
-        {monthlyDailyStats.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            <TrendingUp className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p>No revenue data yet this month</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <div className="flex items-end gap-1.5 min-w-[300px]" style={{ height: '160px' }}>
-              {(() => {
-                // Build day → {usdt, bdt} map
-                const dayMap: Record<number, { usdt: number; bdt: number }> = {};
-                for (const s of monthlyDailyStats) {
-                  const day = s._id?.day;
-                  if (!day) continue;
-                  if (!dayMap[day]) dayMap[day] = { usdt: 0, bdt: 0 };
-                  if (s._id?.currency === 'USDT') dayMap[day].usdt = s.total || 0;
-                  else dayMap[day].bdt = s.total || 0;
-                }
-                const days = Object.keys(dayMap).map(Number).sort((a, b) => a - b);
-                const maxVal = Math.max(...days.map(d => dayMap[d].usdt + dayMap[d].bdt), 1);
-                return days.map(day => {
-                  const d = dayMap[day];
-                  const total = d.usdt + d.bdt;
-                  const heightPct = Math.max((total / maxVal) * 100, total > 0 ? 4 : 0);
-                  return (
-                    <div key={day} className="flex-1 flex flex-col items-center justify-end h-full relative group">
-                      {/* Bar stack */}
-                      <div className="w-full rounded-t-md relative transition-all duration-300 group-hover:opacity-80" style={{ height: `${heightPct}%`, minHeight: total > 0 ? '4px' : '0' }}>
-                        {d.usdt > 0 && (
-                          <div
-                            className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-md absolute bottom-0 transition-all"
-                            style={{ height: `${(d.usdt / total) * 100}%` }}
-                            title={`USDT: $${formatPrice(d.usdt, 2)}`}
-                          />
-                        )}
-                        {d.bdt > 0 && (
-                          <div
-                            className="w-full bg-gradient-to-t from-cyan-500 to-cyan-400 rounded-t-md absolute bottom-0 transition-all"
-                            style={{ height: d.usdt > 0 ? `${(d.bdt / total) * 100}%` : '100%' }}
-                            title={`BDT: ৳${formatPrice(d.bdt, 2)}`}
-                          />
-                        )}
-                      </div>
-                      {/* Day label */}
-                      <span className="text-[9px] text-gray-500 mt-1">{day}</span>
-                      {/* Tooltip on hover */}
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 border border-white/10">
-                        Day {day}: ${formatPrice(d.usdt, 2)} / ৳{formatPrice(d.bdt, 2)}
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-            {/* Legend */}
-            <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-emerald-500"></span>
-                <span>USDT</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-cyan-500"></span>
-                <span>BDT</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Quick Actions */}

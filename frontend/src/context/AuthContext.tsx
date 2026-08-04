@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api, { decodeJWT } from '../lib/axios';
+import api, { decodeJWT, isTokenExpired, refreshAccessToken, setOnTokenRefreshed } from '../lib/axios';
 
 interface User {
   id?: string;
@@ -34,49 +34,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize auth on mount: restore from localStorage, refresh if needed
   useEffect(() => {
-    // Check for token from URL (Google OAuth callback, etc.)
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
-    if (urlToken) {
-      window.history.replaceState({}, '', window.location.pathname);
-      localStorage.setItem('token', urlToken);
-      setToken(urlToken);
-      // Also store refreshToken from URL if present
-      const urlRefreshToken = params.get('refreshToken');
-      if (urlRefreshToken) {
-        localStorage.setItem('refreshToken', urlRefreshToken);
-      }
-      // Fetch user info in background
-      api.get('/auth/user').then((res) => {
-        if (res.data.success) {
-          setUser(res.data.data);
-          localStorage.setItem('user', JSON.stringify(res.data.data));
+    let cancelled = false;
+
+    async function initAuth() {
+      // Check for token from URL (Google OAuth callback, etc.)
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        window.history.replaceState({}, '', window.location.pathname);
+        localStorage.setItem('token', urlToken);
+        if (!cancelled) setToken(urlToken);
+        const urlRefreshToken = params.get('refreshToken');
+        if (urlRefreshToken) {
+          localStorage.setItem('refreshToken', urlRefreshToken);
         }
-      }).catch(() => {
-        // token invalid, clean up
+        // Fetch user info in background
+        api.get('/auth/user').then((res) => {
+          if (!cancelled && res.data.success) {
+            setUser(res.data.data);
+            localStorage.setItem('user', JSON.stringify(res.data.data));
+          }
+        }).catch(() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          if (!cancelled) setToken(null);
+        });
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+
+      if (storedToken && storedToken !== 'undefined' && decodeJWT(storedToken)) {
+        // We have a token — check if it's expired
+        if (isTokenExpired(storedToken)) {
+          // Token expired — try to refresh silently
+          if (storedRefreshToken) {
+            const newToken = await refreshAccessToken();
+            if (newToken && !cancelled) {
+              setToken(newToken);
+              if (storedUser) {
+                try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+              }
+              setLoading(false);
+              return;
+            }
+          }
+          // Refresh failed or no refresh token — clear auth
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+        } else {
+          // Token is still valid
+          if (!cancelled) setToken(storedToken);
+          if (storedUser && !cancelled) {
+            try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+          }
+        }
+      } else if (storedToken) {
+        // Stored token is invalid — clean up
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
-        setToken(null);
-      });
-      setLoading(false);
-      return;
+        localStorage.removeItem('user');
+      }
+      if (!cancelled) setLoading(false);
     }
 
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && storedToken !== 'undefined' && decodeJWT(storedToken)) {
-      setToken(storedToken);
-      if (storedUser) {
-        try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+    initAuth();
+
+    // Register callback so axios interceptor can update AuthContext state after silent refresh
+    setOnTokenRefreshed((data) => {
+      setToken(data.accessToken);
+      if (data.user) {
+        setUser(data.user as User);
       }
-    } else if (storedToken) {
-      // Stored token is invalid — clean up
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-    }
-    setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+      setOnTokenRefreshed(null);
+    };
   }, []);
 
   const refreshUser = useCallback(async () => {
