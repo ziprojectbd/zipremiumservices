@@ -128,15 +128,16 @@ export default function Checkout() {
     .filter((p: any) => p.enabled)
     .map((p: any) => p.method.toLowerCase());
   const isBDMobileMethod = mobileMethodIds.includes(paymentMethod.toLowerCase());
+  // For mobile payments the gateway collects payer number + TRX ID, so they aren't required here.
   const payerFilled = isPayCrypto
     ? (paymentType === 'uid' ? /^\d{9,}$/.test(payerNumber.trim()) : payerNumber.trim().length >= 10)
-    : payerNumber.trim().length >= 6;
-  const trxFilled = trxId.trim().length >= 6;
+    : true;
+  const trxFilled = (isPayCrypto && paymentType === 'network') ? trxId.trim().length >= 6 : true;
 
   const canConfirm: boolean = Boolean(
     hasCartItems &&
     payerFilled &&
-    ((isBDMobileMethod || (isPayCrypto && paymentType === "network")) ? trxFilled : true) &&
+    trxFilled &&
     (!isPayCrypto ||
       (paymentType && (paymentType === "network" ? selectedNetwork : selectedPlatform)))
   );
@@ -161,6 +162,31 @@ export default function Checkout() {
     const effectiveEmail = userEmail?.trim();
     if (!effectiveEmail) {
       showAlert('error', 'Email Required', 'Please sign in first. Email is required to place an order.');
+      return;
+    }
+
+    // For bkash / nagad / rocket payments — redirect to ZI Pay invoice page
+    const supportedMobileMethods = ['bkash', 'nagad', 'rocket'];
+    if (supportedMobileMethods.includes(paymentMethod)) {
+      const total = getTotalPrice();
+      const payInvoiceBase = import.meta.env.VITE_ZIPAY_URL || 'https://pay.zipremiumservices.com';
+      const mainSiteOrigin = import.meta.env.VITE_MAIN_SITE_URL || window.location.origin;
+      // Store the order context on THIS origin so /payment/process can read it back.
+      const checkoutPayload = {
+        email: effectiveEmail,
+        username,
+        paymentMethod,
+        totalAmount: total,
+        cart,
+        couponCode: couponCode || '',
+        couponDiscount: discountAmount,
+        couponType: discountType,
+      };
+      localStorage.setItem('zi-pay-checkout-data', JSON.stringify(checkoutPayload));
+      // cb = base64 of the main-site return URL (InvoicePayment decodes this to know where to redirect back).
+      const returnUrl = `${mainSiteOrigin}/payment/process`;
+      const cbUrl = btoa(unescape(encodeURIComponent(returnUrl)));
+      window.location.href = `${payInvoiceBase}/payment/invoice?provider=${encodeURIComponent(paymentMethod)}&amount=${encodeURIComponent(String(total))}&cb=${encodeURIComponent(cbUrl)}`;
       return;
     }
 
@@ -279,7 +305,9 @@ export default function Checkout() {
               paymentSettings={paymentSettings}
             />
 
-            {/* Payment Instructions */}
+            {/* Payment Instructions — only shown for methods handled on-site (upay/tap/crypto).
+                bKash/Nagad/Rocket are handled by the ZI Pay gateway, which shows its own instructions. */}
+            {!['bkash', 'nagad', 'rocket'].includes(paymentMethod) && (
             <PaymentInstructions
               paymentMethod={paymentMethod}
               getTotalPrice={getTotalPrice}
@@ -306,10 +334,32 @@ export default function Checkout() {
               cryptoPlatforms={cryptoPlatformsData}
               cryptoCurrencies={cryptoCurrenciesData}
             />
+            )}
           </div>
 
-          {/* Payment details */}
-          {(isBDMobileMethod || isPayCrypto) && (
+          {/* Mobile payments — lightweight confirm button (gateway collects payment details) */}
+          {isBDMobileMethod && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6">
+              <div className="text-xs sm:text-sm text-gray-300 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-2 sm:px-3 sm:py-2 mb-3">
+                You will be redirected to the payment gateway to complete your {paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} payment.
+              </div>
+              <button
+                type="button"
+                disabled={!canConfirm || submittingOrder}
+                onClick={handleConfirm}
+                className={`w-full inline-flex items-center justify-center px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg text-xs sm:text-sm font-semibold shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  canConfirm && !submittingOrder
+                    ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
+                }`}
+              >
+                {submittingOrder ? "Redirecting..." : "Confirm Order Securely"}
+              </button>
+            </div>
+          )}
+
+          {/* Crypto payment details — only shown for crypto payments */}
+          {isPayCrypto && (
             <PaymentDetails
               paymentMethod={paymentMethod}
               payerNumber={payerNumber}

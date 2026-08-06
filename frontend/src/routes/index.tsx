@@ -25,6 +25,7 @@ const MyOrders = lazy(() => import('../pages/public/MyOrders'));
 const OrderHistory = lazy(() => import('../pages/public/OrderHistory'));
 const OrderDetails = lazy(() => import('../pages/public/OrderDetails'));
 const OrderSuccess = lazy(() => import('../pages/public/OrderSuccess'));
+const PaymentProcess = lazy(() => import('../pages/public/PaymentProcess'));
 const LiveSupport = lazy(() => import('../pages/public/LiveSupport'));
 const SellProduct = lazy(() => import('../pages/public/SellProduct'));
 const CaptchaDashboard = lazy(() => import('../pages/public/CaptchaDashboard'));
@@ -88,7 +89,7 @@ export default function AppRoutes() {
                 <Route path="/sign-up" element={<LazyPage Component={SignUp} />} />
                 <Route path="/category/:slug" element={<LazyPage Component={CategoryPage} />} />
                 <Route path="/product/:slug/*" element={<LazyPage Component={ProductDetail} />} />
-                <Route path="/payment-and-confirmation" element={<LazyPage Component={Checkout} />} />
+                <Route path="/checkout" element={<LazyPage Component={Checkout} />} />
                 <Route path="/about-us" element={<LazyPage Component={AboutUs} />} />
                 <Route path="/contact-us" element={<LazyPage Component={ContactUs} />} />
                 <Route path="/privacy-policy" element={<LazyPage Component={PrivacyPolicy} />} />
@@ -119,6 +120,9 @@ export default function AppRoutes() {
                 {/* Catch-all for CMS pages */}
                 <Route path="/:slug" element={<LazyPage Component={CatchAllPage} />} />
             </Route>
+
+            {/* ZI Pay callback — returns here after payment, creates the order, and redirects to /order/success */}
+            <Route path="/payment/process" element={<LazyPage Component={PaymentProcess} />} />
 
             {/* Admin routes - protected by AdminRoute */}
             <Route element={<AdminRoute />}>

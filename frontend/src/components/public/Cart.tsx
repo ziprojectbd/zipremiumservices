@@ -427,7 +427,7 @@ export default function CartView({
                     }
                   }
                   setIsCartOpen(false);
-                  navigate("/payment-and-confirmation");
+                  navigate("/checkout");
                 }}
                 className="w-full py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-lg"
               >
