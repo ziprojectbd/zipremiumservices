@@ -24,6 +24,9 @@ import {
   deleteAdminCoupon,
   getAdminCampaigns,
   createAdminCampaign,
+  updateAdminCampaign,
+  deleteAdminCampaign,
+  duplicateAdminCampaign,
   getAdminKyc,
   updateAdminKyc,
   getFooterSettings,
@@ -83,6 +86,9 @@ router.delete('/coupons/:id', deleteAdminCoupon);
 // Campaigns
 router.get('/campaigns', getAdminCampaigns);
 router.post('/campaigns', createAdminCampaign);
+router.post('/campaigns/duplicate', duplicateAdminCampaign);
+router.put('/campaigns/:id', updateAdminCampaign);
+router.delete('/campaigns/:id', deleteAdminCampaign);
 
 // KYC
 router.get('/kyc', getAdminKyc);

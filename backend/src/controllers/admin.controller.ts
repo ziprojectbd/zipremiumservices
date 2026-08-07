@@ -567,6 +567,72 @@ export const createAdminCampaign = asyncHandler(async (req, res) => {
   return res.status(201).json(success(campaign, 'Campaign created'));
 });
 
+// PUT /api/admin/campaigns/:id
+export const updateAdminCampaign = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const { id } = req.params;
+  const campaign = await Campaign.findByIdAndUpdate(
+    id,
+    { $set: req.body },
+    { new: true, runValidators: true },
+  );
+
+  if (!campaign) {
+    return res.status(404).json(error('Campaign not found'));
+  }
+
+  return res.json(success(campaign, 'Campaign updated'));
+});
+
+// DELETE /api/admin/campaigns/:id  (soft-delete)
+export const deleteAdminCampaign = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const campaign = await Campaign.findByIdAndUpdate(
+    req.params.id,
+    { $set: { isDeleted: true } },
+    { new: true },
+  );
+
+  if (!campaign) {
+    return res.status(404).json(error('Campaign not found'));
+  }
+
+  return res.json(success(null, 'Campaign deleted'));
+});
+
+// POST /api/admin/campaigns/duplicate
+export const duplicateAdminCampaign = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const original = await Campaign.findById(req.body.id);
+
+  if (!original) {
+    return res.status(404).json(error('Campaign not found'));
+  }
+
+  const obj = original.toObject();
+
+  // Remove fields that must be unique or auto-generated
+  delete obj._id;
+  delete obj.createdAt;
+  delete obj.updatedAt;
+
+  // Append "(copy)" to name and adjust slug
+  const copyName = `${obj.name} (copy)`;
+  const copySlug = `${obj.slug}-copy-${Date.now()}`;
+
+  const duplicate = await Campaign.create({
+    ...obj,
+    name: copyName,
+    slug: copySlug,
+    status: 'draft',           // duplicates always start as draft
+  });
+
+  return res.status(201).json(success(duplicate, 'Campaign duplicated'));
+});
+
 // ---------------------------------------------------------------------------
 // KYC
 // ---------------------------------------------------------------------------

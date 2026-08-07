@@ -2,6 +2,7 @@ import Campaign from '@models/Campaign';
 import connectDB from '@db/connect';
 import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
+import Product from '@models/Product';
 
 /**
  * Generate a URL-friendly slug from a string.
@@ -88,4 +89,115 @@ export const createCampaign = asyncHandler(async (req, res) => {
   });
 
   return res.status(201).json(success(campaign, 'Campaign created'));
+});
+
+// GET /campaigns/active — Public endpoint for active campaigns
+export const getActiveCampaigns = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const now = new Date();
+
+  // Find active campaigns: not deleted, is active, status is active or within date range
+  const campaigns = await Campaign.find({
+    isDeleted: { $ne: true },
+    isActive: true,
+    $or: [
+      { status: 'active' },
+      { startDate: { $lte: now }, endDate: { $gt: now } },
+      { startDate: { $lte: now }, endDate: null },
+    ],
+  })
+    .sort({ priority: -1, startDate: -1 })
+    .lean();
+
+  return res.json(success(campaigns, 'Active campaigns'));
+});
+
+// GET /campaigns/:slug — Public endpoint to get campaign with its products
+export const getCampaignBySlug = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const { slug } = req.params;
+  const limit = parseInt(req.query.limit as string, 10) || 12;
+
+  const campaign = await Campaign.findOne({ slug, isDeleted: { $ne: true } }).lean();
+
+  if (!campaign) {
+    return res.status(404).json(error('Campaign not found'));
+  }
+
+  // Get product IDs from applicableProducts and productDiscounts
+  const productIds: string[] = [
+    ...(campaign.applicableProducts || []),
+    ...(campaign.productDiscounts || []).map((pd: any) => pd.productId),
+  ];
+
+  // Remove duplicates
+  const uniqueIds = [...new Set(productIds.map(String))];
+
+  let products: any[] = [];
+
+  if (uniqueIds.length > 0) {
+    const rawProducts = await Product.find({
+      _id: { $in: uniqueIds },
+      available: { $ne: false },
+    })
+      .limit(limit)
+      .lean();
+
+    const rawProductIds = new Set(rawProducts.map((r: any) => String(r._id)));
+    const discountMap = new Map<string, any>();
+    (campaign.productDiscounts || []).forEach((pd: any) => {
+      if (rawProductIds.has(String(pd.productId))) {
+        discountMap.set(String(pd.productId), pd);
+      }
+    });
+
+    products = rawProducts.map((p: any) => {
+      const pid = String(p._id);
+      const pdOverride = discountMap.get(pid);
+
+      // Determine the effective discount for this product
+      const discountType = pdOverride?.discountType || campaign.discountType;
+      const discountValue = pdOverride?.discountValue ?? campaign.discountValue;
+
+      let originalPrice: number = p.priceBDT || p.price || 0;
+      let discountPrice: number = originalPrice;
+      let discountPercent: number = 0;
+      let amountSaved: number = 0;
+
+      if (discountType === 'percentage' && discountValue > 0) {
+        discountPercent = Math.min(100, discountValue);
+        discountPrice = originalPrice * (1 - discountPercent / 100);
+        if (campaign.maxDiscountAmount) {
+          const saved = originalPrice - discountPrice;
+          if (saved > campaign.maxDiscountAmount) {
+            discountPrice = originalPrice - campaign.maxDiscountAmount;
+          }
+        }
+        amountSaved = originalPrice - discountPrice;
+      } else if (discountType === 'fixed_amount' && discountValue > 0) {
+        discountPrice = Math.max(0, originalPrice - discountValue);
+        amountSaved = originalPrice - discountPrice;
+        discountPercent = originalPrice > 0 ? (amountSaved / originalPrice) * 100 : 0;
+      } else if (discountType === 'fixed_price' && discountValue > 0) {
+        discountPrice = Math.min(originalPrice, discountValue);
+        amountSaved = originalPrice - discountPrice;
+        discountPercent = originalPrice > 0 ? (amountSaved / originalPrice) * 100 : 0;
+      }
+
+      return {
+        ...p,
+        campaignPrice: discountPrice,
+        campaignDiscount: Math.round(discountPercent * 100) / 100,
+        campaignAmountSaved: Math.round(amountSaved * 100) / 100,
+        campaignBadge: campaign.name,
+        campaignSlug: campaign.slug,
+        campaignColor: campaign.colorTheme,
+        campaignDiscountType: discountType,
+      };
+    });
+  }
+
+  return res.json(success({ campaign, products }, 'Campaign products'));
 });
