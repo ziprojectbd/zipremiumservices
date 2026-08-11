@@ -839,3 +839,35 @@ iframe {
 .scrollbar-hide::-webkit-scrollbar {
   display: none !important;
 }
+
+/* ======================================================================
+   Mobile: force white text on dark admin backgrounds
+   Fixes browser/OS default black text on inputs, selects, options,
+   and code elements that can override Tailwind's text-white.
+   ====================================================================== */
+@media (max-width: 640px) {
+  /* Force white text on all form controls inside dark backgrounds */
+  input, textarea, select, option, code, pre, kbd, samp {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    caret-color: #fff !important;
+  }
+  /* placeholder text */
+  input::placeholder,
+  textarea::placeholder {
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.4) !important;
+    color: rgba(255, 255, 255, 0.4) !important;
+  }
+  /* disabled inputs stay readable */
+  input:disabled, textarea:disabled, select:disabled {
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.5) !important;
+  }
+  /* ensure all text inside dark bg cards is white */
+  [class*="bg-gradient-to-br"][class*="slate"] p,
+  [class*="bg-gradient-to-br"][class*="slate"] span,
+  [class*="bg-white/5"] p,
+  [class*="bg-white/5"] span,
+  [class*="bg-white/5"] div {
+    color: #fff !important;
+  }
+}

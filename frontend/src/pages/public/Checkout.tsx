@@ -280,16 +280,8 @@ export default function Checkout() {
   };
 
   return (
-    <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 py-10">
+    <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 py-10 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-white">
-            Confirm Your Order
-          </h2>
-          <p className="text-gray-400">
-            Complete your purchase securely
-          </p>
-        </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Order summary */}
           <div className="lg:col-span-2 space-y-6">

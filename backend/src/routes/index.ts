@@ -27,10 +27,9 @@ import generateSeoRoutes from './generate-seo.routes.js';
 import userProductRoutes from './user-product.routes.js';
 import { authenticate } from '@middlewares/auth';
 import { adminOnly } from '@middlewares/adminOnly';
-import {
-  getPaymentSettings,
-  updatePaymentSettings,
-} from '@controllers/admin.controller';
+import { getPaymentSettings, updatePaymentSettings } from '@controllers/admin.controller';
+import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
+import connectDB from '@db/connect';
 
 const router = Router();
 
@@ -71,6 +70,21 @@ router.use('/admin/generate-seo', generateSeoRoutes);
 // Compatibility alias: /api/payment-settings (with auth) → admin payment settings
 router.get('/payment-settings', authenticate, adminOnly, getPaymentSettings);
 router.post('/payment-settings', authenticate, adminOnly, updatePaymentSettings);
+
+// Public captcha discount settings — no auth needed, frontend fetches to display prices
+router.get('/captcha-settings', async (_req, res) => {
+  try {
+    await connectDB();
+    let settings = await CaptchaMasterSettings.findById('global').lean();
+    if (!settings) {
+      const created = await CaptchaMasterSettings.create({ _id: 'global' });
+      settings = created.toObject();
+    }
+    res.json({ success: true, data: { discountPercent: settings.discountPercent, discountEnabled: settings.discountEnabled } });
+  } catch {
+    res.json({ success: true, data: { discountPercent: 20, discountEnabled: true } });
+  }
+});
 
 // User product submissions (public listing & creation, admin update)
 router.use('/user-products', userProductRoutes);

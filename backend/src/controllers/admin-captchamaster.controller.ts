@@ -1,6 +1,7 @@
 import CaptchaPackage from '@models/CaptchaPackage';
 import CaptchaOrder from '@models/CaptchaOrder';
 import CaptchaApiKey from '@models/CaptchaApiKey';
+import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
 import connectDB from '@db/connect';
 import { success, error } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
@@ -185,4 +186,56 @@ export const deleteAdminCaptchaApiKey = asyncHandler(async (req, res) => {
   }
 
   return res.json(success(null, 'API key deleted'));
+});
+
+// Helper — singleton settings getter (creates default doc on first access)
+async function getCaptchaGlobalSettings() {
+  let doc = await CaptchaMasterSettings.findById('global').lean();
+  if (!doc) {
+    const created = await CaptchaMasterSettings.create({ _id: 'global' });
+    doc = created.toObject();
+  }
+  return doc;
+}
+
+// GET /api/admin/captchamaster/settings — fetch discount settings
+export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const settings = await getCaptchaGlobalSettings();
+
+  return res.json(
+    success({
+      discountPercent: settings.discountPercent,
+      discountEnabled: settings.discountEnabled,
+    })
+  );
+});
+
+// PUT /api/admin/captchamaster/settings — update discount settings
+export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const { discountPercent, discountEnabled } = req.body;
+
+  const update: Record<string, unknown> = {};
+  if (discountPercent !== undefined) {
+    const pct = Number(discountPercent);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      return res.status(400).json(error('discountPercent must be a number between 0 and 100'));
+    }
+    update.discountPercent = pct;
+  }
+  if (discountEnabled !== undefined) {
+    update.discountEnabled = Boolean(discountEnabled);
+  }
+
+  const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, { new: true, upsert: true });
+
+  return res.json(
+    success({
+      discountPercent: settings.discountPercent,
+      discountEnabled: settings.discountEnabled,
+    })
+  );
 });

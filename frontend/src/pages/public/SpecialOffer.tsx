@@ -292,7 +292,7 @@ function SpecialOfferContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100">
       {/* Hero Section */}
-      <div className="relative overflow-hidden py-12 sm:py-16 md:py-24">
+      <div className="relative overflow-hidden py-8 sm:py-10 md:py-14">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-pink-900/40" />
 
         {/* Animated particles — hidden on mobile to prevent overflow */}
@@ -302,19 +302,19 @@ function SpecialOfferContent() {
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="flex justify-center mb-4 sm:mb-6">
+          <div className="flex justify-center mb-2 sm:mb-3">
             <div className="relative">
-              <Gift className="w-12 h-12 sm:w-16 sm:h-16 text-yellow-300 animate-pulse" />
-              <Sparkles className="w-5 h-5 sm:w-8 sm:h-8 text-white absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 animate-spin" />
+              <Gift className="w-10 h-10 sm:w-14 sm:h-14 text-yellow-300 animate-pulse" />
+              <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-white absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 animate-spin" />
             </div>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-black mb-3 sm:mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black mb-2 sm:mb-3">
             <span className="bg-gradient-to-r from-yellow-200 via-orange-200 to-pink-200 bg-clip-text text-transparent drop-shadow-lg">
               Special Offers
             </span>
           </h1>
-          <p className="text-sm sm:text-lg md:text-xl text-white/80 mb-6 sm:mb-8 max-w-2xl mx-auto px-2">
+          <p className="text-sm sm:text-base md:text-lg text-white/80 mb-4 sm:mb-5 max-w-2xl mx-auto px-2">
             {campaignFilter
               ? `Check out deals from ${campaigns.find(c => c.slug === campaignFilter)?.name || "this campaign"}!`
               : "Premium services at unbeatable prices — limited time deals!"}

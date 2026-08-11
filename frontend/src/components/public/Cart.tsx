@@ -227,7 +227,7 @@ export default function CartView({
                   >
                     <div className="flex items-center space-x-4">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                        <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2">
                           {item.name}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-300">

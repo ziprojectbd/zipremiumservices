@@ -99,6 +99,7 @@ export default function CaptchaSolvesApiCards({
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean }>({ discountPercent: 20, discountEnabled: true });
 
   useEffect(() => {
     fetch("https://captchamaster.org/api/pricing")
@@ -112,6 +113,15 @@ export default function CaptchaSolvesApiCards({
       })
       .catch(() => setError("Failed to connect to pricing service"))
       .finally(() => setLoading(false));
+
+    // Fetch captcha discount settings
+    api.get("/captcha-settings")
+      .then((res) => {
+        if (res.data?.success && res.data?.data) {
+          setCaptchaDiscount(res.data.data);
+        }
+      })
+      .catch(() => {});
 
     // Fetch logged-in user's active captcha packages
     if (isAuthenticated) {
@@ -438,38 +448,71 @@ export default function CaptchaSolvesApiCards({
                     border: `1px solid hsla(${hue}, 50%, 55%, 0.12)`,
                   }}
                 >
-                  <span
-                    className="text-base sm:text-lg font-extrabold"
-                    style={{
-                      backgroundImage: `linear-gradient(90deg, hsl(${hue}, 70%, 70%), hsl(${(hue + 60) % 360}, 80%, 70%))`,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }}
-                  >
-                    ${formatPrice(plan.priceValue, 2)} USD
-                  </span>
+                  {captchaDiscount.discountEnabled && captchaDiscount.discountPercent > 0 ? (
+                    <>
+                      {/* Discounted price */}
+                      <span
+                        className="text-base sm:text-lg font-extrabold"
+                        style={{
+                          backgroundImage: `linear-gradient(90deg, hsl(${(hue + 30) % 360}, 70%, 65%), hsl(${(hue + 90) % 360}, 80%, 65%))`,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                        }}
+                      >
+                        ${formatPrice(Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100, 2)} USD
+                      </span>
+                      {/* Original price struck through */}
+                      <div className="text-xs text-gray-500 line-through mt-0.5">
+                        ${formatPrice(plan.priceValue, 2)} USD
+                      </div>
+                      {/* Discount badge */}
+                      <div
+                        className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm"
+                        style={{ background: `linear-gradient(135deg, hsl(${(hue + 30) % 360}, 70%, 50%), hsl(${(hue + 90) % 360}, 80%, 50%))` }}
+                      >
+                        -{captchaDiscount.discountPercent}%
+                      </div>
+                    </>
+                  ) : (
+                    <span
+                      className="text-base sm:text-lg font-extrabold"
+                      style={{
+                        backgroundImage: `linear-gradient(90deg, hsl(${hue}, 70%, 70%), hsl(${(hue + 60) % 360}, 80%, 70%))`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                      }}
+                    >
+                      ${formatPrice(plan.priceValue, 2)} USD
+                    </span>
+                  )}
                   <div
                     className="absolute top-2 right-2 w-2 h-2 rounded-full opacity-60 animate-pulse"
                     style={{ backgroundColor: borderColor }}
                   />
                 </div>
 
-                {/* Add to Cart button */}
-                <button
-                  onClick={() =>
-                    addToCart({
-                      id: `cm-${plan.code}`,
-                      name: `Captcha Solver Api — ${plan.code}`,
-                      description: `${typeLabels[plan.type] || plan.type} — $${formatPrice(plan.priceValue, 2)}`,
-                      price: plan.priceValue,
-                      originalPrice: plan.priceValue,
-                      priceBDT: Math.round(plan.priceValue * (exchangeRate || 110) * 100) / 100,
-                      priceUSDT: plan.priceValue,
-                      category: 'Captcha Solver Api',
-                      features: features.slice(0, 3),
-                      available: true,
-                    })
-                  }
+                {/* Add to Cart button — use discounted price */}
+                {(() => {
+                  const discountedPriceUSD = captchaDiscount.discountEnabled && captchaDiscount.discountPercent > 0
+                    ? Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100
+                    : plan.priceValue;
+                  const discountedPriceBDT = Math.round(discountedPriceUSD * (exchangeRate || 110) * 100) / 100;
+                  return (
+                  <button
+                    onClick={() =>
+                      addToCart({
+                        id: `cm-${plan.code}`,
+                        name: `Captcha Solver Api — ${plan.code}`,
+                        description: `${typeLabels[plan.type] || plan.type} — $${formatPrice(discountedPriceUSD, 2)}`,
+                        price: discountedPriceUSD,
+                        originalPrice: plan.priceValue,
+                        priceBDT: discountedPriceBDT,
+                        priceUSDT: discountedPriceUSD,
+                        category: 'Captcha Solver Api',
+                        features: features.slice(0, 3),
+                        available: true,
+                      })
+                    }
                   className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-white transition-all duration-300 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                   style={{
                     background: `linear-gradient(135deg, hsl(${hue}, 60%, 45%), hsl(${(hue + 60) % 360}, 70%, 45%))`,
@@ -488,6 +531,8 @@ export default function CaptchaSolvesApiCards({
                     </>
                   )}
                 </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
