@@ -99,7 +99,7 @@ export default function CaptchaSolvesApiCards({
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean }>({ discountPercent: 20, discountEnabled: true });
+  const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean; exchangeRate: number }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
 
   useEffect(() => {
     fetch("https://captchamaster.org/api/pricing")
@@ -496,7 +496,8 @@ export default function CaptchaSolvesApiCards({
                   const discountedPriceUSD = captchaDiscount.discountEnabled && captchaDiscount.discountPercent > 0
                     ? Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100
                     : plan.priceValue;
-                  const discountedPriceBDT = Math.round(discountedPriceUSD * (exchangeRate || 110) * 100) / 100;
+                  const effectiveRate = captchaDiscount.exchangeRate || exchangeRate || 110;
+                  const discountedPriceBDT = Math.round(discountedPriceUSD * effectiveRate * 100) / 100;
                   return (
                   <button
                     onClick={() =>

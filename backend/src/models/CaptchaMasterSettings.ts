@@ -15,6 +15,11 @@ const captchaMasterSettingsSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  exchangeRate: {
+    type: Number,
+    default: 110,
+    min: 1,
+  },
 }, {
   timestamps: true,
 });

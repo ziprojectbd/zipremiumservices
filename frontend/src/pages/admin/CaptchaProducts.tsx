@@ -371,6 +371,8 @@ export default function AdminCaptchaMasterPage() {
   const [discountEnabled, setDiscountEnabled] = useState(true);
   const [discountSaving, setDiscountSaving] = useState(false);
   const [discountLoading, setDiscountLoading] = useState(false);
+  // Exchange rate for USD→BDT conversion
+  const [exchangeRate, setExchangeRate] = useState(110);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -421,6 +423,7 @@ export default function AdminCaptchaMasterPage() {
       if (res.data.success) {
         setDiscountPercent(res.data.data.discountPercent ?? 20);
         setDiscountEnabled(res.data.data.discountEnabled ?? true);
+        setExchangeRate(res.data.data.exchangeRate ?? 110);
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to load discount settings', 'error');
@@ -435,18 +438,20 @@ export default function AdminCaptchaMasterPage() {
       const res = await api.put('/admin/captchamaster/settings', {
         discountPercent,
         discountEnabled,
+        exchangeRate,
       });
       if (res.data.success) {
-        showToast('Discount settings saved successfully', 'success');
+        showToast('Settings saved successfully', 'success');
         setDiscountPercent(res.data.data.discountPercent ?? discountPercent);
         setDiscountEnabled(res.data.data.discountEnabled ?? discountEnabled);
+        setExchangeRate(res.data.data.exchangeRate ?? exchangeRate);
       } else throw new Error(res.data.error);
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', 'error');
     } finally {
       setDiscountSaving(false);
     }
-  }, [discountPercent, discountEnabled, showToast]);
+  }, [discountPercent, discountEnabled, exchangeRate, showToast]);
 
   useEffect(() => {
     const load = async () => {
@@ -1088,9 +1093,9 @@ export default function AdminCaptchaMasterPage() {
       {activeTab === 'settings' && (
         <div className="max-w-lg">
           <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-white mb-1">Discount Settings</h2>
+            <h2 className="text-lg font-bold text-white mb-1">Pricing Settings</h2>
             <p className="text-white/50 text-sm mb-6">
-              Configure the automatic discount applied to Captcha Solver Api plans. Changes apply to new cart items immediately.
+              Configure the automatic discount and USD to BDT exchange rate for Captcha Solver Api plans. Changes apply to new cart items immediately.
             </p>
 
             {discountLoading ? (
@@ -1139,6 +1144,25 @@ export default function AdminCaptchaMasterPage() {
                   </div>
                   <p className="text-white/40 text-xs mt-2">
                     Product price will be reduced by {discountPercent}% for captcha packages.
+                  </p>
+                </div>
+
+                {/* USD to BDT exchange rate */}
+                <div className="mb-6">
+                  <label className="block text-white font-medium text-sm mb-2">USD to BDT Rate</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      step="0.01"
+                      value={exchangeRate}
+                      onChange={(e) => setExchangeRate(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-28 sm:w-32 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                    />
+                    <span className="text-white/40 text-sm">BDT per 1 USD</span>
+                  </div>
+                  <p className="text-white/40 text-xs mt-2">
+                    1 USD = {exchangeRate} BDT for captcha solver api packages.
                   </p>
                 </div>
 

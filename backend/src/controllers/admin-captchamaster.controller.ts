@@ -208,6 +208,7 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
     success({
       discountPercent: settings.discountPercent,
       discountEnabled: settings.discountEnabled,
+      exchangeRate: settings.exchangeRate,
     })
   );
 });
@@ -216,7 +217,7 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
 export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const { discountPercent, discountEnabled } = req.body;
+  const { discountPercent, discountEnabled, exchangeRate } = req.body;
 
   const update: Record<string, unknown> = {};
   if (discountPercent !== undefined) {
@@ -229,6 +230,13 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   if (discountEnabled !== undefined) {
     update.discountEnabled = Boolean(discountEnabled);
   }
+  if (exchangeRate !== undefined) {
+    const rate = Number(exchangeRate);
+    if (Number.isNaN(rate) || rate < 1) {
+      return res.status(400).json(error('exchangeRate must be a number greater than 0'));
+    }
+    update.exchangeRate = rate;
+  }
 
   const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, { new: true, upsert: true });
 
@@ -236,6 +244,7 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
     success({
       discountPercent: settings.discountPercent,
       discountEnabled: settings.discountEnabled,
+      exchangeRate: settings.exchangeRate,
     })
   );
 });

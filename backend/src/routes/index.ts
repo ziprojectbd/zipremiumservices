@@ -80,9 +80,9 @@ router.get('/captcha-settings', async (_req, res) => {
       const created = await CaptchaMasterSettings.create({ _id: 'global' });
       settings = created.toObject();
     }
-    res.json({ success: true, data: { discountPercent: settings.discountPercent, discountEnabled: settings.discountEnabled } });
+    res.json({ success: true, data: { discountPercent: settings.discountPercent, discountEnabled: settings.discountEnabled, exchangeRate: settings.exchangeRate || 110 } });
   } catch {
-    res.json({ success: true, data: { discountPercent: 20, discountEnabled: true } });
+    res.json({ success: true, data: { discountPercent: 20, discountEnabled: true, exchangeRate: 110 } });
   }
 });
 
