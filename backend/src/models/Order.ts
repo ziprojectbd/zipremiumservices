@@ -198,6 +198,31 @@ const orderSchema = new mongoose.Schema({
     required: false,
     default: '',
   },
+  // Coupon applied to this order (frozen at apply time — same value as couponCode).
+  reservedCouponCode: {
+    type: String,
+    required: false,
+    trim: true,
+    default: '',
+  },
+  // Whether coupon usage was finalized (recorded on the Coupon) after successful payment.
+  couponFinalized: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  couponFinalizedAt: {
+    type: Date,
+    required: false,
+    default: null,
+  },
+  // Unique key so coupon usage is recorded exactly once (idempotent verify).
+  idempotencyKey: {
+    type: String,
+    required: false,
+    trim: true,
+    default: '',
+  },
   deliveryNote: {
     type: String,
     required: false,
@@ -319,6 +344,15 @@ orderSchema.index({ txHash: 1 }, {
   unique: true,
   partialFilterExpression: {
     txHash: { $type: 'string', $ne: '' }
+  }
+});
+
+// Idempotency key — guarantees coupon usage is finalized exactly once even if
+// the admin's verify_payment action is retried or double-clicked.
+orderSchema.index({ idempotencyKey: 1 }, {
+  unique: true,
+  partialFilterExpression: {
+    idempotencyKey: { $type: 'string', $ne: '' }
   }
 });
 

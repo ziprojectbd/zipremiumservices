@@ -22,7 +22,7 @@ export default function Checkout() {
     txHash, setTxHash, copiedAddress, setCopiedAddress,
     getTotalPrice, paymentSettings, getTotalPriceUSD,
     exchangeRate, couponCode, discountAmount, discountType,
-    removeCoupon, showAlert, cryptoCurrency, setCryptoCurrency,
+    showAlert, cryptoCurrency, setCryptoCurrency,
     paymentType, setPaymentType, selectedNetwork, setSelectedNetwork,
     selectedPlatform, setSelectedPlatform
   } = useShopContext();
@@ -252,7 +252,6 @@ export default function Checkout() {
       }
 
       setCart([]);
-      removeCoupon();
       setPayerNumber('');
       setTrxId('');
       setTxHash('');

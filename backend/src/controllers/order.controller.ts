@@ -382,8 +382,12 @@ export const createOrder = asyncHandler(async (req, res) => {
     currency: orderCurrency,
     paymentMethod: finalPaymentMethod,
     couponCode: appliedCouponCode || '',
+    reservedCouponCode: appliedCouponCode || '',
     discountAmount,
     discountType,
+    idempotencyKey: appliedCouponCode
+      ? `${email.trim().toLowerCase()}::${appliedCouponCode.toUpperCase()}::${new Date().getTime()}`
+      : '',
     deliveryNote: deliveryNote || '',
     captchaApiKey: (normalizedBody.captchaApiKey as string) || undefined,
 
@@ -441,25 +445,6 @@ export const createOrder = asyncHandler(async (req, res) => {
         // Non-blocking — order is still created
       }
     }
-  }
-
-  // -----------------------------------------------------------------------
-  // Track coupon usage
-  // -----------------------------------------------------------------------
-  if (coupon && appliedCouponCode) {
-    const productIds = validatedItems
-      .filter((i) => i.product)
-      .map((i) => i.product!.toString());
-
-    const usedByEntries = productIds.map((pid) => ({
-      email: email.toLowerCase().trim(),
-      productId: pid,
-    }));
-
-    await Coupon.findByIdAndUpdate(coupon._id, {
-      $inc: { usedCount: 1 },
-      $push: { usedBy: { $each: usedByEntries } },
-    });
   }
 
   // -----------------------------------------------------------------------

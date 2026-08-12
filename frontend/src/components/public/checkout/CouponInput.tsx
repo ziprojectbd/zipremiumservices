@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { useShopContext } from "../../../store/ShopContext";
-import { Tag, X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Tag, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function CouponInput() {
-  const { couponCode, discountAmount, discountType, couponError, applyingCoupon, applyCoupon, removeCoupon, getSubtotalPrice } = useShopContext();
+  const { couponCode, couponError, applyingCoupon, applyCoupon, getSubtotalPrice } = useShopContext();
   const [inputCode, setInputCode] = useState("");
 
   const handleApply = async () => {
@@ -11,11 +11,6 @@ export default function CouponInput() {
     if (success) {
       setInputCode("");
     }
-  };
-
-  const handleRemove = () => {
-    removeCoupon();
-    setInputCode("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -38,13 +33,6 @@ export default function CouponInput() {
               <CheckCircle2 className="w-5 h-5 text-green-400 mr-3 flex-shrink-0" />
               <span className="text-white font-semibold">{couponCode}</span>
             </div>
-            <button
-              onClick={handleRemove}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-red-400"
-              title="Remove coupon"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
       ) : (

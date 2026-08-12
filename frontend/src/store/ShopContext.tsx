@@ -327,28 +327,52 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                 category: item.category || '', _id: item.dbId || item.id,
                 quantity: item.quantity, name: item.name, price: item.priceBDT || item.price,
             }));
-            const res = await api.post('/validate-coupon', { code: code.trim(), items: cartItems, email: userEmail || '' });
+            const res = await api.post('/coupons/validate', { code: code.trim(), items: cartItems, email: userEmail || '', totalAmount: getSubtotalPrice() });
             const data = res.data;
             if (data.success) {
                 setCouponCode(code.trim().toUpperCase());
                 setDiscountAmount(data.data.discountAmount);
                 setDiscountType(data.data.discountType);
                 setCouponError('');
+                // Persist the applied coupon + cart so a page refresh (or the
+                // ZI-Pay round-trip) keeps the discounted price active.
+                try {
+                    const persisted = JSON.parse(localStorage.getItem('zi-pay-checkout-data') || 'null');
+                    localStorage.setItem('zi-pay-checkout-data', JSON.stringify({
+                        email: (persisted?.email) || userEmail || '',
+                        username: (persisted?.username) || '',
+                        paymentMethod: (persisted?.paymentMethod) || paymentMethod || 'bkash',
+                        totalAmount: Math.round(getTotalPrice()),
+                        cart,
+                        couponCode: code.trim().toUpperCase(),
+                        couponDiscount: data.data.discountAmount,
+                        couponType: data.data.discountType,
+                    }));
+                } catch { /* Non-blocking persistence failure */ }
                 return true;
             } else {
+                const serverMsg: string | undefined =
+                    typeof data.message === 'string' ? data.message : undefined;
                 setCouponCode(''); setDiscountAmount(0); setDiscountType('');
-                setCouponError(data.error || 'Invalid coupon');
-                if (data.error?.toLowerCase().includes('already used this coupon')) {
+                setCouponError(serverMsg || 'Invalid coupon');
+                if (serverMsg?.toLowerCase().includes('already used this coupon')) {
                     showAlert('warning', 'Coupon Already Used', 'You have already used this coupon for a product in your cart. Please try a different coupon.');
                 }
                 return false;
             }
-        } catch {
-            setCouponError('Failed to validate coupon. Please try again.');
+        } catch (err: any) {
+            const serverMsg: string | undefined =
+                typeof err?.response?.data?.message === 'string'
+                    ? err.response.data.message
+                    : undefined;
+            setCouponError(serverMsg || 'Failed to validate coupon. Please try again.');
+            if (serverMsg?.toLowerCase().includes('already used this coupon')) {
+                showAlert('warning', 'Coupon Already Used', 'You have already used this coupon for a product in your cart. Please try a different coupon.');
+            }
             setCouponCode(''); setDiscountAmount(0); setDiscountType('');
             return false;
         } finally { setApplyingCoupon(false); }
-    }, [cart]);
+    }, [cart, getSubtotalPrice]);
 
     const removeCoupon = useCallback(() => {
         setCouponCode(''); setDiscountAmount(0); setDiscountType(''); setCouponError('');
@@ -392,6 +416,41 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         };
         loadCartFromDB();
     }, [isLoggedIn, userEmail]);
+
+    // Restore the applied coupon + cart from the persisted ZI-Pay checkout
+    // record after a page refresh or after returning from the ZI-Pay gateway.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const raw = localStorage.getItem('zi-pay-checkout-data');
+            if (!raw) return;
+            const persisted = JSON.parse(raw);
+            if (!persisted?.cart?.length) return;
+
+            const persistedCoupon = persisted.couponCode;
+            const persistedDiscount = Number(persisted.couponDiscount || 0);
+            const persistedType = persisted.couponType || '';
+
+            if (persistedCoupon) {
+                setCouponCode(persistedCoupon);
+                setDiscountAmount(persistedDiscount);
+                setDiscountType(persistedType);
+            }
+
+            setCart(prev => {
+                // Only restore the cart if the user hasn't already started a new one.
+                if (prev.length > 0) return prev;
+                return persisted.cart.map((item: any) => ({
+                    ...item, id: item.dbId || item.id, price: item.priceBDT || item.price,
+                    priceBDT: item.priceBDT || item.price, features: item.features || [],
+                    link: item.link || '', smmProvider: item.smmProvider || '',
+                    smmServiceId: item.smmServiceId || '', category: item.category || '',
+                    details: item.details || '', stock: item.stock || 0,
+                    customData: item.customData || {},
+                }));
+            });
+        } catch { /* Non-blocking restore failure */ }
+    }, []);
 
     const saveTimerRef = useRef<number | null>(null);
     const lastSavedCartRef = useRef<string>('');

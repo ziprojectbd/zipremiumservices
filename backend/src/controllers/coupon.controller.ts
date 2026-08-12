@@ -8,7 +8,7 @@ import { roundCurrency } from '@utils/currency';
 export const validateCoupon = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const { code, items, totalAmount } = req.body;
+  const { code, items, totalAmount, email } = req.body;
 
   if (!code) {
     return res.status(400).json(error('Coupon code is required'));
@@ -19,6 +19,28 @@ export const validateCoupon = asyncHandler(async (req, res) => {
 
   if (!coupon) {
     return res.status(404).json(error('Invalid coupon code'));
+  }
+
+  // Per-customer check: the same customer may not reuse this coupon on a
+  // product it was already used for (a completed/finalized usage).
+  if (typeof email === 'string' && email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const usedProducts = (coupon.usedBy as Array<{ email: string; productId: unknown }> | undefined)
+      ?.filter((entry) => entry.email === normalizedEmail)
+      .map((entry) => entry.productId?.toString());
+
+    const itemProductIds = (items && Array.isArray(items) ? items : [])
+      .map((item: any) => (item?.dbId ?? item?.productId ?? item?._id ?? item?.id)?.toString())
+      .filter(Boolean);
+
+    if (
+      usedProducts &&
+      usedProducts.length > 0 &&
+      itemProductIds.length > 0 &&
+      itemProductIds.some((pid: string) => usedProducts.includes(pid))
+    ) {
+      return res.status(400).json(error('You have already used this coupon for a product in your cart'));
+    }
   }
 
   // Check coupon is active

@@ -327,10 +327,19 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
             }
           }
         }
+
+        // Finalize coupon usage exactly once (payment verified). This is the
+        // only place coupon usage is recorded — order creation only reserves.
+        if (order.couponCode) {
+          await finalizeCouponUsage(order);
+        }
         break;
       case 'reject_payment':
         order.paymentStatus = 'rejected';
         order.status = 'rejected';
+        // Payment rejected → coupon usage is NOT consumed. The coupon stays
+        // valid for a retry while it remains valid.
+        order.couponFinalized = false;
         break;
       case 'approve_order':
         order.status = 'approved';
@@ -406,6 +415,87 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
   return res.json(success(order, 'Order updated'));
 });
+
+// ---------------------------------------------------------------------------
+// Coupon usage finalization (called once from verify_payment)
+//
+// Records coupon usage on the Coupon document only when the order's payment is
+// verified. Idempotent: the couponFinalized flag is claimed atomically before
+// recording, so double-clicking "Verify" (or concurrent verifies) never
+// double-counts; the idempotencyKey prefix guard additionally prevents a
+// completed usage from being recorded again on a retry order.
+// ---------------------------------------------------------------------------
+async function finalizeCouponUsage(order: any): Promise<void> {
+  const code = String(order.couponCode || '').trim().toUpperCase();
+  if (!code) return;
+
+  const coupon = await Coupon.findOne({ code });
+  if (!coupon) return;
+
+  const email = String(order.email || order.customerEmail || '').trim().toLowerCase();
+  // The create-time key is unique per order (email::CODE::timestamp). Use the
+  // stable "email::CODE" prefix as the cross-order idempotency guard: retry
+  // orders (same user + coupon, fresh key) are never blocked by the unique
+  // index, while a completed usage is still never double-counted.
+  const idempotencyKey = String(order.idempotencyKey || '')
+    || `${email}::${code}::${order._id}`;
+  const prefix = `${email}::${code}`;
+  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Cross-order guard: if another order for the same customer + coupon has
+  // already finalized usage, do nothing — usage is not double-counted.
+  const existingFinalized = await Order.findOne({
+    idempotencyKey: { $regex: `^${escapedPrefix}::` },
+    couponFinalized: true,
+    _id: { $ne: order._id },
+  }).lean();
+  if (existingFinalized) return;
+
+  // Atomic claim: only the first verifier to flip couponFinalized may record
+  // usage. A concurrent double-click on "Verify" loses the claim and returns.
+  // The in-memory flags are mirrored after the increment so the trailing
+  // order.save() in updateAdminOrder does not clobber the claim.
+  const claimed = await Order.findOneAndUpdate(
+    { _id: order._id, couponFinalized: { $ne: true } },
+    { $set: { couponFinalized: true, couponFinalizedAt: new Date(), idempotencyKey } },
+    { new: false },
+  ).lean();
+  if (!claimed) return;
+
+  try {
+    const productIds = (order.items || [])
+      .filter((item: any) => item.product)
+      .map((item: any) => item.product.toString())
+      .filter((pid: string) => pid && pid.length === 24 && /^[a-f0-9]+$/i.test(pid));
+
+    // Skip (email, product) pairs already recorded on the coupon.
+    const existingPairs = new Set(
+      (coupon.usedBy || [])
+        .filter((e: any) => e.email === email)
+        .map((e: any) => e.productId?.toString()),
+    );
+    const newEntries = productIds
+      .filter((pid: string) => !existingPairs.has(pid))
+      .map((pid: string) => ({ email, productId: pid }));
+
+    if (newEntries.length > 0) {
+      await Coupon.findByIdAndUpdate(coupon._id, {
+        $inc: { usedCount: 1 },
+        $push: { usedBy: { $each: newEntries } },
+      });
+    }
+  } catch (err) {
+    // Recording failed — release the claim so a retry can re-record.
+    await Order.updateOne({ _id: order._id }, { $set: { couponFinalized: false } })
+      .catch(() => undefined);
+    throw err;
+  }
+
+  // Mirror the claim onto the in-memory doc so the trailing save() persists it.
+  order.couponFinalized = true;
+  order.couponFinalizedAt = new Date();
+  order.idempotencyKey = idempotencyKey;
+}
 
 // DELETE /api/admin/orders/:id
 export const deleteAdminOrder = asyncHandler(async (req, res) => {

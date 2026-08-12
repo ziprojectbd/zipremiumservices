@@ -88,9 +88,6 @@ export default function PaymentProcess() {
           couponCode: checkout.couponCode || "",
         });
 
-        // Order created — safe to clear the stored checkout data.
-        localStorage.removeItem("zi-pay-checkout-data");
-
         if (!cancelled) {
           const orderId = response.data?.data?.orderNumber || response.data?.data?.orderId || "";
           navigate("/order/success" + (orderId ? `?order_id=${orderId}` : ""), { replace: true });
