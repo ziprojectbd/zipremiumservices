@@ -168,7 +168,9 @@ export default function Checkout() {
     // For bkash / nagad / rocket payments — redirect to ZI Pay invoice page
     const supportedMobileMethods = ['bkash', 'nagad', 'rocket'];
     if (supportedMobileMethods.includes(paymentMethod)) {
-      const total = getTotalPrice();
+      // Whole-taka BDT total — the same integer the server computes and the
+      // ZI-Pay invoice must display/charge.
+      const total = Math.round(getTotalPrice());
       const payInvoiceBase = import.meta.env.VITE_ZIPAY_URL || 'https://pay.zipremiumservices.com';
       const mainSiteOrigin = import.meta.env.VITE_MAIN_SITE_URL || window.location.origin;
       // Store the order context on THIS origin so /payment/process can read it back.
@@ -229,7 +231,7 @@ export default function Checkout() {
           customData: item.customData || {},
           orderFields: item.orderFields,
         })),
-        totalAmount: isPayCrypto ? getTotalPriceUSD() : getTotalPrice(),
+        totalAmount: isPayCrypto ? Math.round(getTotalPriceUSD()) : Math.round(getTotalPrice()),
         couponCode: couponCode || '',
         couponDetails: couponCode ? {
           code: couponCode,

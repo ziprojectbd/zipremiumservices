@@ -20,6 +20,11 @@ const captchaMasterSettingsSchema = new mongoose.Schema({
     default: 110,
     min: 1,
   },
+  resellerApiKey: {
+    type: String,
+    default: '',
+    trim: true,
+  },
 }, {
   timestamps: true,
 });

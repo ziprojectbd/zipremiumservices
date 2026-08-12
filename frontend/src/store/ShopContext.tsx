@@ -289,7 +289,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
     const getTotalPrice = useCallback(() => {
         const subtotal = getSubtotalPrice();
-        return Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+        // Whole-taka BDT total — normalized to an integer so the checkout,
+        // the ZI-Pay invoice and the server-side order amount all agree.
+        return Math.max(0, Math.round(subtotal - discountAmount));
     }, [getSubtotalPrice, discountAmount]);
 
     const getTotalPriceUSD = useCallback(() => {
@@ -299,7 +301,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             return total + usdPrice * (isSmm ? item.quantity / 1000 : item.quantity);
         }, 0);
         const discountUSD = roundCurrency(discountAmount / exchangeRate);
-        return Math.max(0, roundCurrency(subtotal - discountUSD));
+        return Math.max(0, Math.round(subtotal - discountUSD));
     }, [cart, exchangeRate, discountAmount]);
 
     const getTotalItems = useCallback(() => cart.length, [cart]);

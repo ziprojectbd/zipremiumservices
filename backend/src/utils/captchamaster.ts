@@ -102,11 +102,10 @@ class CaptchaMasterService {
   private client: AxiosInstance;
   private apiKey: string;
 
-  constructor() {
-    const apiKey = process.env.CAPTCHAMASTER_API_KEY;
+  constructor(apiKey: string) {
     if (!apiKey) {
       throw new CaptchaMasterError(
-        'CAPTCHAMASTER_API_KEY environment variable is not configured'
+        'CaptchaMaster reseller API key is not configured in settings'
       );
     }
 
@@ -378,10 +377,37 @@ class CaptchaMasterService {
 
 // Singleton instance
 let instance: CaptchaMasterService | null = null;
+let cachedApiKey = '';
 
-export function getCaptchaMasterService(): CaptchaMasterService {
+// Fetches the reseller API key from MongoDB settings and returns a configured
+// service instance. The key is re-read on every call so key rotation via the
+// admin panel takes effect without a server restart.
+export async function getCaptchaMasterService(): Promise<CaptchaMasterService> {
+  const { default: CaptchaMasterSettings } = await import('@models/CaptchaMasterSettings');
+  const { default: connectDB } = await import('@db/connect');
+  await connectDB();
+
+  let settings = await CaptchaMasterSettings.findById('global').lean();
+  if (!settings) {
+    const created = await CaptchaMasterSettings.create({ _id: 'global' });
+    settings = created.toObject();
+  }
+
+  const apiKey = settings.resellerApiKey || '';
+  if (!apiKey) {
+    throw new CaptchaMasterError(
+      'CaptchaMaster reseller API key is not set in admin settings'
+    );
+  }
+
+  // Rebuild the client if the key has changed since the last instantiation
+  if (instance && cachedApiKey !== apiKey) {
+    instance = null;
+  }
+  cachedApiKey = apiKey;
+
   if (!instance) {
-    instance = new CaptchaMasterService();
+    instance = new CaptchaMasterService(apiKey);
   }
   return instance;
 }
@@ -389,6 +415,7 @@ export function getCaptchaMasterService(): CaptchaMasterService {
 // For testing purposes
 export function resetCaptchaMasterService(): void {
   instance = null;
+  cachedApiKey = '';
 }
 
 export default CaptchaMasterService;

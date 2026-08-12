@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useShopContext } from '../../store/ShopContext';
-import { History, Zap, Clock, Check, AlertCircle } from 'lucide-react';
+import { History, Zap, Clock, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/axios';
 import type { Order } from '../../types';
 import { formatPrice } from '../../utils/formatPrice';
@@ -86,6 +86,7 @@ export default function OrderDetails() {
   const { isLoggedIn, showAlert } = useShopContext();
 
   const [copiedField, setCopiedField] = useState<string>('');
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [pageLoading, setPageLoading] = useState(true);
   const [order, setOrder] = useState<Order | null>(null);
   const [fetchError, setFetchError] = useState(false);
@@ -148,6 +149,14 @@ export default function OrderDetails() {
       {copiedField === fieldKey ? 'Copied' : 'Copy'}
     </button>
   );
+
+  const toggleKeyVisibility = (key: string) => {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   if (pageLoading && !order) {
     return (
@@ -448,8 +457,18 @@ export default function OrderDetails() {
               <div className="flex flex-col sm:flex-row sm:justify-between text-xs sm:text-sm">
                 <span className="text-gray-300 mb-1 sm:mb-0">API Key:</span>
                 <span className="text-white break-all text-right inline-flex items-center flex-wrap justify-end font-mono">
-                  {order.captchaApiKey}
-                  <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
+                  {visibleKeys.has('captcha_api_key')
+                    ? order.captchaApiKey
+                    : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
+                  <button
+                    type="button"
+                    onClick={() => toggleKeyVisibility('captcha_api_key')}
+                    className="ml-2 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white/20 text-gray-300 hover:bg-white/10"
+                    title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
+                  >
+                    {visibleKeys.has('captcha_api_key') ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                  {visibleKeys.has('captcha_api_key') && <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />}
                 </span>
               </div>
             </div>

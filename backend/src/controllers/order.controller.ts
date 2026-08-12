@@ -264,8 +264,12 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   // -----------------------------------------------------------------------
   // Compute server-side total
+  //
+  // BDT amounts are normalized to whole taka (integers) end-to-end. The
+  // authoritative amount is `finalTotal` below — an integer that is carried
+  // unchanged into the order, the ZI-Pay invoice and payment verification.
   // -----------------------------------------------------------------------
-  const serverTotal = roundCurrency(validatedItems.reduce((sum, item) => sum + (item.price as number), 0));
+  const serverTotal = Math.round(validatedItems.reduce((sum, item) => sum + (item.price as number), 0));
 
   // -----------------------------------------------------------------------
   // Coupon validation
@@ -297,23 +301,28 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
 
     if (coupon.discountType === 'percentage') {
-      discountAmount = roundCurrency((serverTotal * coupon.discountValue) / 100);
+      discountAmount = Math.round((serverTotal * coupon.discountValue) / 100);
       if (coupon.maxDiscountAmount > 0 && discountAmount > coupon.maxDiscountAmount) {
-        discountAmount = coupon.maxDiscountAmount;
+        discountAmount = Math.round(coupon.maxDiscountAmount);
       }
     } else if (coupon.discountType === 'flat') {
-      discountAmount = Math.min(coupon.discountValue, serverTotal);
+      discountAmount = Math.min(Math.round(coupon.discountValue), serverTotal);
     }
     discountType = coupon.discountType;
   }
 
-  const finalTotal = roundCurrency(serverTotal - discountAmount);
+  // Authoritative whole-taka order total. This exact integer must be what the
+  // customer is asked to pay and what ZI-Pay verifies against.
+  const finalTotal = Math.round(serverTotal - discountAmount);
 
   // -----------------------------------------------------------------------
   // Anti-manipulation check
+  // The client total is normalized to whole taka and must EXACTLY equal the
+  // authoritative server total — no tolerance. Guard against NaN (e.g. an
+  // empty or non-numeric totalAmount) which would silently pass a comparison.
   // -----------------------------------------------------------------------
-  const clientTotal = parseFloat(totalAmount || 0);
-  if (Math.abs(clientTotal - finalTotal) > 0.01) {
+  const clientTotalInt = Math.round(Number(totalAmount));
+  if (!Number.isFinite(clientTotalInt) || clientTotalInt !== finalTotal) {
     return res
       .status(400)
       .json(error('Price mismatch detected. Please refresh and try again.'));
@@ -462,7 +471,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       `\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501`,
       `\uD83D\uDCE7 <b>Email:</b> ${email}`,
       `\uD83D\uDCB3 <b>Payment:</b> ${finalPaymentMethod}`,
-      `\uD83D\uDCB0 <b>Total:</b> $${finalTotal.toFixed(2)}`,
+      `\uD83D\uDCB0 <b>Total:</b> ${finalTotal} ${orderCurrency === 'USDT' ? 'USDT' : 'BDT'}`,
       `\uD83D\uDCE6 <b>Items:</b> ${validatedItems.length}`,
       `\uD83C\uDD94 <b>Order:</b> ${order.orderNumber || order._id}`,
     ].join('\n');

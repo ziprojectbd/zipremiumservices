@@ -335,9 +335,63 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
       case 'approve_order':
         order.status = 'approved';
         break;
-      case 'deliver_order':
+      case 'deliver_order': {
+        // Idempotency: if already delivered with a key, skip API call
+        if (order.status === 'delivered' && order.captchaApiKey) {
+          break;
+        }
+
+        // Look up captchamaster product to get planId
+        let captchamasterPlanId = '';
+        let productType = '';
+        if (order.items?.length) {
+          for (const item of order.items) {
+            const pid = item.product?.toString();
+            if (pid && pid.length === 24 && /^[a-f0-9]+$/i.test(pid)) {
+              const prod = await Product.findById(pid).lean();
+              if (prod?.productType === 'captchamaster' && prod.captchamasterPlanId) {
+                captchamasterPlanId = prod.captchamasterPlanId;
+                productType = 'captchamaster';
+                break;
+              }
+            }
+          }
+        }
+
+        // Call CaptchaMaster API for captchamaster products
+        if (productType === 'captchamaster' && captchamasterPlanId) {
+          const customerEmail = (order as any).email || (order as any).customerEmail || '';
+          if (!customerEmail) {
+            return res.status(400).json(error('Order has no customer email for delivery'));
+          }
+
+          try {
+            const { getCaptchaMasterService } = await import('@utils/captchamaster');
+            const service = await getCaptchaMasterService();
+            const result = await service.purchasePackage(captchamasterPlanId, customerEmail);
+
+            (order as any).captchaApiKey = result.apiKey || '';
+            (order as any).delivery = {
+              provider: 'captchamaster',
+              status: 'completed',
+              externalReference: result.orderId || result.packageId || '',
+              deliveredAt: new Date(),
+            };
+          } catch (err: any) {
+            // Do NOT mark as delivered on failure — admin can retry
+            (order as any).delivery = {
+              provider: 'captchamaster',
+              status: 'failed',
+              errorMessage: err?.message || 'Unknown delivery error',
+            };
+            await order.save();
+            return res.status(500).json(error(`Delivery failed: ${err?.message || 'API error'}`));
+          }
+        }
+
         order.status = 'delivered';
         break;
+      }
       default:
         // Unknown action — fall through to regular update
         break;

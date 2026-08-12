@@ -204,6 +204,22 @@ const orderSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  captchaApiKey: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
+  delivery: {
+    type: {
+      provider: { type: String, default: '' },
+      status: { type: String, enum: ['pending', 'completed', 'failed', ''], default: '' },
+      externalReference: { type: String, default: '' },
+      errorMessage: { type: String, default: '' },
+      deliveredAt: { type: Date },
+    },
+    default: {},
+  },
   // IP geolocation fields (captured at order creation)
   ipAddress: {
     type: String,

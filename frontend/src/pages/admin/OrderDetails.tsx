@@ -438,7 +438,7 @@ export default function AdminOrderDetails() {
       )}
 
       {/* Notes & Extras */}
-      {(order.notes || order.deliveryNote || order.captchaApiKey || (Array.isArray(order.items) && order.items.some((i: any) => (i.productName || i.name || '').includes('P2P Fee')))) && (
+      {(order.notes || order.deliveryNote || order.captchaApiKey || (order as any).delivery?.status === 'failed' || (Array.isArray(order.items) && order.items.some((i: any) => (i.productName || i.name || '').includes('P2P Fee')))) && (
         <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Additional Info</h3>
           <div className="space-y-2.5 text-xs sm:text-sm">
@@ -450,6 +450,9 @@ export default function AdminOrderDetails() {
             )}
             {order.captchaApiKey && (
               <DetailRow label="Captcha API Key:" value={order.captchaApiKey} copyBtn={<CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />} />
+            )}
+            {(order as any).delivery?.status === 'failed' && (
+              <DetailRow label="Delivery Error:" value={<span className="text-red-400">{(order as any).delivery?.errorMessage || 'Unknown delivery error'}</span>} />
             )}
             {Array.isArray(order.items) && order.items.some((item: any) =>
               (item.productName || item.name || '').includes('P2P Fee')

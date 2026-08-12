@@ -137,7 +137,6 @@ Both services must be on the same Coolify network.
 | `CLOUDINARY_CLOUD_NAME` | Image upload service |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
-| `CAPTCHAMASTER_API_KEY` | Captcha solving service |
 | `TELEGRAM_BOT_TOKEN` | Telegram notifications |
 | `TELEGRAM_CHAT_ID` | Telegram notification target |
 | `ONESERVICEBD_API_KEY` | OneServiceBD integration |

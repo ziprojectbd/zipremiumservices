@@ -198,7 +198,7 @@ async function getCaptchaGlobalSettings() {
   return doc;
 }
 
-// GET /api/admin/captchamaster/settings — fetch discount settings
+// GET /api/admin/captchamaster/settings — fetch reseller & pricing settings
 export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
@@ -209,15 +209,16 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountPercent: settings.discountPercent,
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
+      resellerApiKey: settings.resellerApiKey || '',
     })
   );
 });
 
-// PUT /api/admin/captchamaster/settings — update discount settings
+// PUT /api/admin/captchamaster/settings — update reseller & pricing settings
 export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const { discountPercent, discountEnabled, exchangeRate } = req.body;
+  const { discountPercent, discountEnabled, exchangeRate, resellerApiKey } = req.body;
 
   const update: Record<string, unknown> = {};
   if (discountPercent !== undefined) {
@@ -237,6 +238,9 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
     }
     update.exchangeRate = rate;
   }
+  if (resellerApiKey !== undefined) {
+    update.resellerApiKey = String(resellerApiKey || '').trim();
+  }
 
   const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, { new: true, upsert: true });
 
@@ -245,6 +249,7 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountPercent: settings.discountPercent,
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
+      resellerApiKey: settings.resellerApiKey || '',
     })
   );
 });

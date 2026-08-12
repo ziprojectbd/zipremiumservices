@@ -27,6 +27,8 @@ interface Product {
   available?: boolean;
   showStock?: boolean;
   showImageSlider?: boolean;
+  productType?: 'standard' | 'smm' | 'captchamaster';
+  captchamasterPlanId?: string;
 }
 
 interface Category {
@@ -87,6 +89,8 @@ export default function AdminProductEdit() {
     available: true,
     showStock: true,
     showImageSlider: true,
+    productType: 'standard',
+    captchamasterPlanId: '',
   });
 
   const [exchangeRate, setExchangeRate] = useState(110);
@@ -120,6 +124,8 @@ export default function AdminProductEdit() {
           available: res.data.data.available !== false,
           showStock: Boolean(res.data.data.showStock),
           showImageSlider: res.data.data.showImageSlider !== false,
+          productType: res.data.data.productType || 'standard',
+          captchamasterPlanId: res.data.data.captchamasterPlanId || '',
         });
         const featureLines = (res.data.data.description || '')
           .split('\n')
@@ -639,6 +645,34 @@ export default function AdminProductEdit() {
                 </span>
               </label>
             </div>
+          </div>
+
+          {/* Product Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Product Type</label>
+            <select
+              name="productType"
+              value={formData.productType || 'standard'}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="standard">Standard</option>
+              <option value="smm">SMM Service</option>
+              <option value="captchamaster">CaptchaMaster</option>
+            </select>
+            {formData.productType === 'captchamaster' && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-300 mb-2">CaptchaMaster Plan ID</label>
+                <input
+                  type="text"
+                  name="captchamasterPlanId"
+                  value={formData.captchamasterPlanId || ''}
+                  onChange={handleInputChange}
+                  placeholder="e.g. plan_1234"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
           </div>
 
           {/* Product Images */}

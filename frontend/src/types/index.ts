@@ -50,6 +50,8 @@ export interface Product {
     smmServiceId?: string;
     smmMin?: number;
     smmMax?: number;
+    productType?: 'standard' | 'smm' | 'captchamaster';
+    captchamasterPlanId?: string;
     orderFields?: OrderField[];
     campaignPrice?: number;
     campaignDiscount?: number;
@@ -125,6 +127,13 @@ export interface Order {
     discountAmount?: number;
     discountType?: string;
     deliveryNote?: string;
+    delivery?: {
+        provider?: string;
+        status?: 'pending' | 'completed' | 'failed' | '';
+        externalReference?: string;
+        errorMessage?: string;
+        deliveredAt?: string;
+    };
 }
 
 export interface ShopProduct {

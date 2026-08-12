@@ -110,6 +110,18 @@ const productSchema = new mongoose.Schema({
     type: Number,
     default: null,
   },
+  productType: {
+    type: String,
+    enum: ['standard', 'smm', 'captchamaster'],
+    default: 'standard',
+    index: true,
+    sparse: true,
+  },
+  captchamasterPlanId: {
+    type: String,
+    default: null,
+    trim: true,
+  },
   orderFields: {
     type: [{
       key: { type: String, required: true },
@@ -227,6 +239,18 @@ if (existingProductModel && !existingProductModel.schema.path('orderFields')) {
       }],
       default: [],
     },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('productType')) {
+  existingProductModel.schema.add({
+    productType: {
+      type: String,
+      enum: ['standard', 'smm', 'captchamaster'],
+      default: 'standard',
+      index: true,
+      sparse: true,
+    },
+    captchamasterPlanId: { type: String, default: null, trim: true },
   });
 }
 if (existingProductModel && !existingProductModel.schema.path('seoTitle')) {

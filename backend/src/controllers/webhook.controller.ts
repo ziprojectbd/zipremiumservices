@@ -1,6 +1,6 @@
 import CaptchaOrder from '@models/CaptchaOrder';
 import CaptchaPackage from '@models/CaptchaPackage';
-import env from '@config/env';
+import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
 import connectDB from '@db/connect';
 import { success, error } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
@@ -9,9 +9,15 @@ import { asyncHandler } from '@utils/asyncHandler';
 export const captchaMasterWebhook = asyncHandler(async (req, res) => {
   await connectDB();
 
-  // Validate API key
+  // Validate API key against stored reseller key in MongoDB
   const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
-  if (!apiKey || apiKey !== env.CAPTCHAMASTER_API_KEY) {
+  let storedKey = '';
+  try {
+    const settings = await CaptchaMasterSettings.findById('global').lean();
+    storedKey = settings?.resellerApiKey || '';
+  } catch { /* DB error — will fail validation below */ }
+
+  if (!apiKey || apiKey !== storedKey || !storedKey) {
     return res.status(401).json(error('Invalid or missing API key'));
   }
 

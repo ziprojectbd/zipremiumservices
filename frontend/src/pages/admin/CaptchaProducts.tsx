@@ -370,6 +370,8 @@ export default function AdminCaptchaMasterPage() {
   const [discountPercent, setDiscountPercent] = useState(20);
   const [discountEnabled, setDiscountEnabled] = useState(true);
   const [discountSaving, setDiscountSaving] = useState(false);
+  const [resellerApiKey, setResellerApiKey] = useState('');
+  const [showResellerKey, setShowResellerKey] = useState(false);
   const [discountLoading, setDiscountLoading] = useState(false);
   // Exchange rate for USD→BDT conversion
   const [exchangeRate, setExchangeRate] = useState(110);
@@ -424,6 +426,7 @@ export default function AdminCaptchaMasterPage() {
         setDiscountPercent(res.data.data.discountPercent ?? 20);
         setDiscountEnabled(res.data.data.discountEnabled ?? true);
         setExchangeRate(res.data.data.exchangeRate ?? 110);
+        setResellerApiKey(res.data.data.resellerApiKey ?? '');
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to load discount settings', 'error');
@@ -439,19 +442,21 @@ export default function AdminCaptchaMasterPage() {
         discountPercent,
         discountEnabled,
         exchangeRate,
+        resellerApiKey,
       });
       if (res.data.success) {
         showToast('Settings saved successfully', 'success');
         setDiscountPercent(res.data.data.discountPercent ?? discountPercent);
         setDiscountEnabled(res.data.data.discountEnabled ?? discountEnabled);
         setExchangeRate(res.data.data.exchangeRate ?? exchangeRate);
+        setResellerApiKey(res.data.data.resellerApiKey ?? resellerApiKey);
       } else throw new Error(res.data.error);
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', 'error');
     } finally {
       setDiscountSaving(false);
     }
-  }, [discountPercent, discountEnabled, exchangeRate, showToast]);
+  }, [discountPercent, discountEnabled, exchangeRate, resellerApiKey, showToast]);
 
   useEffect(() => {
     const load = async () => {
@@ -1163,6 +1168,30 @@ export default function AdminCaptchaMasterPage() {
                   </div>
                   <p className="text-white/40 text-xs mt-2">
                     1 USD = {exchangeRate} BDT for captcha solver api packages.
+                  </p>
+                </div>
+
+                {/* Reseller API Key */}
+                <div className="mb-6">
+                  <label className="block text-white font-medium text-sm mb-2">Reseller API Key</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type={showResellerKey ? 'text' : 'password'}
+                      value={resellerApiKey}
+                      onChange={(e) => setResellerApiKey(e.target.value)}
+                      placeholder="cm_..."
+                      className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResellerKey((prev) => !prev)}
+                      className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    >
+                      {showResellerKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-white/40 text-xs mt-2">
+                    CaptchaMaster reseller API key for automatic delivery. Found in your CaptchaMaster reseller dashboard.
                   </p>
                 </div>
 

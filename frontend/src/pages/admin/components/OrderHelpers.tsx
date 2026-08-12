@@ -52,6 +52,13 @@ export interface Order {
   countryCode?: string;
   ipAddress?: string;
   captchaApiKey?: string;
+  delivery?: {
+    provider?: string;
+    status?: 'pending' | 'completed' | 'failed' | '';
+    externalReference?: string;
+    errorMessage?: string;
+    deliveredAt?: string;
+  };
   // crypto fields
   cryptoCurrency?: string;
   crypto_currency?: string;
