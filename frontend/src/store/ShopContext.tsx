@@ -257,12 +257,34 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const removeFromCart = useCallback((productId: string | number) => {
         setCart((prevCart) => {
             const existingItem = prevCart.find((item) => item.id === productId);
-            if (existingItem && existingItem.quantity > 1) {
-                return prevCart.map((item) =>
-                    item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-                );
-            }
-            return prevCart.filter((item) => item.id !== productId);
+            const nextCart =
+                existingItem && existingItem.quantity > 1
+                    ? prevCart.map((item) =>
+                        item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+                    )
+                    : prevCart.filter((item) => item.id !== productId);
+            // Keep the persisted ZI-Pay checkout snapshot in sync so a page
+            // refresh cannot restore a product that was just removed.
+            try {
+                const raw = localStorage.getItem('zi-pay-checkout-data');
+                if (raw) {
+                    const persisted = JSON.parse(raw);
+                    if (persisted?.cart?.length) {
+                        localStorage.setItem('zi-pay-checkout-data', JSON.stringify({
+                            ...persisted,
+                            cart: persisted.cart.filter((item: any) => String(item.dbId || item.id) !== String(productId)),
+                            totalAmount: Math.round(
+                                nextCart.reduce((total, item) => {
+                                    const isSmm = item.smmProvider === 'oneservicebd';
+                                    const price = item.priceBDT || item.price;
+                                    return total + price * (isSmm ? item.quantity / 1000 : item.quantity);
+                                }, 0)
+                            ),
+                        }));
+                    }
+                }
+            } catch { /* Non-blocking persistence failure */ }
+            return nextCart;
         });
     }, []);
 
