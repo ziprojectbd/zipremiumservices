@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
 import api from "../../lib/axios";
+import { useShopContext } from "../../store/ShopContext";
 
 const PAYMENT_METHODS = ["bkash", "nagad", "rocket", "upay", "tap"];
 
@@ -34,6 +35,7 @@ interface CheckoutData {
 
 export default function PaymentProcess() {
   const navigate = useNavigate();
+  const { setCart } = useShopContext();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<"loading" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
@@ -89,6 +91,14 @@ export default function PaymentProcess() {
         });
 
         if (!cancelled) {
+          // Order placed — empty the cart and drop the persisted checkout
+          // snapshot so a refresh (or the ShopContext restore effect) can't
+          // bring the just-purchased items back into the cart.
+          setCart([]);
+          try {
+            localStorage.removeItem("zi-pay-checkout-data");
+          } catch { /* Non-blocking */ }
+
           const orderId = response.data?.data?.orderNumber || response.data?.data?.orderId || "";
           navigate("/order/success" + (orderId ? `?order_id=${orderId}` : ""), { replace: true });
         }

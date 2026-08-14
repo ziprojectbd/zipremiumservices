@@ -165,14 +165,25 @@ export default function Checkout() {
       return;
     }
 
-    // For bkash / nagad / rocket payments — redirect to ZI Pay invoice page
+    // For bkash / nagad / rocket payments — mint a secure invoice on the ZI Pay
+    // gateway and navigate DIRECTLY to the secure invoice URL. The old
+    // /payment/invoice?provider=&amount=&cb= URL must never appear in the
+    // browser, even briefly.
     const supportedMobileMethods = ['bkash', 'nagad', 'rocket'];
     if (supportedMobileMethods.includes(paymentMethod)) {
       // Whole-taka BDT total — the same integer the server computes and the
       // ZI-Pay invoice must display/charge.
       const total = Math.round(getTotalPrice());
       const payInvoiceBase = import.meta.env.VITE_ZIPAY_URL || 'https://pay.zipremiumservices.com';
-      const mainSiteOrigin = import.meta.env.VITE_MAIN_SITE_URL || window.location.origin;
+      // This site's own origin (dev: http://localhost:3000, prod:
+      // https://zipremiumservices.com) — the gateway uses it to send the
+      // customer back here to /payment/process after they confirm payment.
+      const mainSiteBase = (import.meta.env.VITE_MAIN_SITE_URL || window.location.origin).replace(/\/$/, '');
+      // Encode the callback URL for the gateway's `cb` param (base64url).
+      const callbackCb = btoa(unescape(encodeURIComponent(`${mainSiteBase}/payment/process`)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
       // Store the order context on THIS origin so /payment/process can read it back.
       const checkoutPayload = {
         email: effectiveEmail,
@@ -185,10 +196,36 @@ export default function Checkout() {
         couponType: discountType,
       };
       localStorage.setItem('zi-pay-checkout-data', JSON.stringify(checkoutPayload));
-      // cb = base64 of the main-site return URL (InvoicePayment decodes this to know where to redirect back).
-      const returnUrl = `${mainSiteOrigin}/payment/process`;
-      const cbUrl = btoa(unescape(encodeURIComponent(returnUrl)));
-      window.location.href = `${payInvoiceBase}/payment/invoice?provider=${encodeURIComponent(paymentMethod)}&amount=${encodeURIComponent(String(total))}&cb=${encodeURIComponent(cbUrl)}`;
+
+      setSubmittingOrder(true);
+      try {
+        // Mint a server-authoritative one-time invoice. The gateway returns the
+        // secureToken exactly once; we must only ever put it in the secure URL.
+        const mintRes = await fetch(`${payInvoiceBase}/api/invoices/mint`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: paymentMethod, amount: total }),
+        });
+        const mintJson = await mintRes.json().catch(() => ({}));
+        if (!mintRes.ok || !mintJson?.success) {
+          throw new Error(mintJson?.error || 'Could not create payment invoice');
+        }
+        const { publicInvoiceId, secureToken } = mintJson.data || {};
+        if (!publicInvoiceId || !secureToken) {
+          throw new Error('Invoice creation failed');
+        }
+        // Navigate straight to the secure invoice — window.location.replace so
+        // the old checkout page isn't left in the back-history.
+        const secureInvoiceUrl =
+          `${payInvoiceBase}/payment/invoice?invoiceId=${encodeURIComponent(publicInvoiceId)}` +
+          `&token=${encodeURIComponent(secureToken)}` +
+          `&cb=${encodeURIComponent(callbackCb)}`;
+        window.location.replace(secureInvoiceUrl);
+      } catch (err: any) {
+        const msg = err?.message || 'Could not create payment invoice';
+        showAlert('error', 'Payment Gateway Error', msg);
+        setSubmittingOrder(false);
+      }
       return;
     }
 
