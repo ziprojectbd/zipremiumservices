@@ -117,6 +117,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     p2pWalletAddress,
     deliveryNote,
     captchaApiKey,
+    orderId,
   } = req.body;
 
   // -----------------------------------------------------------------------
@@ -352,6 +353,23 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 
   // -----------------------------------------------------------------------
+  // Order number reuse
+  // If the client supplied an order number (generated at checkout and shown
+  // on the ZI-Pay invoice), reuse it so the created order keeps the exact
+  // number the customer saw. Guard against collision with the unique index —
+  // if the number is already taken, fall back to letting the schema
+  // pre-save hook generate a fresh one.
+  // -----------------------------------------------------------------------
+  let orderNumber = '';
+  const clientOrderNumber = (orderId || '').toString().trim();
+  if (clientOrderNumber) {
+    const existingNumber = await Order.findOne({ orderNumber: clientOrderNumber }).lean();
+    if (!existingNumber) {
+      orderNumber = clientOrderNumber.slice(0, 50);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Build order data & create
   // -----------------------------------------------------------------------
   // Determine currency based on payment method
@@ -380,6 +398,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     amount: finalTotal,
     totalAmount: finalTotal,
     currency: orderCurrency,
+    orderNumber: orderNumber || undefined,
     paymentMethod: finalPaymentMethod,
     couponCode: appliedCouponCode || '',
     reservedCouponCode: appliedCouponCode || '',

@@ -27,6 +27,7 @@ interface CheckoutData {
   paymentMethod: string;
   payerNumber?: string;
   totalAmount: number;
+  orderId?: string;
   cart: CartItemPayload[];
   couponCode?: string;
   couponDiscount?: number;
@@ -66,6 +67,9 @@ export default function PaymentProcess() {
         const paymentTrxId = searchParams.get("trxId") || "";
         const paymentPayerNumber = searchParams.get("payerNumber") || "";
         const paymentMethod = searchParams.get("provider") || checkout.paymentMethod;
+        // Order number generated at checkout and shown on the invoice — reuse it
+        // so the created order keeps the exact number the customer saw.
+        const orderId = searchParams.get("orderId") || checkout.orderId || "";
 
         const response = await api.post("/orders", {
           email: checkout.email,
@@ -73,6 +77,7 @@ export default function PaymentProcess() {
           payerNumber: paymentPayerNumber,
           trxId: paymentTrxId,
           paymentMethod,
+          orderId: orderId || undefined,
           items: checkout.cart.map((item) => ({
             productId: item.dbId,
             name: item.name,

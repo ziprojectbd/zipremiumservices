@@ -40,16 +40,6 @@ const IconCrypto = () => (
   </svg>
 );
 
-interface MobilePayment {
-  id: string;
-  method: string;
-  number: string;
-  numberType: 'personal' | 'agent' | 'merchant';
-  instructions: string;
-  warningInstructions: string;
-  enabled: boolean;
-}
-
 interface CryptoPayment {
   id: string;
   currency: string;
@@ -66,11 +56,6 @@ interface CryptoPayment {
 export default function PaymentManagement() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<MobilePayment | null>(null);
-  const [formData, setFormData] = useState<{ method: string; number: string; numberType: 'personal' | 'agent' | 'merchant'; instructions: string; warningInstructions: string }>({ method: '', number: '', numberType: 'personal', instructions: '', warningInstructions: '' });
-
-  const [mobilePayments, setMobilePayments] = useState<MobilePayment[]>([]);
   const [cryptoPayments, setCryptoPayments] = useState<CryptoPayment[]>([]);
   const [showCryptoModal, setShowCryptoModal] = useState(false);
   const [editingCrypto, setEditingCrypto] = useState<CryptoPayment | null>(null);
@@ -111,7 +96,6 @@ export default function PaymentManagement() {
       try {
         const res = await api.get('/payment-settings');
         if (res.data.success && res.data.data) {
-          setMobilePayments(ensureUniqueIds(res.data.data.mobilePayments || []));
           setCryptoPayments(ensureUniqueIds(res.data.data.cryptoPayments || []));
           setCustomCurrencies(res.data.data.customCurrencies || []);
           setCustomNetworks(res.data.data.customNetworks || []);
@@ -138,7 +122,6 @@ export default function PaymentManagement() {
         minOrderAmount: settings.minOrderAmount,
         maxOrderAmount: settings.maxOrderAmount,
         exchangeRate: settings.exchangeRate,
-        mobilePayments,
         cryptoPayments,
         customCurrencies,
         customNetworks,
@@ -154,107 +137,6 @@ export default function PaymentManagement() {
     } catch {
       setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Error saving settings. Please try again.' });
     }
-  };
-
-  const getDefaultInstructions = (method: string, numberType: 'personal' | 'agent' | 'merchant') => {
-    const methodName = method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
-    const instructions: Record<string, { personal: string; agent: string; merchant: string }> = {
-      bkash: {
-        personal: `Open bKash app and choose Send Money\nEnter the number above and amount\nConfirm payment and copy the Transaction ID`,
-        agent: `Open bKash app and choose Cash Out\nEnter the agent number above\nEnter amount and confirm\nCopy Transaction ID for verification`,
-        merchant: `Open bKash app and choose Bill Pay\nEnter the merchant number above\nSelect your biller\nEnter amount and confirm\nCopy Transaction ID for verification`
-      },
-      nagad: {
-        personal: `Open Nagad app and choose Send Money\nEnter the number above and amount\nConfirm payment and copy the Transaction ID`,
-        agent: `Open Nagad app and choose Cash Out\nEnter the agent number above\nEnter amount and confirm\nCopy Transaction ID for verification`,
-        merchant: `Open Nagad app and choose Bill Pay\nEnter the merchant number above\nSelect your biller\nEnter amount and confirm\nCopy Transaction ID for verification`
-      },
-      rocket: {
-        personal: `Open Rocket app and choose Send Money\nEnter the number above and amount\nConfirm payment and copy the Transaction ID`,
-        agent: `Open Rocket app and choose Cash Out\nEnter the agent number above\nEnter amount and confirm\nCopy Transaction ID for verification`,
-        merchant: `Open Rocket app and choose Bill Pay\nEnter the merchant number above\nSelect your biller\nEnter amount and confirm\nCopy Transaction ID for verification`
-      },
-      upay: {
-        personal: `Open UPay app and choose Send Money\nEnter the number above and amount\nConfirm payment and copy the Transaction ID`,
-        agent: `Open UPay app and choose Cash Out\nEnter the agent number above\nEnter amount and confirm\nCopy Transaction ID for verification`,
-        merchant: `Open UPay app and choose Bill Pay\nEnter the merchant number above\nSelect your biller\nEnter amount and confirm\nCopy Transaction ID for verification`
-      },
-      tap: {
-        personal: `Open Tap app and choose Send Money\nEnter the number above and amount\nConfirm payment and copy the Transaction ID`,
-        agent: `Open Tap app and choose Cash Out\nEnter the agent number above\nEnter amount and confirm\nCopy Transaction ID for verification`,
-        merchant: `Open Tap app and choose Bill Pay\nEnter the merchant number above\nSelect your biller\nEnter amount and confirm\nCopy Transaction ID for verification`
-      }
-    };
-
-    const methodKey = method.toLowerCase();
-    const defaultInstructions = instructions[methodKey]?.[numberType] || '';
-
-    const defaultWarning = numberType === 'merchant'
-      ? `প্রকৃত বিল পরিশোধের জন্য সঠিক বিল নির্বাচন\nবিল পরিশোধের পূর্বে সঠিক বিল যাচাই করুন`
-      : `প্রকৃত লেনদেনের জন্য সঠিক নম্বর যাচাই করুন\nলেনদেনের পর ট্রানজেকশন আইডি সংরক্ষণ করুন`;
-
-    return { instructions: defaultInstructions, warningInstructions: defaultWarning };
-  };
-
-  const handleNumberTypeChange = (numberType: 'personal' | 'agent' | 'merchant') => {
-    const defaults = getDefaultInstructions(formData.method, numberType);
-    setFormData(prev => ({ ...prev, numberType, instructions: defaults.instructions, warningInstructions: defaults.warningInstructions }));
-  };
-
-  const handleAdd = () => {
-    setEditingPayment(null);
-    setFormData({ method: '', number: '', numberType: 'personal', instructions: '', warningInstructions: '' });
-    setShowModal(true);
-  };
-
-  const handleEdit = (payment: MobilePayment) => {
-    setEditingPayment(payment);
-    setFormData({ method: payment.method, number: payment.number, numberType: payment.numberType as 'personal' | 'agent' | 'merchant', instructions: payment.instructions, warningInstructions: payment.warningInstructions });
-    setShowModal(true);
-  };
-
-  const handleDelete = (id: string) => {
-    setMobilePayments(prev => prev.filter(p => String(p.id) !== String(id)));
-  };
-
-  const handleToggleEnabled = (id: string) => {
-    setMobilePayments(prev => prev.map(p =>
-      String(p.id) === String(id) ? { ...p, enabled: !p.enabled } : p
-    ));
-  };
-
-  const handleSubmit = () => {
-    if (!formData.method || !formData.number) return;
-
-    const isDuplicate = mobilePayments.some(p =>
-      p.method.toLowerCase() === formData.method.toLowerCase() &&
-      p.id !== editingPayment?.id
-    );
-
-    if (isDuplicate) {
-      setAlertConfig({ isOpen: true, type: 'warning', title: 'Duplicate', message: 'A payment method with this name already exists!' });
-      return;
-    }
-
-    if (editingPayment) {
-      setMobilePayments(prev => prev.map(p =>
-        String(p.id) === String(editingPayment.id)
-          ? { ...p, method: formData.method, number: formData.number, numberType: formData.numberType, instructions: formData.instructions, warningInstructions: formData.warningInstructions }
-          : p
-      ));
-    } else {
-      const newPayment: MobilePayment = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        method: formData.method,
-        number: formData.number,
-        numberType: formData.numberType,
-        instructions: formData.instructions,
-        warningInstructions: formData.warningInstructions,
-        enabled: true,
-      };
-      setMobilePayments(prev => [...prev, newPayment]);
-    }
-    setShowModal(false);
   };
 
   const handleAddCrypto = () => {
@@ -466,87 +348,6 @@ export default function PaymentManagement() {
         </div>
       </div>
 
-      {/* Mobile Payments Table */}
-      <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-6 overflow-hidden">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-base font-bold text-white">Mobile Payments</h3>
-            <p className="text-xs text-gray-500">Manage your mobile payment methods</p>
-          </div>
-          <button
-            onClick={handleAdd}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 transition-all"
-          >
-            <IconPlus />
-            Add New
-          </button>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-widest py-3 px-4">Payment Method</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-widest py-3 px-4">Number</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-widest py-3 px-4">Number Type</th>
-                <th className="text-left text-xs font-semibold text-gray-400 uppercase tracking-widest py-3 px-4">Status</th>
-                <th className="text-right text-xs font-semibold text-gray-400 uppercase tracking-widest py-3 px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mobilePayments.map((payment) => (
-                <tr key={payment.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                  <td className="py-4 px-4">
-                    <span className="text-sm font-semibold text-white">{payment.method}</span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className="text-sm text-gray-300 font-mono">{payment.number}</span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <span className={`inline-flex px-2 py-1 rounded-md text-xs font-medium ${
-                      payment.numberType === 'personal' ? 'bg-blue-500/20 text-blue-300' :
-                      payment.numberType === 'agent' ? 'bg-green-500/20 text-green-300' :
-                      'bg-purple-500/20 text-purple-300'
-                    }`}>
-                      {payment.numberType.charAt(0).toUpperCase() + payment.numberType.slice(1)}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4">
-                    <ToggleSwitch enabled={payment.enabled} onClick={() => handleToggleEnabled(payment.id)} />
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleEdit(payment)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(payment.id)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                      >
-                        <IconTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {mobilePayments.length === 0 && (
-                <tr key="empty-mobile">
-                  <td colSpan={5} className="py-8 text-center text-gray-500 text-sm">
-                    No payment methods added yet. Click "Add New" to create one.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Pay Crypto Settings */}
       <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/10 p-6 overflow-hidden">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
@@ -728,121 +529,6 @@ export default function PaymentManagement() {
           </span>
         </button>
       </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="relative bg-[#0d0d0d] border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-white">
-                {editingPayment ? 'Edit Payment Method' : 'Add Payment Method'}
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
-              >
-                <IconX />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                  Payment Method
-                </label>
-                <select
-                  value={formData.method}
-                  onChange={(e) => {
-                    const method = e.target.value;
-                    const defaults = getDefaultInstructions(method, formData.numberType);
-                    setFormData(prev => ({ ...prev, method, instructions: defaults.instructions, warningInstructions: defaults.warningInstructions }));
-                  }}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/50 transition-all duration-200 text-sm appearance-none cursor-pointer"
-                >
-                  <option value="" className="bg-[#0d0d0d]">Select method</option>
-                  <option value="bKash" className="bg-[#0d0d0d]">bKash</option>
-                  <option value="Nagad" className="bg-[#0d0d0d]">Nagad</option>
-                  <option value="Rocket" className="bg-[#0d0d0d]">Rocket</option>
-                  <option value="UPay" className="bg-[#0d0d0d]">UPay</option>
-                  <option value="Tap" className="bg-[#0d0d0d]">Tap</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                  Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.number}
-                  onChange={(e) => setFormData(prev => ({ ...prev, number: e.target.value }))}
-                  placeholder="01XXXXXXXXX"
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/50 transition-all duration-200 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                  Number Type
-                </label>
-                <select
-                  value={formData.numberType}
-                  onChange={(e) => handleNumberTypeChange(e.target.value as 'personal' | 'agent' | 'merchant')}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/50 transition-all duration-200 text-sm appearance-none cursor-pointer"
-                >
-                  <option value="personal" className="bg-[#0d0d0d]">Personal</option>
-                  <option value="agent" className="bg-[#0d0d0d]">Agent</option>
-                  <option value="merchant" className="bg-[#0d0d0d]">Merchant</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                  Payment Instructions
-                </label>
-                <textarea
-                  value={formData.instructions}
-                  onChange={(e) => setFormData(prev => ({ ...prev, instructions: e.target.value }))}
-                  placeholder="Enter payment instructions (one per line)&#10;Example:&#10;Open bKash app and choose Send Money&#10;Enter the number above and amount&#10;Confirm payment and copy the Transaction ID"
-                  rows={4}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/50 transition-all duration-200 text-sm resize-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">These instructions will show on checkout page</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                  Warning Instructions (Bengali)
-                </label>
-                <textarea
-                  value={formData.warningInstructions}
-                  onChange={(e) => setFormData(prev => ({ ...prev, warningInstructions: e.target.value }))}
-                  placeholder="Enter warning instructions in Bengali (one per line)"
-                  rows={4}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-yellow-500/60 focus:border-yellow-500/50 transition-all duration-200 text-sm resize-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Warning text shown below instructions (Bengali)</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 border border-white/10 hover:border-white/20 hover:text-white transition-all duration-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 transition-all"
-              >
-                {editingPayment ? 'Update' : 'Add'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Crypto Modal */}
       {showCryptoModal && (

@@ -124,10 +124,9 @@ export default function Checkout() {
   const { instructions: paymentInstructionsData, warningInstructions: warningInstructionsData, number: paymentNumber, merchantName: paymentMerchantName, numberType: paymentNumberType } = getPaymentInstructions();
   const hasCartItems = cart.length > 0;
   const isPayCrypto = paymentMethod === "paycrypto";
-  const mobileMethodIds = (paymentSettings?.mobilePayments || [])
-    .filter((p: any) => p.enabled)
-    .map((p: any) => p.method.toLowerCase());
-  const isBDMobileMethod = mobileMethodIds.includes(paymentMethod.toLowerCase());
+  // All wallet payments (bKash, Nagad, Rocket, UPay, Tap) are handled by the
+  // ZI Pay gateway — the mobile branch is simply "anything that isn't crypto".
+  const isBDMobileMethod = !isPayCrypto;
   // For mobile payments the gateway collects payer number + TRX ID, so they aren't required here.
   const payerFilled = isPayCrypto
     ? (paymentType === 'uid' ? /^\d{9,}$/.test(payerNumber.trim()) : payerNumber.trim().length >= 10)
@@ -165,31 +164,28 @@ export default function Checkout() {
       return;
     }
 
-    // For bkash / nagad / rocket payments — mint a secure invoice on the ZI Pay
-    // gateway and navigate DIRECTLY to the secure invoice URL. The old
-    // /payment/invoice?provider=&amount=&cb= URL must never appear in the
-    // browser, even briefly.
-    const supportedMobileMethods = ['bkash', 'nagad', 'rocket'];
-    if (supportedMobileMethods.includes(paymentMethod)) {
+    // For all mobile wallet payments (bKash, Nagad, Rocket, UPay, Tap) — send
+    // the customer to the ZI Pay gateway, which shows a wallet picker, mints a
+    // secure one-time invoice, and returns them to /payment/process afterward.
+    if (isBDMobileMethod) {
       // Whole-taka BDT total — the same integer the server computes and the
       // ZI-Pay invoice must display/charge.
       const total = Math.round(getTotalPrice());
-      const payInvoiceBase = import.meta.env.VITE_ZIPAY_URL || 'https://pay.zipremiumservices.com';
-      // This site's own origin (dev: http://localhost:3000, prod:
-      // https://zipremiumservices.com) — the gateway uses it to send the
-      // customer back here to /payment/process after they confirm payment.
-      const mainSiteBase = (import.meta.env.VITE_MAIN_SITE_URL || window.location.origin).replace(/\/$/, '');
-      // Encode the callback URL for the gateway's `cb` param (base64url).
-      const callbackCb = btoa(unescape(encodeURIComponent(`${mainSiteBase}/payment/process`)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
+      const payGatewayBase = import.meta.env.VITE_ZIPAY_URL || 'https://pay.zipremiumservices.com';
+      // Generate the order number here (same ORD-xxx format the backend uses)
+      // so the invoice shows it and /payment/process can reuse the exact number.
+      const ts = Date.now().toString(36).toUpperCase();
+      const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
+      const orderId = `ORD-${ts}${rand}`;
+      // The gateway resolves the return URL (/payment/process) from its own
+      // VITE_MAIN_SITE_URL config — no callback URL passes through here.
       // Store the order context on THIS origin so /payment/process can read it back.
       const checkoutPayload = {
         email: effectiveEmail,
         username,
         paymentMethod,
         totalAmount: total,
+        orderId,
         cart,
         couponCode: couponCode || '',
         couponDiscount: discountAmount,
@@ -198,32 +194,26 @@ export default function Checkout() {
       localStorage.setItem('zi-pay-checkout-data', JSON.stringify(checkoutPayload));
 
       setSubmittingOrder(true);
+      // Create a short-lived server-side payment session on the gateway so the
+      // amount + orderId never appear in the browser URL. Redirect to the
+      // gateway picker with only the session token.
       try {
-        // Mint a server-authoritative one-time invoice. The gateway returns the
-        // secureToken exactly once; we must only ever put it in the secure URL.
-        const mintRes = await fetch(`${payInvoiceBase}/api/invoices/mint`, {
+        const sessionRes = await fetch(`${payGatewayBase}/api/payment-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: paymentMethod, amount: total }),
+          body: JSON.stringify({ amount: total, orderId, email: effectiveEmail }),
         });
-        const mintJson = await mintRes.json().catch(() => ({}));
-        if (!mintRes.ok || !mintJson?.success) {
-          throw new Error(mintJson?.error || 'Could not create payment invoice');
+        const sessionData = await sessionRes.json().catch(() => ({}));
+        if (!sessionRes.ok || !sessionData?.data?.sessionToken) {
+          showAlert('error', 'Payment Unavailable', 'Could not start a payment session. Please try again.');
+          setSubmittingOrder(false);
+          return;
         }
-        const { publicInvoiceId, secureToken } = mintJson.data || {};
-        if (!publicInvoiceId || !secureToken) {
-          throw new Error('Invoice creation failed');
-        }
-        // Navigate straight to the secure invoice — window.location.replace so
-        // the old checkout page isn't left in the back-history.
-        const secureInvoiceUrl =
-          `${payInvoiceBase}/payment/invoice?invoiceId=${encodeURIComponent(publicInvoiceId)}` +
-          `&token=${encodeURIComponent(secureToken)}` +
-          `&cb=${encodeURIComponent(callbackCb)}`;
-        window.location.replace(secureInvoiceUrl);
-      } catch (err: any) {
-        const msg = err?.message || 'Could not create payment invoice';
-        showAlert('error', 'Payment Gateway Error', msg);
+        const { sessionToken } = sessionData.data;
+        // window.location.replace so the checkout page isn't left in back-history.
+        window.location.replace(`${payGatewayBase}/payment/choose?session=${encodeURIComponent(sessionToken)}`);
+      } catch {
+        showAlert('error', 'Payment Unavailable', 'Could not reach the payment gateway. Please try again.');
         setSubmittingOrder(false);
       }
       return;
@@ -335,9 +325,9 @@ export default function Checkout() {
               paymentSettings={paymentSettings}
             />
 
-            {/* Payment Instructions — only shown for methods handled on-site (upay/tap/crypto).
-                bKash/Nagad/Rocket are handled by the ZI Pay gateway, which shows its own instructions. */}
-            {!['bkash', 'nagad', 'rocket'].includes(paymentMethod) && (
+            {/* Payment Instructions — only shown for crypto, which is still handled on-site.
+                All mobile wallet payments go through the ZI Pay gateway, which shows its own instructions. */}
+            {isPayCrypto && (
             <PaymentInstructions
               paymentMethod={paymentMethod}
               getTotalPrice={getTotalPrice}
@@ -367,11 +357,12 @@ export default function Checkout() {
             )}
           </div>
 
-          {/* Mobile payments — lightweight confirm button (gateway collects payment details) */}
+          {/* Mobile payments — single button that sends the customer to the ZI Pay
+              gateway, which collects the wallet choice + payment details securely. */}
           {isBDMobileMethod && (
             <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6">
               <div className="text-xs sm:text-sm text-gray-300 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-2 sm:px-3 sm:py-2 mb-3">
-                You will be redirected to the payment gateway to complete your {paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)} payment.
+                You will be redirected to the secure payment gateway to choose your wallet (bKash, Nagad, Rocket, UPay, Tap) and complete payment.
               </div>
               <button
                 type="button"
@@ -383,7 +374,7 @@ export default function Checkout() {
                     : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
                 }`}
               >
-                {submittingOrder ? "Redirecting..." : "Confirm Order Securely"}
+                {submittingOrder ? "Redirecting..." : "Continue to Payment"}
               </button>
             </div>
           )}
