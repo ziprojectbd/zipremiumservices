@@ -16,6 +16,7 @@ interface ShopContextType {
     removeFromCart: (productId: string | number) => void;
     getTotalPrice: () => number;
     getSubtotalPrice: () => number;
+    getBDTItemAmount: (item: CartItem) => number;
     getTotalPriceUSD: () => number;
     getTotalItems: () => number;
     exchangeRate: number;
@@ -316,6 +317,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         return Math.max(0, Math.round(subtotal - discountAmount));
     }, [getSubtotalPrice, discountAmount]);
 
+    // Single source of truth for a line's BDT amount on the checkout page.
+    // BDT is whole taka everywhere: the same Math.round used by the total is
+    // applied per line (campaign price × effective qty) so Order Summary lines,
+    // the Order Summary Total, the Checkout Total and the ZI-Pay invoice amount
+    // all use the exact same final value. No component may recalculate this.
+    const getBDTItemAmount = useCallback((item: CartItem) => {
+        const isSmm = item.smmProvider === 'oneservicebd';
+        const price = item.priceBDT || item.price || 0;
+        const effectiveQty = isSmm ? item.quantity / 1000 : item.quantity;
+        return Math.max(0, Math.round(price * effectiveQty));
+    }, []);
+
     const getTotalPriceUSD = useCallback(() => {
         const subtotal = cart.reduce((total, item) => {
             const isSmm = item.smmProvider === 'oneservicebd';
@@ -323,7 +336,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             return total + usdPrice * (isSmm ? item.quantity / 1000 : item.quantity);
         }, 0);
         const discountUSD = roundCurrency(discountAmount / exchangeRate);
-        return Math.max(0, Math.round(subtotal - discountUSD));
+        // USD totals support 2 decimal places (e.g. $4.60) — no whole-dollar
+        // truncation. BDT totals keep their integer behavior in getTotalPrice().
+        return Math.max(0, roundCurrency(subtotal - discountUSD, 2));
     }, [cart, exchangeRate, discountAmount]);
 
     const getTotalItems = useCallback(() => cart.length, [cart]);
@@ -522,7 +537,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     return (
         <ShopContext.Provider value={{
             cart, setCart, addToCart, updateCartItemLink, updateCartItemQuantity, updateCartItemCustomData, removeFromCart,
-            getTotalPrice, getSubtotalPrice, getTotalPriceUSD, getTotalItems, exchangeRate, convertPrice,
+            getTotalPrice, getSubtotalPrice, getBDTItemAmount, getTotalPriceUSD, getTotalItems, exchangeRate, convertPrice,
             isCartOpen, setIsCartOpen, view, setView, paymentMethod, setPaymentMethod,
             cryptoCurrency, setCryptoCurrency, paymentType, setPaymentType,
             selectedNetwork, setSelectedNetwork, selectedPlatform, setSelectedPlatform,

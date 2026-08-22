@@ -17,7 +17,7 @@ export default function SurprisePopup({ isVisible, onClose }: SurprisePopupProps
   const [images, setImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagesLoaded, setImagesLoaded] = useState(false);
-  const autoSlideIntervalRef = useRef<NodeJS.Timeout>();
+  const autoSlideIntervalRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Load images from MongoDB API
   useEffect(() => {

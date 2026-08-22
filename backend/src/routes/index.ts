@@ -25,6 +25,7 @@ import adminRoutes from './admin.routes.js';
 import adminCaptchamasterRoutes from './admin-captchamaster.routes.js';
 import generateSeoRoutes from './generate-seo.routes.js';
 import userProductRoutes from './user-product.routes.js';
+import paymentResolveRoutes from './paymentResolve.routes.js';
 import { authenticate } from '@middlewares/auth';
 import { adminOnly } from '@middlewares/adminOnly';
 import { getPaymentSettings, updatePaymentSettings } from '@controllers/admin.controller';
@@ -94,6 +95,9 @@ router.use('/webhook', webhookRoutes);
 
 // Image proxy (no auth needed)
 router.use('/proxy', proxyRoutes);
+
+// ZI-Pay payment result resolution (server-to-server, no auth needed)
+router.use('/payment-resolve', paymentResolveRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

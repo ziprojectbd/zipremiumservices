@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Wallet } from "lucide-react";
 
 interface PaymentMethodProps {
   paymentMethod: string;
@@ -16,7 +15,7 @@ export default function PaymentMethod({
 
   return (
     <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-white/10 p-2.5 sm:p-3 md:p-4 lg:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 mb-2.5 sm:mb-3 md:mb-4">
+      <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-3 md:mb-4">
         <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white">Payment Method</h3>
         <button
           type="button"
@@ -24,7 +23,7 @@ export default function PaymentMethod({
             setShowCryptoOnly(!showCryptoOnly);
             setPaymentMethod(showCryptoOnly ? 'bkash' : 'paycrypto');
           }}
-          className={`px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 text-[9px] sm:text-[10px] md:text-xs font-semibold rounded-full border transition-all duration-300 self-start sm:self-auto ${
+          className={`px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 text-[9px] sm:text-[10px] md:text-xs font-semibold rounded-full border transition-all duration-300 whitespace-nowrap ${
             showCryptoOnly
               ? 'bg-gradient-to-r from-pink-500/10 to-rose-500/10 border-pink-500/30 text-pink-400 hover:from-pink-500/20 hover:to-rose-500/20 hover:border-pink-500/50'
               : 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-purple-500/30 text-purple-400 hover:from-purple-500/20 hover:to-indigo-500/20 hover:border-purple-500/50'
@@ -78,15 +77,6 @@ export default function PaymentMethod({
         </div>
       )}
 
-      {!isPayCrypto && (
-        <div className="mt-2.5 sm:mt-3 flex items-start gap-2 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-          <Wallet className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-          <span>
-            You will be redirected to the secure payment gateway to choose your wallet
-            (bKash, Nagad, Rocket, UPay, Tap) and complete payment.
-          </span>
-        </div>
-      )}
     </div>
   );
 }

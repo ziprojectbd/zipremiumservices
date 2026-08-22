@@ -649,10 +649,10 @@ export default function SmmProducts() {
                                   const parsed = JSON.parse(e.target.value);
                                   if (Array.isArray(parsed)) {
                                     setCategoryOrderFields((prev) => ({ ...prev, [cat.name]: parsed }));
-                                    (e.currentTarget as HTMLImageElement).style.borderColor = 'rgba(34,197,94,0.5)';
+                                    (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'rgba(34,197,94,0.5)';
                                   }
                                 } catch {
-                                  (e.currentTarget as HTMLImageElement).style.borderColor = 'rgba(239,68,68,0.5)';
+                                  (e.currentTarget as HTMLTextAreaElement).style.borderColor = 'rgba(239,68,68,0.5)';
                                 }
                               }}
                               rows={6}

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
-import { ArrowLeft, Upload, X, DotLottieReact } from 'lucide-react';
+import { ArrowLeft, Upload, X } from 'lucide-react';
 import EnhancedAlert from '../../components/public/EnhancedAlert';
 import type { AlertConfig } from '../../components/public/EnhancedAlert';
 

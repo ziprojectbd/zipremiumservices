@@ -258,7 +258,8 @@ export default function Checkout() {
           customData: item.customData || {},
           orderFields: item.orderFields,
         })),
-        totalAmount: isPayCrypto ? Math.round(getTotalPriceUSD()) : Math.round(getTotalPrice()),
+        // Crypto USD totals keep 2 decimal places (e.g. 4.60); BDT stays whole taka.
+        totalAmount: isPayCrypto ? Math.round(getTotalPriceUSD() * 100) / 100 : Math.round(getTotalPrice()),
         couponCode: couponCode || '',
         couponDetails: couponCode ? {
           code: couponCode,
@@ -361,9 +362,6 @@ export default function Checkout() {
               gateway, which collects the wallet choice + payment details securely. */}
           {isBDMobileMethod && (
             <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-6">
-              <div className="text-xs sm:text-sm text-gray-300 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-2 sm:px-3 sm:py-2 mb-3">
-                You will be redirected to the secure payment gateway to choose your wallet (bKash, Nagad, Rocket, UPay, Tap) and complete payment.
-              </div>
               <button
                 type="button"
                 disabled={!canConfirm || submittingOrder}

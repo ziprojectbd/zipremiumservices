@@ -42,7 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check for token from URL (Google OAuth callback, etc.)
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get('token');
-      if (urlToken) {
+      // Only treat a URL `token` as an auth token when it is a real JWT
+      // (header.payload.signature — 3 dot-separated segments). The payment
+      // flow also carries a query param named `token` (a random hex payment
+      // result token on /payment/process); treating that as a session token
+      // would wipe the session and eventually force a redirect to /sign-in.
+      if (urlToken && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(urlToken)) {
         window.history.replaceState({}, '', window.location.pathname);
         localStorage.setItem('token', urlToken);
         if (!cancelled) setToken(urlToken);
@@ -50,17 +55,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (urlRefreshToken) {
           localStorage.setItem('refreshToken', urlRefreshToken);
         }
-        // Fetch user info in background
+        // Fetch user info in background. A failure here (network / 5xx) must
+        // NOT invalidate the just-issued token — the user stays signed in and
+        // the profile is fetched again on the next API call.
         api.get('/auth/user').then((res) => {
           if (!cancelled && res.data.success) {
             setUser(res.data.data);
             localStorage.setItem('user', JSON.stringify(res.data.data));
           }
-        }).catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          if (!cancelled) setToken(null);
-        });
+        }).catch(() => { /* transient — keep the session */ });
         if (!cancelled) setLoading(false);
         return;
       }
@@ -72,22 +75,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedToken && storedToken !== 'undefined' && decodeJWT(storedToken)) {
         // We have a token — check if it's expired
         if (isTokenExpired(storedToken)) {
-          // Token expired — try to refresh silently
-          if (storedRefreshToken) {
-            const newToken = await refreshAccessToken();
-            if (newToken && !cancelled) {
-              setToken(newToken);
-              if (storedUser) {
-                try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-              }
-              setLoading(false);
-              return;
+          // Token expired — try to refresh silently. If the refresh fails due to
+          // a transient problem (network / 5xx / server restart), keep the
+          // stored session intact and leave the user signed in — the next
+          // request will retry the refresh. Only a definitive server rejection
+          // (refresh token invalid/expired/reused, or the refresh endpoint
+          // explicitly refusing it) terminates the session.
+          const newToken = await refreshAccessToken();
+          if (newToken && !cancelled) {
+            setToken(newToken);
+            if (storedUser) {
+              try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+            }
+            setLoading(false);
+            return;
+          }
+          // Distinguish "server rejected the token" (definitive → clear) from
+          // "refresh request failed to reach the server" (transient → keep).
+          let definitive = false;
+          try {
+            const probe = await api.get('/auth/user');
+            if (!probe.data?.success) definitive = true;
+          } catch (probeErr) {
+            const probeStatus = (probeErr as { response?: { status?: number } })?.response?.status;
+            definitive = probeStatus === 401 || probeStatus === 403;
+          }
+          if (definitive && !cancelled) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+          } else if (!cancelled) {
+            // Transient failure — keep the persisted session. The probe request
+            // above may itself have triggered a successful interceptor refresh,
+            // so read the token freshly from localStorage rather than restoring
+            // the original (expired) one into state.
+            const freshToken = localStorage.getItem('token') || storedToken;
+            setToken(freshToken);
+            if (storedUser) {
+              try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
             }
           }
-          // Refresh failed or no refresh token — clear auth
-          localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
         } else {
           // Token is still valid
           if (!cancelled) setToken(storedToken);
@@ -140,7 +169,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(accessToken);
         setUser(userData);
         localStorage.setItem('token', accessToken);
-        localStorage.setItem('refreshToken', refreshToken || '');
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        } else {
+          localStorage.removeItem('refreshToken');
+        }
         localStorage.setItem('user', JSON.stringify(userData));
         return { success: true, user: userData };
       }
@@ -170,7 +203,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(accessToken);
         setUser(userData);
         localStorage.setItem('token', accessToken);
-        localStorage.setItem('refreshToken', refreshToken || '');
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        } else {
+          localStorage.removeItem('refreshToken');
+        }
         localStorage.setItem('user', JSON.stringify(userData));
         return { success: true, user: userData };
       }
@@ -181,6 +218,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Revoke the refresh token server-side (Bearer access token is sent by the
+    // shared axios instance; the refresh token travels in the body). If the
+    // server is unreachable or rejects the request, local state is still wiped
+    // so the user is fully signed out from the browser's perspective — the
+    // un-revoked token simply expires on its own (7d) server-side.
+    const storedRefreshToken = localStorage.getItem('refreshToken');
+    const currentToken = localStorage.getItem('token');
+    if (storedRefreshToken && currentToken) {
+      api.post('/auth/logout', { refreshToken: storedRefreshToken }, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      }).catch(() => { /* non-blocking: local logout already proceeds */ });
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');

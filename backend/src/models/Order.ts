@@ -358,7 +358,25 @@ orderSchema.index({ idempotencyKey: 1 }, {
 
 // Generate order number before saving (collision-safe)
 orderSchema.pre('save', async function() {
-  if (!this.orderNumber) {
+  // A client-supplied order number (generated at checkout and shown on the
+  // ZI-Pay invoice) may still collide with an existing order — e.g. when two
+  // checkouts race and both pass the controller's pre-check, or when the
+  // random suffix collides. Regenerate on duplicate instead of failing the
+  // whole order. Every loop attempt uses a fresh random suffix, so the
+  // collisions resolve after at most a couple of iterations.
+  if (this.orderNumber) {
+    let orderNumber = this.orderNumber;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const dup = await this.model('Order').findOne({ orderNumber, _id: { $ne: this._id } }).lean();
+      if (!dup) {
+        break;
+      }
+      const ts = Date.now().toString(36).toUpperCase();
+      const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
+      orderNumber = `ORD-${ts}${rand}`;
+    }
+    this.orderNumber = orderNumber;
+  } else {
     const ts = Date.now().toString(36).toUpperCase();
     const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
     this.orderNumber = `ORD-${ts}${rand}`;

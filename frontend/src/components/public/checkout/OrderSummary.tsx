@@ -2,7 +2,7 @@ import React from "react";
 import type { CartItem } from "../../../types";
 import { useShopContext } from "../../../store/ShopContext";
 import { Tag } from "lucide-react";
-import { formatPrice } from "../../../utils/formatPrice";
+import { formatPrice, roundCurrency } from "../../../utils/formatPrice";
 
 interface OrderSummaryProps {
   cart: CartItem[];
@@ -13,7 +13,7 @@ interface OrderSummaryProps {
 }
 
 export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, paymentMethod, exchangeRate = 110 }: OrderSummaryProps) {
-  const { showAlert, couponCode, discountAmount, discountType } = useShopContext();
+  const { showAlert, couponCode, discountAmount, discountType, getBDTItemAmount } = useShopContext();
   const isCryptoPayment = paymentMethod === 'paycrypto';
 
   React.useEffect(() => {
@@ -60,11 +60,17 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                 {(() => {
                   const isSmm = item.smmProvider === 'oneservicebd';
                   const effectiveQty = isSmm ? item.quantity / 1000 : item.quantity;
-                  const unitPrice = item.priceBDT || item.price || 0;
                   if (isCryptoPayment) {
-                    return <span>${formatPrice((unitPrice / exchangeRate) * effectiveQty, 2)}</span>;
+                    // Same USD source as getTotalPriceUSD() — use priceUSDT
+                    // when available, otherwise convert the BDT price at the
+                    // current rate. Both places must agree so a line item
+                    // (e.g. $4.25) always matches the order total.
+                    const unitUSD = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
+                    return <span>${formatPrice(unitUSD * effectiveQty, 2)}</span>;
                   }
-                  return <span>৳{formatPrice(unitPrice * effectiveQty, 2)}</span>;
+                  // BDT: single shared whole-taka amount (same rounding as the
+                  // Total) so the line always matches the checkout total.
+                  return <span>৳{formatPrice(getBDTItemAmount(item), 2)}</span>;
                 })()}
               </div>
             </div>

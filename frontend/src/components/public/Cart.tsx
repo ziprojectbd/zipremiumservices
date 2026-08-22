@@ -147,18 +147,21 @@ export default function CartView({
   useEffect(() => {
     if (!isCartOpen) return;
     cart.forEach((item) => {
-      if (item.smmProvider === 'oneservicebd' && item.dbId && !liveDetails[item.dbId]) {
-        setLiveDetailsLoading(prev => ({ ...prev, [item.dbId]: true }));
-        api.get(`/products/${item.dbId}`).then((res) => {
-          const data = res.data?.data || res.data;
-          if (data) {
-            setLiveDetails(prev => ({ ...prev, [item.dbId]: data }));
-          }
-        }).catch(() => {
-          // fallback: keep parsing static details
-        }).finally(() => {
-          setLiveDetailsLoading(prev => ({ ...prev, [item.dbId]: false }));
-        });
+      if (item.smmProvider === 'oneservicebd' && item.dbId) {
+        const dbId = item.dbId;
+        if (!liveDetails[dbId]) {
+          setLiveDetailsLoading(prev => ({ ...prev, [dbId]: true }));
+          api.get(`/products/${dbId}`).then((res) => {
+            const data = res.data?.data || res.data;
+            if (data) {
+              setLiveDetails(prev => ({ ...prev, [dbId]: data }));
+            }
+          }).catch(() => {
+            // fallback: keep parsing static details
+          }).finally(() => {
+            setLiveDetailsLoading(prev => ({ ...prev, [dbId]: false }));
+          });
+        }
       }
     });
   }, [isCartOpen, cart, liveDetails]);

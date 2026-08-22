@@ -45,6 +45,9 @@ export interface EnvConfig {
   ONESERVICEBD_API_KEY: string;
   GEMINI_API_KEY: string;
 
+  // ZI Pay payment gateway (server-to-server calls)
+  ZIPAY_URL: string;
+
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: number;
   RATE_LIMIT_MAX: number;
@@ -104,6 +107,9 @@ const env: EnvConfig = {
   TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
   ONESERVICEBD_API_KEY: process.env.ONESERVICEBD_API_KEY || '',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+
+  // ZI Pay payment gateway (server-to-server calls)
+  ZIPAY_URL: process.env.ZIPAY_URL || 'https://pay.zipremiumservices.com',
 
   // Rate Limiting
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),

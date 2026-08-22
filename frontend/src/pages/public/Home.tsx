@@ -110,7 +110,7 @@ export default function Home() {
   // Maintenance from App.tsx (WebSocket-driven, no polling needed here)
   const maintenanceSettings = {
     enabled: false,
-    type: 'marquee' as const,
+    type: 'marquee' as 'marquee' | 'fullscreen',
     message: ''
   };
 

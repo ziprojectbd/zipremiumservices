@@ -390,7 +390,7 @@ export default function AdminOrderDetails() {
                   <span>Unit Price: {formatPrice((item.price || 0) / (item.quantity || 1), order.currency)}</span>
                   <span>Total: {formatPrice(item.price || 0, order.currency)}</span>
                   {isCryptoOrder(order) && item.usdtAmount && (
-                    <span className="text-gray-500">${formatPrice(item.usdtAmount || 0, 2)}</span>
+                    <span className="text-gray-500">${item.usdtAmount?.toFixed?.(2) ?? (item.usdtAmount ?? 0)}</span>
                   )}
                 </div>
                 {item.link && (

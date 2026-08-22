@@ -444,9 +444,9 @@ export default function SpecialPromoAdmin() {
                         ? 'border-blue-400 bg-blue-400/10'
                         : 'border-white/20 bg-white/5 hover:border-white/30'
                     }`}
-                    onDragOver={(e) => handleDragOver(e, false)}
-                    onDragLeave={(e) => handleDragLeave(e, false)}
-                    onDrop={(e) => handleDrop(e, false)}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                   >
                     <input
                       type="file"
@@ -455,7 +455,7 @@ export default function SpecialPromoAdmin() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          handleImageUpload(file, false);
+                          handleImageUpload(file);
                         }
                       }}
                       className="hidden"

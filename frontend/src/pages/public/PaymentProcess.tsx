@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
-import api from "../../lib/axios";
+import axios from "axios";
 import { useShopContext } from "../../store/ShopContext";
+
+// Payment confirmation must NOT go through the shared axios instance — its
+// interceptors redirect to /sign-in whenever a stale/expired JWT is found in
+// localStorage (or a 401 arrives). Both /payment-resolve and /orders are
+// public endpoints, so an auth-agnostic instance avoids that redirect and
+// lets the order complete even with expired session tokens present.
+const apiPublic = axios.create({
+  baseURL: "/api",
+  headers: { "Content-Type": "application/json" },
+});
 
 const PAYMENT_METHODS = ["bkash", "nagad", "rocket", "upay", "tap"];
 
@@ -34,6 +44,16 @@ interface CheckoutData {
   couponType?: string;
 }
 
+interface ResolvedPayment {
+  provider: string;
+  amount: number;
+  currency: string;
+  orderId: string;
+  payerNumber: string;
+  trxId: string;
+  merchantName: string;
+}
+
 export default function PaymentProcess() {
   const navigate = useNavigate();
   const { setCart } = useShopContext();
@@ -63,20 +83,38 @@ export default function PaymentProcess() {
         }
         if (cancelled) return;
 
-        // The trxId comes back from ZI Pay as a query param (cross-origin sessionStorage is unavailable).
-        const paymentTrxId = searchParams.get("trxId") || "";
-        const paymentPayerNumber = searchParams.get("payerNumber") || "";
-        const paymentMethod = searchParams.get("provider") || checkout.paymentMethod;
-        // Order number generated at checkout and shown on the invoice — reuse it
-        // so the created order keeps the exact number the customer saw.
-        const orderId = searchParams.get("orderId") || checkout.orderId || "";
+        // ZI Pay returns here with only a one-time result id + token. The
+        // payment details (provider/amount/trxId/payer) never touch the URL —
+        // the backend resolves them server-to-server from the gateway.
+        const resultId = searchParams.get("resultId") || "";
+        const token = searchParams.get("token") || "";
+        if (!resultId || !token) {
+          setErrorMsg("Invalid payment link. Please go back to checkout and try again.");
+          setStatus("error");
+          return;
+        }
+        if (cancelled) return;
 
-        const response = await api.post("/orders", {
+        // Resolve the payment result via our own backend, which calls the
+        // gateway server-to-server (one-time token, verified + consumed there).
+        const resolveRes = await apiPublic.post("/payment-resolve", { resultId, token });
+        if (!resolveRes.data?.data) {
+          throw new Error("Could not confirm payment. Please go back and try again.");
+        }
+        if (cancelled) return;
+
+        const resolved: ResolvedPayment = resolveRes.data.data;
+
+        // Order number generated at checkout and shown on the invoice — reuse
+        // it so the created order keeps the exact number the customer saw.
+        const orderId = resolved.orderId || checkout.orderId || "";
+
+        const response = await apiPublic.post("/orders", {
           email: checkout.email,
           username: checkout.username || "",
-          payerNumber: paymentPayerNumber,
-          trxId: paymentTrxId,
-          paymentMethod,
+          payerNumber: resolved.payerNumber,
+          trxId: resolved.trxId,
+          paymentMethod: resolved.provider,
           orderId: orderId || undefined,
           items: checkout.cart.map((item) => ({
             productId: item.dbId,
@@ -91,7 +129,7 @@ export default function PaymentProcess() {
             customData: item.customData || {},
             orderFields: item.orderFields,
           })),
-          totalAmount: checkout.totalAmount,
+          totalAmount: resolved.amount || checkout.totalAmount,
           couponCode: checkout.couponCode || "",
         });
 

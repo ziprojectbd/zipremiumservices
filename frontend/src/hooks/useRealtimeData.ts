@@ -27,7 +27,7 @@ export function useRealtimeData<T = any>({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [connected, setConnected] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
   const fetchData = useCallback(async () => {

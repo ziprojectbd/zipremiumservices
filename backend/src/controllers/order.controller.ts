@@ -270,7 +270,10 @@ export const createOrder = asyncHandler(async (req, res) => {
   // authoritative amount is `finalTotal` below — an integer that is carried
   // unchanged into the order, the ZI-Pay invoice and payment verification.
   // -----------------------------------------------------------------------
-  const serverTotal = Math.round(validatedItems.reduce((sum, item) => sum + (item.price as number), 0));
+  // BDT totals are whole-taka integers; crypto (USDT/USD) totals keep 2
+  // decimal places so e.g. $4.60 is not truncated to $4.
+  const lineTotalSum = validatedItems.reduce((sum, item) => sum + (item.price as number), 0);
+  const serverTotal = isCrypto ? roundCurrency(lineTotalSum, 2) : Math.round(lineTotalSum);
 
   // -----------------------------------------------------------------------
   // Coupon validation
@@ -302,28 +305,38 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
 
     if (coupon.discountType === 'percentage') {
-      discountAmount = Math.round((serverTotal * coupon.discountValue) / 100);
+      discountAmount = isCrypto
+        ? roundCurrency((serverTotal * coupon.discountValue) / 100, 2)
+        : Math.round((serverTotal * coupon.discountValue) / 100);
       if (coupon.maxDiscountAmount > 0 && discountAmount > coupon.maxDiscountAmount) {
-        discountAmount = Math.round(coupon.maxDiscountAmount);
+        discountAmount = isCrypto ? roundCurrency(coupon.maxDiscountAmount, 2) : Math.round(coupon.maxDiscountAmount);
       }
     } else if (coupon.discountType === 'flat') {
-      discountAmount = Math.min(Math.round(coupon.discountValue), serverTotal);
+      discountAmount = isCrypto
+        ? Math.min(roundCurrency(coupon.discountValue, 2), serverTotal)
+        : Math.min(Math.round(coupon.discountValue), serverTotal);
     }
     discountType = coupon.discountType;
   }
 
-  // Authoritative whole-taka order total. This exact integer must be what the
-  // customer is asked to pay and what ZI-Pay verifies against.
-  const finalTotal = Math.round(serverTotal - discountAmount);
+  // Authoritative order total. This exact number must be what the customer is
+  // asked to pay and what payment verification checks against. BDT stays a
+  // whole-taka integer; crypto/USD keeps 2 decimal places (e.g. 4.60).
+  const finalTotal = isCrypto
+    ? roundCurrency(serverTotal - discountAmount, 2)
+    : Math.round(serverTotal - discountAmount);
 
   // -----------------------------------------------------------------------
   // Anti-manipulation check
-  // The client total is normalized to whole taka and must EXACTLY equal the
-  // authoritative server total — no tolerance. Guard against NaN (e.g. an
-  // empty or non-numeric totalAmount) which would silently pass a comparison.
+  // The client total must EXACTLY equal the authoritative server total — no
+  // tolerance. BDT is normalized to whole taka, crypto/USD to 2 decimal
+  // places. Guard against NaN (e.g. an empty or non-numeric totalAmount)
+  // which would silently pass a comparison.
   // -----------------------------------------------------------------------
-  const clientTotalInt = Math.round(Number(totalAmount));
-  if (!Number.isFinite(clientTotalInt) || clientTotalInt !== finalTotal) {
+  const clientTotalNormalized = isCrypto
+    ? roundCurrency(Number(totalAmount), 2)
+    : Math.round(Number(totalAmount));
+  if (!Number.isFinite(clientTotalNormalized) || clientTotalNormalized !== finalTotal) {
     return res
       .status(400)
       .json(error('Price mismatch detected. Please refresh and try again.'));
@@ -356,17 +369,13 @@ export const createOrder = asyncHandler(async (req, res) => {
   // Order number reuse
   // If the client supplied an order number (generated at checkout and shown
   // on the ZI-Pay invoice), reuse it so the created order keeps the exact
-  // number the customer saw. Guard against collision with the unique index —
-  // if the number is already taken, fall back to letting the schema
-  // pre-save hook generate a fresh one.
+  // number the customer saw. The Order pre-save hook handles collisions
+  // (regenerating a fresh number) instead of failing the order.
   // -----------------------------------------------------------------------
   let orderNumber = '';
   const clientOrderNumber = (orderId || '').toString().trim();
   if (clientOrderNumber) {
-    const existingNumber = await Order.findOne({ orderNumber: clientOrderNumber }).lean();
-    if (!existingNumber) {
-      orderNumber = clientOrderNumber.slice(0, 50);
-    }
+    orderNumber = clientOrderNumber.slice(0, 50);
   }
 
   // -----------------------------------------------------------------------
