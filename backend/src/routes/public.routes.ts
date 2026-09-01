@@ -27,4 +27,21 @@ router.get('/payment-settings', getPaymentSettings);
 // Combined settings endpoint (reduces parallel requests)
 router.get('/settings', getAllPublicSettings);
 
+// Public CaptchaMaster pricing — served from the RESELLER pricing-plans
+// endpoint (server-side, no API key exposed to the browser).
+router.get('/captchamaster/pricing', async (_req, res) => {
+  try {
+    const { getCaptchaMasterService } = await import('@utils/captchamaster');
+    const service = await getCaptchaMasterService();
+    const plans = await service.getRawPricingPlans();
+    res.json({ success: true, data: plans });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err?.message || 'Failed to load captcha pricing',
+      error: {},
+    });
+  }
+});
+
 export default router;

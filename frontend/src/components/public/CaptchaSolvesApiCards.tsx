@@ -102,8 +102,10 @@ export default function CaptchaSolvesApiCards({
   const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean; exchangeRate: number }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
 
   useEffect(() => {
-    fetch("https://captchamaster.org/api/pricing")
-      .then((res) => res.json())
+    // Fetch pricing from OUR backend, which proxies the CaptchaMaster
+    // reseller pricing-plans endpoint server-side (no API key in the browser).
+    api.get("/public/captchamaster/pricing")
+      .then((res) => res.data)
       .then((data) => {
         if (data.success && Array.isArray(data.data)) {
           setPlans(data.data);

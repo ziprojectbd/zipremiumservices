@@ -198,6 +198,36 @@ class CaptchaMasterService {
   }
 
   /**
+   * Get RAW reseller pricing plans (unmapped — same shape as the
+   * captchamaster.org public pricing endpoint). Used by the storefront so
+   * the plans customers see are exactly the reseller plans we can buy.
+   * GET /reseller/pricing-plans
+   */
+  async getRawPricingPlans(): Promise<any[]> {
+    devLog('[CaptchaMaster] Fetching raw pricing plans...');
+    const response = await this.client.get<{ success: boolean; plans?: any[]; message?: string; error?: string }>('/reseller/pricing-plans');
+    const result = response.data;
+
+    if (!result.success || !result.plans) {
+      throw new CaptchaMasterError(result.error || result.message || 'Failed to fetch pricing plans');
+    }
+
+    return result.plans.map((p: any) => ({
+      id: p._id || p.id,
+      type: p.type || '',
+      code: p.code || '',
+      price: p.priceDisplay || `$${Number(p.price || 0).toFixed(2)}`,
+      priceValue: Number(p.price || 0),
+      validity: p.validity || '',
+      recognition: p.recognition || '',
+      isPromo: Boolean(p.isPromo),
+      count: p.count || undefined,
+      dailyLimit: p.dailyLimit || undefined,
+      rateLimit: p.rateLimit || undefined,
+    }));
+  }
+
+  /**
    * Get all packages purchased by reseller
    * GET /reseller/packages
    */
