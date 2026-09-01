@@ -6,23 +6,27 @@
 # ===== Build Stage =====
 FROM node:22-alpine AS builder
 
+# Corepack enables Yarn 4 (Berry) — much faster installs than npm
+RUN corepack enable
+
 WORKDIR /app
 
 # Copy package files first (Docker layer caching)
-COPY package.json package-lock.json ./
+COPY package.json yarn.lock ./
 
 # Install all deps including dev for build step
-RUN npm install
+# yarn install is dramatically faster than npm install and uses far less CPU/RAM
+RUN yarn install --immutable
 
 # Copy source code
 COPY tsconfig.json .npmrc ./
 COPY src ./src
 
 # Build (TypeScript → JS, then rewrite path aliases)
-RUN npm run build
+RUN yarn build
 
 # Prune dev dependencies (keep only production)
-RUN npm prune --omit=dev
+RUN yarn workspaces focus --production || yarn install --immutable --production
 
 # ===== Production Stage =====
 FROM node:22-alpine AS runner

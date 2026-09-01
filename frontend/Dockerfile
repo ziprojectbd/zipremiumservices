@@ -6,16 +6,19 @@
 # ===== Build Stage =====
 FROM node:22-alpine AS builder
 
+# Corepack enables Yarn 4 (Berry) — much faster installs than npm
+RUN corepack enable
+
 ARG VITE_API_URL=""
 ARG VITE_GOOGLE_CLIENT_ID=""
 
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json yarn.lock ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies — yarn is faster & lighter than npm
+RUN yarn install --immutable
 
 # Copy source
 COPY . .
@@ -23,7 +26,7 @@ COPY . .
 # Build Vite app (VITE_ prefixed env vars are baked into the static bundle)
 RUN VITE_API_URL="$VITE_API_URL" \
     VITE_GOOGLE_CLIENT_ID="$VITE_GOOGLE_CLIENT_ID" \
-    npm run build
+    yarn build
 
 # ===== Production Stage =====
 FROM nginx:1.27-alpine

@@ -17,6 +17,11 @@ x-common-backend: &common-backend
       limits:
         memory: 512M
         cpus: "0.50"
+    update_config:
+      order: start-first
+      failure_action: rollback
+      parallelism: 1
+      delay: 10s
 
 services:
   # -------------------------------------------------
@@ -81,6 +86,11 @@ services:
         limits:
           memory: 256M
           cpus: "0.25"
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+        delay: 10s
 
 networks:
   coolify:
