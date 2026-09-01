@@ -503,6 +503,7 @@ export default function CaptchaSolvesApiCards({
                     onClick={() =>
                       addToCart({
                         id: `cm-${plan.code}`,
+                        dbId: plan.id,
                         name: `Captcha Solver Api — ${plan.code}`,
                         description: `${typeLabels[plan.type] || plan.type} — $${formatPrice(discountedPriceUSD, 2)}`,
                         price: discountedPriceUSD,
@@ -510,6 +511,8 @@ export default function CaptchaSolvesApiCards({
                         priceBDT: discountedPriceBDT,
                         priceUSDT: discountedPriceUSD,
                         category: 'Captcha Solver Api',
+                        productType: 'captchamaster',
+                        captchamasterPlanId: plan.id,
                         features: features.slice(0, 3),
                         available: true,
                       })

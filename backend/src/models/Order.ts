@@ -321,6 +321,16 @@ const orderSchema = new mongoose.Schema({
       required: false,
       default: '',
     },
+    productType: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    captchamasterPlanId: {
+      type: String,
+      required: false,
+      default: '',
+    },
     customData: {
       type: mongoose.Schema.Types.Mixed,
       required: false,

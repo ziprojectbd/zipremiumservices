@@ -28,6 +28,8 @@ interface CartItemPayload {
   details?: string;
   customData?: Record<string, unknown>;
   orderFields?: unknown[];
+  productType?: 'standard' | 'smm' | 'captchamaster';
+  captchamasterPlanId?: string;
   [key: string]: unknown;
 }
 
@@ -128,6 +130,8 @@ export default function PaymentProcess() {
             details: item.details,
             customData: item.customData || {},
             orderFields: item.orderFields,
+            productType: item.productType,
+            captchamasterPlanId: item.captchamasterPlanId,
           })),
           totalAmount: resolved.amount || checkout.totalAmount,
           couponCode: checkout.couponCode || "",

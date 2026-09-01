@@ -355,6 +355,16 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
         let productType = '';
         if (order.items?.length) {
           for (const item of order.items) {
+            // First: planId directly on the item (added at checkout for
+            // Captcha Solver cards — no DB product required).
+            const itemPlanId = (item as any)?.captchamasterPlanId || (item as any)?.customData?.captchamasterPlanId || '';
+            const itemType = (item as any)?.productType || (item as any)?.customData?.productType || '';
+            if (itemType === 'captchamaster' && itemPlanId) {
+              captchamasterPlanId = itemPlanId;
+              productType = 'captchamaster';
+              break;
+            }
+            // Fallback: DB product lookup (admin-created captchamaster products)
             const pid = item.product?.toString();
             if (pid && pid.length === 24 && /^[a-f0-9]+$/i.test(pid)) {
               const prod = await Product.findById(pid).lean();

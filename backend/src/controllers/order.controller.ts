@@ -208,6 +208,8 @@ export const createOrder = asyncHandler(async (req, res) => {
         smmServiceId: item.smmServiceId || '',
         smmProvider: item.smmProvider || '',
         details: details || '',
+        productType: item.productType || '',
+        captchamasterPlanId: item.captchamasterPlanId || item.customData?.captchamasterPlanId || '',
         customData,
       });
       continue;
