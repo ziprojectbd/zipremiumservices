@@ -98,10 +98,11 @@ process.on('uncaughtException', (err) => {
   gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
 
-// Handle unhandled promise rejections
+// Handle unhandled promise rejections — log them but keep the server alive.
+// A single bad request (e.g. an auth error thrown before its catch) must never
+// take the whole API down in production.
 process.on('unhandledRejection', (reason) => {
   logCriticalError('Unhandled promise rejection', reason);
-  gracefulShutdown('UNHANDLED_REJECTION');
 });
 
 start();

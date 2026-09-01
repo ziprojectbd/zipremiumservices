@@ -40,19 +40,24 @@ export async function login(req: import('express').Request, res: import('express
       await user.save();
     }
 
-    const result = await authenticateUser(email, password, ip, userAgent);
-    return res.json(success({
-      ...result,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        image: user.image,
-        isTrader: user.isTrader,
-        kycStatus: user.kycStatus,
-      },
-    }));
+    try {
+      const result = await authenticateUser(email, password, ip, userAgent);
+      return res.json(success({
+        ...result,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          image: user.image,
+          isTrader: user.isTrader,
+          kycStatus: user.kycStatus,
+        },
+      }));
+    } catch (err: unknown) {
+      const appErr = err as { statusCode?: number; message?: string };
+      return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Authentication failed'));
+    }
   }
 
   // 2. Check DB user login
