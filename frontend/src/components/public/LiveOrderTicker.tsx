@@ -55,7 +55,9 @@ export default function LiveOrderTicker({ orders, height = 48, interval = 4000 }
             <span className="text-purple-300/60 text-[10px] truncate block leading-tight">{order.service}</span>
           </div>
         </div>
-        <span className="text-white/30 text-[9px] flex-shrink-0 ml-2">{order.time}</span>
+        {order.time ? (
+          <span className="text-white/30 text-[9px] flex-shrink-0 ml-2">{order.time}</span>
+        ) : null}
       </div>
 
       <style>{`

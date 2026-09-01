@@ -57,7 +57,7 @@ export const getRecentOrders = asyncHandler(async (req, res) => {
         if (diffMins < 1) timeAgo = 'Just now';
         else if (diffMins < 60) timeAgo = `${diffMins} min ago`;
         else if (diffMins < 1440) timeAgo = `${Math.floor(diffMins / 60)}h ago`;
-        else timeAgo = `${Math.floor(diffMins / 1440)}d ago`;
+        else timeAgo = '';
       }
 
       return {
