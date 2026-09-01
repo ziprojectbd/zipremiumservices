@@ -108,7 +108,7 @@ export async function authenticateUser(
   // Keep only last 10 refresh tokens per user
   await User.updateOne(
     { _id: user._id },
-    { $pop: { refreshTokens: 5 } },
+    { $push: { refreshTokens: { $each: [], $slice: -10 } } },
   );
 
   logAuthEvent('LOGIN_SUCCESS', { email, ip });
