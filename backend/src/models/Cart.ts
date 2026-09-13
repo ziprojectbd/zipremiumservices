@@ -11,6 +11,8 @@ export interface ICartItem {
   link?: string;
   smmProvider?: string;
   smmServiceId?: string;
+  productType?: string;
+  captchamasterPlanId?: string;
   category?: string;
   details?: string;
   features?: string[];
@@ -64,6 +66,17 @@ const cartItemSchema = new mongoose.Schema({
     default: '',
   },
   smmServiceId: {
+    type: String,
+    default: '',
+  },
+  // CaptchaMaster products: 'captchamaster' + the reseller plan id. Without
+  // these fields Mongoose strict mode silently strips them, so the plan id
+  // vanished before checkout and auto-delivery never fired.
+  productType: {
+    type: String,
+    default: '',
+  },
+  captchamasterPlanId: {
     type: String,
     default: '',
   },

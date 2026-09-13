@@ -34,6 +34,8 @@ interface DashboardStats {
   totalFailed: number;
   localOrders: number;
   localActivePackages: number;
+  resellerConnected?: boolean;
+  resellerError?: string;
 }
 
 interface ApiKey {
@@ -373,6 +375,10 @@ export default function AdminCaptchaMasterPage() {
   const [resellerApiKey, setResellerApiKey] = useState('');
   const [showResellerKey, setShowResellerKey] = useState(false);
   const [discountLoading, setDiscountLoading] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<
+    { ok: boolean; message: string } | null
+  >(null);
   // Exchange rate for USD→BDT conversion
   const [exchangeRate, setExchangeRate] = useState(110);
 
@@ -473,6 +479,32 @@ export default function AdminCaptchaMasterPage() {
     load();
     fetchCaptchaSettings();
   }, [fetchStats, fetchPackages, fetchApiKeys, fetchCaptchaSettings]);
+
+  const testConnection = useCallback(async () => {
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      const res = await api.post('/admin/captchamaster/test', {
+        resellerApiKey: resellerApiKey || undefined,
+      });
+      if (res.data.success) {
+        const stats = res.data.data?.stats || {};
+        setConnectionResult({
+          ok: true,
+          message: `Connected (${res.data.data?.keyPrefix || 'key'}) — ${stats.totalCredits?.toLocaleString?.() ?? stats.totalCredits ?? 0} credits, ${stats.totalCustomers ?? 0} customers`,
+        });
+      } else {
+        setConnectionResult({ ok: false, message: res.data.error || 'Connection failed' });
+      }
+    } catch (err: any) {
+      setConnectionResult({
+        ok: false,
+        message: err.response?.data?.error || err.message || 'Connection failed',
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  }, [resellerApiKey]);
 
   // ============================================================
   // ACTIONS
@@ -697,9 +729,23 @@ export default function AdminCaptchaMasterPage() {
         </button>
       </div>
 
+      {/* Reseller connection warning */}
+      {stats && stats.resellerConnected === false && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-yellow-300 text-sm font-medium">
+              CaptchaMaster API not connected — showing local data only
+            </p>
+            <p className="text-yellow-200/70 text-xs mt-0.5 break-words">
+              {stats.resellerError || 'Check the Reseller API Key in Settings.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tabs — equal width, fits mobile & desktop */}
-      <div className="grid grid-cols-4 gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
-        {[
+      <div className="grid grid-cols-4 gap-1 p-1 bg-white/5 rounded-xl border border-white/10">        {[
           { id: 'stats', label: 'Stats', icon: BarChart3 },
           { id: 'packages', label: 'Packages', icon: Package },
           { id: 'api-keys', label: 'API Keys', icon: Key },
@@ -1193,6 +1239,44 @@ export default function AdminCaptchaMasterPage() {
                   <p className="text-white/40 text-xs mt-2">
                     CaptchaMaster reseller API key for automatic delivery. Found in your CaptchaMaster reseller dashboard.
                   </p>
+                </div>
+
+                {/* Test connection */}
+                <div className="mb-6">
+                  <button
+                    type="button"
+                    onClick={testConnection}
+                    disabled={testingConnection}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 text-white/80 rounded-xl text-sm font-medium hover:bg-white/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {testingConnection ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Testing connection...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                  {connectionResult && (
+                    <div
+                      className={`mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg text-sm border ${
+                        connectionResult.ok
+                          ? 'bg-green-500/10 border-green-500/30 text-green-300'
+                          : 'bg-red-500/10 border-red-500/30 text-red-300'
+                      }`}
+                    >
+                      {connectionResult.ok ? (
+                        <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                      ) : (
+                        <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                      )}
+                      <span className="break-words">{connectionResult.message}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Save button */}

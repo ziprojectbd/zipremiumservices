@@ -50,6 +50,9 @@ router.use('/convert-price', convertPriceRoutes);
 
 // Authenticated user routes
 router.use('/captchamaster', captchamasterRoutes);
+// Alias for frontend compatibility: the customer dashboard calls
+// /customer/captchamaster/* (this route previously 404'd).
+router.use('/customer/captchamaster', captchamasterRoutes);
 router.use('/kyc', kycRoutes);
 router.use('/chat', chatRoutes);
 router.use('/marketplace', marketplaceRoutes);

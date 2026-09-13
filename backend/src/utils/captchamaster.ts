@@ -47,11 +47,17 @@ export interface CaptchaMasterPackage {
   planId: string;
   planName: string;
   credits: number;
+  creditsUsed: number;
+  creditsRemaining: number;
   price: number;
   customerEmail: string;
   status: 'active' | 'expired' | 'suspended';
   expiresAt: string;
+  startDate: string;
   createdAt: string;
+  lastUsed?: string;
+  packageType?: string;
+  apiKey?: string;
 }
 
 export interface CaptchaMasterApiKey {
@@ -61,6 +67,8 @@ export interface CaptchaMasterApiKey {
   status: 'active' | 'disabled';
   createdAt: string;
   lastUsed?: string;
+  usageCount?: number;
+  prefix?: string;
 }
 
 export interface CaptchaMasterPurchaseResult {
@@ -240,20 +248,27 @@ class CaptchaMasterService {
       throw new CaptchaMasterError(result.error || result.message || 'Failed to fetch packages');
     }
 
-    return result.packages.map((p: any) => ({
-      id: p._id || p.id,
-      planId: p.packageCode || '',
-      planName: p.packageName || p.name || 'Unknown',
-      credits: p.credits || 0,
-      price: p.price || 0,
-      customerEmail: p.customerEmail || '',
-      status: p.status || 'active',
-      expiresAt: p.endDate || '',
-      createdAt: p.createdAt || '',
-      startDate: p.startDate || '',
-      endDate: p.endDate || '',
-      key: p.key || '',
-    }));
+    return result.packages.map((p: any) => {
+      const credits = p.credits || 0;
+      const creditsUsed = p.creditsUsed || 0;
+      return {
+        id: p._id || p.id,
+        planId: p.packageCode || '',
+        planName: p.packageName || p.name || p.packageCode || 'Unknown',
+        credits,
+        creditsUsed,
+        creditsRemaining: p.creditsRemaining ?? Math.max(0, credits - creditsUsed),
+        price: p.price || 0,
+        customerEmail: p.customerEmail || '',
+        status: p.status || 'active',
+        expiresAt: p.endDate || '',
+        startDate: p.startDate || '',
+        createdAt: p.createdAt || '',
+        lastUsed: p.lastUsed || '',
+        packageType: p.packageType || '',
+        apiKey: p.key || '',
+      };
+    });
   }
 
   /**
@@ -290,6 +305,8 @@ class CaptchaMasterService {
       status: k.status,
       createdAt: k.createdAt,
       lastUsed: k.lastUsedAt || k.lastUsed,
+      usageCount: k.usageCount || 0,
+      prefix: k.prefix || '',
     }));
   }
 
@@ -321,6 +338,8 @@ class CaptchaMasterService {
       status: k.status,
       createdAt: k.createdAt,
       lastUsed: k.lastUsedAt || k.lastUsed,
+      usageCount: k.usageCount || 0,
+      prefix: k.prefix || '',
     };
   }
 
@@ -349,6 +368,8 @@ class CaptchaMasterService {
       status: k.status,
       createdAt: k.createdAt,
       lastUsed: k.lastUsedAt || k.lastUsed,
+      usageCount: k.usageCount || 0,
+      prefix: k.prefix || '',
     };
   }
 
@@ -383,24 +404,47 @@ class CaptchaMasterService {
     }
 
     devLog('[CaptchaMaster] Purchasing package - plan:', planId, 'customer:', customerEmail);
-    const response = await this.client.post<{ success: boolean; message?: string; package?: any; apiKey?: any; balance?: number; error?: string }>(
+    const response = await this.client.post<{
+      success: boolean;
+      message?: string;
+      package?: any;
+      apiKey?: any;
+      key?: string;
+      balance?: number;
+      error?: string;
+    }>(
       `/reseller/purchase/${planId}`,
       { customerEmail }
     );
     const result = response.data;
 
-    if (!result.success || !result.package) {
+    if (!result.success) {
       throw new CaptchaMasterError(result.error || result.message || 'Failed to purchase package');
     }
 
-    const pkg = result.package;
+    // The reseller API may return the created package nested (package /
+    // data), or only a success message + key. Handle all shapes so a
+    // successful purchase is never reported as a failure.
+    const pkg = result.package || (result as any).data?.package || (result as any).data || {};
+    const apiKey =
+      result.apiKey?.key ||
+      result.key ||
+      pkg.key ||
+      pkg.apiKey ||
+      (result as any).data?.apiKey?.key ||
+      '';
+
+    if (!pkg || (!pkg._id && !pkg.id && !result.balance && !apiKey)) {
+      throw new CaptchaMasterError(result.message || 'Failed to purchase package');
+    }
+
     return {
-      orderId: pkg._id || pkg.id,
-      packageId: pkg._id || pkg.id,
-      credits: pkg.credits || 0,
+      orderId: pkg._id || pkg.id || '',
+      packageId: pkg._id || pkg.id || '',
+      credits: Number(pkg.credits ?? pkg.count ?? 0),
       status: pkg.status || 'active',
       endDate: pkg.endDate || '',
-      apiKey: result.apiKey?.key || '',
+      apiKey,
     };
   }
 }

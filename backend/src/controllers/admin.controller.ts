@@ -350,35 +350,128 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
           break;
         }
 
-        // Look up captchamaster product to get planId
+        // ------------------------------------------------------------------
+        // Detect a CaptchaMaster line item and resolve its reseller plan id.
+        //
+        // The plan id can live in several places depending on how the order
+        // was created (storefront checkout, ZI-Pay flow, or an admin-created
+        // DB product). A captcha item is detected by productType OR by its
+        // category / `cm-` product id so a missing productType can never make
+        // us silently deliver without buying the package.
+        // ------------------------------------------------------------------
         let captchamasterPlanId = '';
-        let productType = '';
+        let captchaItemDetected = false;
+        let captchaItemName = '';
+        let captchaPlanCode = '';
+
         if (order.items?.length) {
           for (const item of order.items) {
-            // First: planId directly on the item (added at checkout for
-            // Captcha Solver cards — no DB product required).
-            const itemPlanId = (item as any)?.captchamasterPlanId || (item as any)?.customData?.captchamasterPlanId || '';
-            const itemType = (item as any)?.productType || (item as any)?.customData?.productType || '';
-            if (itemType === 'captchamaster' && itemPlanId) {
-              captchamasterPlanId = itemPlanId;
-              productType = 'captchamaster';
-              break;
+            const itemAny = item as any;
+            const itemPlanId =
+              itemAny?.captchamasterPlanId || itemAny?.customData?.captchamasterPlanId || '';
+            const itemType = itemAny?.productType || itemAny?.customData?.productType || '';
+            const itemCategory = String(itemAny?.category || itemAny?.productCategory || '');
+            const itemProductId = String(itemAny?.product || itemAny?.productId || '');
+            const itemName = String(itemAny?.productName || itemAny?.name || '');
+
+            // Detection must be PRECISE: a regular product whose name merely
+            // mentions "captcha" (e.g. "CaptchaMaster Bot", "Kolotibablo
+            // Captcha Full Setup") is NOT a reseller package. Only an explicit
+            // captchamaster type, the exact storefront category, or a `cm-`
+            // product id counts.
+            const normalizedCategory = itemCategory.toLowerCase().replace(/\s+/g, ' ').trim();
+            const isStorefrontCaptcha = normalizedCategory === 'captcha solver api';
+            const looksLikeCaptcha =
+              itemType === 'captchamaster' ||
+              isStorefrontCaptcha ||
+              itemProductId.startsWith('cm-');
+
+            if (looksLikeCaptcha) {
+              captchaItemDetected = true;
+              if (!captchaItemName) captchaItemName = itemName || itemCategory || 'Captcha package';
+              if (!captchaPlanCode) {
+                captchaPlanCode = extractCaptchaPlanCode(itemProductId, itemName);
+              }
+
+              if (itemPlanId) {
+                captchamasterPlanId = itemPlanId;
+                break;
+              }
             }
+
             // Fallback: DB product lookup (admin-created captchamaster products)
-            const pid = item.product?.toString();
+            const pid = itemAny.product?.toString();
             if (pid && pid.length === 24 && /^[a-f0-9]+$/i.test(pid)) {
               const prod = await Product.findById(pid).lean();
-              if (prod?.productType === 'captchamaster' && prod.captchamasterPlanId) {
-                captchamasterPlanId = prod.captchamasterPlanId;
-                productType = 'captchamaster';
-                break;
+              if (prod?.productType === 'captchamaster') {
+                captchaItemDetected = true;
+                if (!captchaItemName) captchaItemName = prod.name || 'Captcha package';
+                if (!captchaPlanCode) {
+                  captchaPlanCode =
+                    prod.captchamasterPlanId || extractCaptchaPlanCode(pid, prod.name || '');
+                }
+                if (prod.captchamasterPlanId) {
+                  captchamasterPlanId = prod.captchamasterPlanId;
+                  break;
+                }
               }
             }
           }
         }
 
+        // Recovery: older orders were created before the cart persisted the
+        // plan id. The plan CODE (e.g. "D1") is still embedded in the item
+        // name / product id ("cm-D1"), so resolve it against the live reseller
+        // pricing plans. This lets legacy orders deliver instead of failing.
+        if (captchaItemDetected && !captchamasterPlanId && captchaPlanCode) {
+          const resolved = await resolveCaptchaPlanIdByCode(captchaPlanCode);
+          if (resolved) {
+            captchamasterPlanId = resolved;
+            // Backfill the order items so future retries are O(1) and the
+            // plan id is visible in the admin panel.
+            if (order.items?.length) {
+              for (const item of order.items) {
+                const itemAny = item as any;
+                if (!itemAny.captchamasterPlanId) {
+                  const code = extractCaptchaPlanCode(
+                    String(itemAny.product || itemAny.productId || ''),
+                    String(itemAny.productName || itemAny.name || '')
+                  );
+                  if (code && code === captchaPlanCode) {
+                    itemAny.captchamasterPlanId = resolved;
+                    itemAny.productType = 'captchamaster';
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // A captcha order with no resolvable plan id must NOT be marked
+        // delivered — that showed customers a "delivered" status while no
+        // package was ever purchased. Fail loudly so the admin can fix the
+        // order/item data and retry.
+        if (captchaItemDetected && !captchamasterPlanId) {
+          (order as any).delivery = {
+            provider: 'captchamaster',
+            status: 'failed',
+            errorMessage:
+              `Captcha plan id missing for "${captchaItemName}". ` +
+              'The order item has no captchamasterPlanId — re-add the item to the cart or set it on the product.',
+          };
+          await order.save();
+          return res
+            .status(400)
+            .json(
+              error(
+                `Cannot deliver: Captcha plan id is missing for "${captchaItemName}". ` +
+                  'Re-create the order from the Captcha pricing page so the plan id is captured.'
+              )
+            );
+        }
+
         // Call CaptchaMaster API for captchamaster products
-        if (productType === 'captchamaster' && captchamasterPlanId) {
+        if (captchaItemDetected && captchamasterPlanId) {
           const customerEmail = (order as any).email || (order as any).customerEmail || '';
           if (!customerEmail) {
             return res.status(400).json(error('Order has no customer email for delivery'));
@@ -396,6 +489,42 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
               externalReference: result.orderId || result.packageId || '',
               deliveredAt: new Date(),
             };
+
+            // Persist a local CaptchaPackage mirror so the customer dashboard
+            // and admin panel show this purchase even before the reseller API
+            // is queried. Idempotent on captchaMasterPackageId.
+            const externalId = result.orderId || result.packageId;
+            if (externalId) {
+              try {
+                const credits = Number(result.credits || 0);
+                await CaptchaPackage.findOneAndUpdate(
+                  { captchaMasterPackageId: externalId },
+                  {
+                    $set: {
+                      orderId: order._id,
+                      customerEmail: customerEmail.toLowerCase().trim(),
+                      planId: captchamasterPlanId,
+                      planName: captchaItemName || captchamasterPlanId,
+                      credits,
+                      creditsRemaining: credits,
+                      price: order.amount || 0,
+                      currency: 'USD',
+                      captchaMasterPackageId: externalId,
+                      captchaMasterOrderId: result.orderId || '',
+                      captchaApiKey: result.apiKey || '',
+                      status: 'active',
+                      activatedAt: new Date(),
+                      expiresAt: result.endDate ? new Date(result.endDate) : null,
+                    },
+                    $setOnInsert: { creditsUsed: 0 },
+                  },
+                  { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+              } catch {
+                // Local mirror is best-effort; the reseller purchase already
+                // succeeded and the API key is saved on the order.
+              }
+            }
           } catch (err: any) {
             // Do NOT mark as delivered on failure — admin can retry
             (order as any).delivery = {
@@ -425,6 +554,41 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
   return res.json(success(order, 'Order updated'));
 });
+
+// ---------------------------------------------------------------------------
+// CaptchaMaster plan resolution helpers
+// ---------------------------------------------------------------------------
+
+// Extract the reseller plan code from an order item. Historically the code was
+// embedded in the product id (`cm-D1`) and in the product name
+// ("Captcha Solver Api — D1"), so legacy orders remain deliverable.
+function extractCaptchaPlanCode(productId: string, productName: string): string {
+  const idMatch = /^cm-(.+)$/i.exec(productId.trim());
+  if (idMatch?.[1]) return idMatch[1].trim().toUpperCase();
+
+  const nameMatch = /(?:—|–|-|:|\s)\s*([A-Za-z]{1,4}\d{1,6})\s*$/i.exec(productName.trim());
+  if (nameMatch?.[1]) return nameMatch[1].trim().toUpperCase();
+
+  return '';
+}
+
+// Resolve a plan code (e.g. "D1") to the current reseller plan id by querying
+// the live reseller pricing plans. Plans are rotated over time, so the code is
+// matched exactly against `code` (case-insensitive) — a partial/loose match
+// could buy the WRONG package and spend real credits.
+async function resolveCaptchaPlanIdByCode(code: string): Promise<string> {
+  const target = String(code || '').trim().toUpperCase();
+  if (!target) return '';
+  try {
+    const { getCaptchaMasterService } = await import('@utils/captchamaster');
+    const service = await getCaptchaMasterService();
+    const plans = await service.getRawPricingPlans();
+    const match = plans.find((p: any) => String(p.code || '').trim().toUpperCase() === target);
+    return match?.id ? String(match.id) : '';
+  } catch {
+    return '';
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Coupon usage finalization (called once from verify_payment)

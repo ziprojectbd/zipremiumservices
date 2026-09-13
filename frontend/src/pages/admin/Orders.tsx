@@ -18,6 +18,7 @@ import {
   normalizeOrderStatus,
   compactOrderId,
   isCryptoOrder,
+  apiErrorMessage,
   getCustomerName,
   getProductName,
 } from './components/OrderHelpers';
@@ -226,7 +227,7 @@ export default function OrdersPage() {
       const res = await api.put(`/admin/orders/${orderId}`, { action: actionMap[action] });
       const json: ApiResponse<Order> = res.data;
       if (!json.success) {
-        showToast(json.error || 'Failed to update order', 'error');
+        showToast(apiErrorMessage(json, 'Failed to update order'), 'error');
         return;
       }
       const messages: Record<string, string> = {
@@ -518,13 +519,13 @@ export default function OrdersPage() {
                     });
                     const json: ApiResponse<Order> = res.data;
                     if (!json.success) {
-                      showToast(json.error || 'Failed to deliver order', 'error');
+                      showToast(apiErrorMessage(json, 'Failed to deliver order'), 'error');
                       return;
                     }
                     showToast('Order delivered successfully', 'success');
                     handleStatusUpdated();
                   } catch (err: any) {
-                    showToast(err?.response?.data?.error || 'Failed to deliver order', 'error');
+                    showToast(apiErrorMessage(err?.response?.data, 'Failed to deliver order'), 'error');
                   } finally {
                     setActionLoading(false);
                     actionBusyRef.current = false;

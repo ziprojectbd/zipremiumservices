@@ -442,6 +442,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                                 priceBDT: item.priceBDT || item.price, features: item.features || [],
                                 link: item.link || '', smmProvider: item.smmProvider || '',
                                 smmServiceId: item.smmServiceId || '', category: item.category || '',
+                                productType: item.productType || '', captchamasterPlanId: item.captchamasterPlanId || '',
                                 details: item.details || '', stock: item.stock || 0,
                                 customData: item.customData || {},
                             }));
@@ -482,6 +483,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                     priceBDT: item.priceBDT || item.price, features: item.features || [],
                     link: item.link || '', smmProvider: item.smmProvider || '',
                     smmServiceId: item.smmServiceId || '', category: item.category || '',
+                    productType: item.productType || '', captchamasterPlanId: item.captchamasterPlanId || '',
                     details: item.details || '', stock: item.stock || 0,
                     customData: item.customData || {},
                 }));

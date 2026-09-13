@@ -253,6 +253,8 @@ export default function Checkout() {
           category: item.category,
           smmProvider: item.smmProvider,
           smmServiceId: item.smmServiceId,
+          productType: item.productType,
+          captchamasterPlanId: item.captchamasterPlanId,
           link: item.link,
           details: item.details,
           customData: item.customData || {},

@@ -11,6 +11,7 @@ import {
   deleteAdminCaptchaApiKey,
   getAdminCaptchaSettings,
   updateAdminCaptchaSettings,
+  testAdminCaptchaConnection,
 } from '@controllers/admin-captchamaster.controller';
 
 const router = Router();
@@ -26,5 +27,6 @@ router.put('/api-keys/:id/regenerate', regenerateAdminCaptchaApiKey);
 router.delete('/api-keys/:id', deleteAdminCaptchaApiKey);
 router.get('/settings', getAdminCaptchaSettings);
 router.put('/settings', updateAdminCaptchaSettings);
+router.post('/test', testAdminCaptchaConnection);
 
 export default router;

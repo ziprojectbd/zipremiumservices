@@ -91,8 +91,18 @@ export interface ApiPaginatedResponse<T> {
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: string;
+  error?: string | Record<string, unknown>;
   message?: string;
+}
+
+// The backend returns `message` for human-readable text and `error` as an
+// object ({}). Reading `error` directly rendered "[object Object]" in toasts.
+export function apiErrorMessage(body: any, fallback: string): string {
+  if (!body) return fallback;
+  if (typeof body === 'string') return body;
+  if (typeof body.message === 'string' && body.message) return body.message;
+  if (typeof body.error === 'string' && body.error) return body.error;
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
