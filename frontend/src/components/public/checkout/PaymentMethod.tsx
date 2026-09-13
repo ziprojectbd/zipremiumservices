@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 interface PaymentMethodProps {
   paymentMethod: string;
   setPaymentMethod: (method: string) => void;
@@ -10,73 +8,71 @@ export default function PaymentMethod({
   paymentMethod,
   setPaymentMethod,
 }: PaymentMethodProps) {
-  const [showCryptoOnly, setShowCryptoOnly] = useState(false);
   const isPayCrypto = paymentMethod === "paycrypto";
 
   return (
     <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-white/10 p-2.5 sm:p-3 md:p-4 lg:p-6">
-      <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-3 md:mb-4">
-        <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white">Payment Method</h3>
+      <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white mb-2.5 sm:mb-3 md:mb-4">
+        Payment Method
+      </h3>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-4">
+        {/* Mobile Payment */}
         <button
           type="button"
-          onClick={() => {
-            setShowCryptoOnly(!showCryptoOnly);
-            setPaymentMethod(showCryptoOnly ? 'bkash' : 'paycrypto');
-          }}
-          className={`px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 text-[9px] sm:text-[10px] md:text-xs font-semibold rounded-full border transition-all duration-300 whitespace-nowrap ${
-            showCryptoOnly
-              ? 'bg-gradient-to-r from-pink-500/10 to-rose-500/10 border-pink-500/30 text-pink-400 hover:from-pink-500/20 hover:to-rose-500/20 hover:border-pink-500/50'
-              : 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-purple-500/30 text-purple-400 hover:from-purple-500/20 hover:to-indigo-500/20 hover:border-purple-500/50'
+          onClick={() => setPaymentMethod('bkash')}
+          aria-pressed={!isPayCrypto}
+          className={`flex flex-col items-center text-center gap-2 p-2.5 sm:p-4 border rounded-xl transition-all duration-300 ${
+            !isPayCrypto
+              ? 'border-pink-500 bg-pink-500/10 shadow-lg shadow-pink-500/10'
+              : 'border-white/10 bg-white/5 hover:border-pink-500/40 hover:bg-pink-500/5'
           }`}
         >
-          {showCryptoOnly ? 'Pay with Mobile' : 'Pay with Crypto'}
-        </button>
-      </div>
-
-      {isPayCrypto ? (
-        <div className="flex items-center gap-3 p-3 sm:p-4 border rounded-xl border-purple-500 bg-purple-50 dark:bg-purple-500/10">
-          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-[9px] sm:text-[10px] md:text-xs font-bold flex-shrink-0">
-            B
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-xs sm:text-sm md:text-base text-gray-900 dark:text-white">Crypto / USDT</div>
-            <div className="text-[10px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-300">Pay with cryptocurrency</div>
-          </div>
-          <div className="flex items-center ml-2 sm:ml-3">
-            <input
-              type="radio"
-              name="payment"
-              checked
-              readOnly
-              className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 flex-shrink-0 cursor-pointer accent-green-500"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3 p-3 sm:p-4 border rounded-xl border-pink-500 bg-pink-50 dark:bg-pink-500/10">
           <img
             src="/images/bkash-logo.webp"
             alt="bKash"
-            className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 object-contain flex-shrink-0"
+            className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain"
           />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-xs sm:text-sm md:text-base text-gray-900 dark:text-white">Mobile Payment</div>
-            <div className="text-[10px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-300">
-              bKash, Nagad, Rocket &amp; more — pay securely via gateway
-            </div>
+          <div className="font-semibold text-xs sm:text-sm md:text-base text-white">Mobile Payment</div>
+          <div className="text-[9px] sm:text-[11px] md:text-xs text-gray-400 leading-tight">
+            bKash, Nagad, Rocket &amp; more
           </div>
-          <div className="flex items-center ml-2 sm:ml-3">
-            <input
-              type="radio"
-              name="payment"
-              checked
-              readOnly
-              className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 flex-shrink-0 cursor-pointer accent-green-500"
-            />
-          </div>
-        </div>
-      )}
+          <span
+            className={`mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center ${
+              !isPayCrypto ? 'border-pink-500' : 'border-gray-500'
+            }`}
+          >
+            {!isPayCrypto && <span className="w-1.5 h-1.5 rounded-full bg-pink-400" />}
+          </span>
+        </button>
 
+        {/* Crypto Payment */}
+        <button
+          type="button"
+          onClick={() => setPaymentMethod('paycrypto')}
+          aria-pressed={isPayCrypto}
+          className={`flex flex-col items-center text-center gap-2 p-2.5 sm:p-4 border rounded-xl transition-all duration-300 ${
+            isPayCrypto
+              ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
+              : 'border-white/10 bg-white/5 hover:border-purple-500/40 hover:bg-purple-500/5'
+          }`}
+        >
+          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm sm:text-base md:text-lg font-bold">
+            B
+          </div>
+          <div className="font-semibold text-xs sm:text-sm md:text-base text-white">Crypto Payment</div>
+          <div className="text-[9px] sm:text-[11px] md:text-xs text-gray-400 leading-tight">
+            USDT &amp; other crypto
+          </div>
+          <span
+            className={`mt-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center ${
+              isPayCrypto ? 'border-purple-500' : 'border-gray-500'
+            }`}
+          >
+            {isPayCrypto && <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
