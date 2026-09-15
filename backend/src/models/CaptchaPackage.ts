@@ -77,6 +77,12 @@ const captchaPackageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Plan kind from the reseller ("daily" plans refill every day at 10 PM).
+    // Stored so the customer dashboard can show the correct countdowns.
+    packageType: {
+      type: String,
+      default: '',
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},

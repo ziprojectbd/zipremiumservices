@@ -497,6 +497,22 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
             if (externalId) {
               try {
                 const credits = Number(result.credits || 0);
+
+                // Plan kind ("daily" plans refill every day at 10 PM) drives
+                // the refill countdown on the customer dashboard.
+                let packageType = (result as any).packageType || '';
+                if (!packageType) {
+                  try {
+                    const plans = await service.getRawPricingPlans();
+                    const match = plans.find(
+                      (p: any) => String(p.id) === String(captchamasterPlanId)
+                    );
+                    packageType = match?.type || '';
+                  } catch {
+                    packageType = '';
+                  }
+                }
+
                 await CaptchaPackage.findOneAndUpdate(
                   { captchaMasterPackageId: externalId },
                   {
@@ -512,6 +528,7 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
                       captchaMasterPackageId: externalId,
                       captchaMasterOrderId: result.orderId || '',
                       captchaApiKey: result.apiKey || '',
+                      packageType,
                       status: 'active',
                       activatedAt: new Date(),
                       expiresAt: result.endDate ? new Date(result.endDate) : null,

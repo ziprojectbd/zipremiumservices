@@ -64,7 +64,7 @@ function toLocalPackage(p: any) {
     activatedAt: p.activatedAt ? new Date(p.activatedAt).toISOString() : '',
     captchaMasterPackageId: p.captchaMasterPackageId || String(p._id ?? ''),
     captchaApiKey: p.captchaApiKey ?? null,
-    packageType: '',
+    packageType: p.packageType || '',
     createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : '',
   };
 }

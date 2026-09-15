@@ -78,6 +78,7 @@ export interface CaptchaMasterPurchaseResult {
   status: string;
   endDate?: string;
   apiKey?: string;
+  packageType?: string;
 }
 
 interface CaptchaMasterApiResponse<T> {
@@ -445,6 +446,7 @@ class CaptchaMasterService {
       status: pkg.status || 'active',
       endDate: pkg.endDate || '',
       apiKey,
+      packageType: pkg.packageType || (result as any).packageType || '',
     };
   }
 }

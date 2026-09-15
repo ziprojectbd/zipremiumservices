@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package } from "lucide-react";
+import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useShopContext } from "../../store/ShopContext";
 import api from "../../lib/axios";
@@ -70,11 +70,107 @@ function EmptyState({
 interface ActivePackage {
   id: string;
   planName: string;
+  planId?: string;
   credits: number;
   creditsUsed: number;
   creditsRemaining: number;
   captchaApiKey: string | null;
   status: string;
+  expiresAt?: string;
+  activatedAt?: string;
+  packageType?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Countdowns
+//
+// Mirrors the official reseller dashboard: an expiry countdown driven by
+// `expiresAt` for every package, plus a daily refill countdown (next 10 PM)
+// only for `packageType === 'daily'` packages.
+// ---------------------------------------------------------------------------
+
+const DAILY_REFILL_HOUR = 22; // 10 PM — reseller resets daily packages here
+
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+function splitDuration(ms: number) {
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return { days, hours, minutes, seconds };
+}
+
+function ExpiryCountdown({ expiresAt }: { expiresAt?: string }) {
+  const target = expiresAt ? new Date(expiresAt).getTime() : NaN;
+  const valid = Number.isFinite(target);
+  const now = useNow(valid);
+
+  if (!valid) {
+    return <span className="text-gray-500 text-xs">No expiry date</span>;
+  }
+
+  const remaining = target - now;
+  if (remaining <= 0) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+        <Clock className="w-3.5 h-3.5" />
+        Expired
+      </span>
+    );
+  }
+
+  const { days, hours, minutes, seconds } = splitDuration(remaining);
+  const urgent = remaining <= 86_400_000; // last 24h
+
+  return (
+    <span
+      className={`flex items-center gap-1 text-xs font-mono tabular-nums ${
+        urgent ? "text-orange-400" : "text-gray-300"
+      }`}
+      title={`Expires ${new Date(target).toLocaleString()}`}
+    >
+      <Clock className={`w-3.5 h-3.5 ${urgent ? "text-orange-400" : "text-gray-500"}`} />
+      {days > 0 && <span>{days}d </span>}
+      <span>{hours}h </span>
+      <span>{minutes}m </span>
+      <span>{seconds}s</span>
+    </span>
+  );
+}
+
+function RefillCountdown({ packageType }: { packageType?: string }) {
+  const active = packageType === "daily";
+  const now = useNow(active);
+
+  if (!active) return null;
+
+  const next = new Date();
+  next.setHours(DAILY_REFILL_HOUR, 0, 0, 0);
+  if (next.getTime() <= now) next.setDate(next.getDate() + 1);
+
+  const remaining = next.getTime() - now;
+  if (remaining <= 0) return null;
+
+  const { hours, minutes, seconds } = splitDuration(remaining);
+
+  return (
+    <span
+      className="flex items-center gap-1 text-[10px] text-amber-400 font-mono tabular-nums"
+      title={`Next refill at ${DAILY_REFILL_HOUR - 12} PM`}
+    >
+      <Timer className="w-3 h-3" />
+      Refill in {hours}h {minutes}m {seconds}s
+    </span>
+  );
 }
 
 export default function CaptchaSolvesApiCards({
@@ -227,12 +323,17 @@ export default function CaptchaSolvesApiCards({
                     </span>
                   </div>
 
-                  {/* Credits info */}
+                  {/* Credits info + countdowns */}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-400 mb-3">
                     <span>Credits: {pkg.creditsRemaining.toLocaleString()} / {pkg.credits.toLocaleString()}</span>
                     {pkg.credits > 0 && (
                       <span>{Math.round((pkg.creditsUsed / pkg.credits) * 100)}% used</span>
                     )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-3">
+                    <ExpiryCountdown expiresAt={pkg.expiresAt} />
+                    <RefillCountdown packageType={pkg.packageType} />
                   </div>
 
                   {/* API Key display */}
