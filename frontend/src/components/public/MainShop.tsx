@@ -18,17 +18,24 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
   const { addToCart, lastAddedProductId, setIsLoading } = useShopContext();
 
   const [categories, setCategories] = useState<any[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
 
-  // Resolve categorySlug → category name synchronously (no render gap)
-  const selectedCategory = useMemo(() => {
-    if (!categories.length) return "All";
+  // Resolve categorySlug → category name synchronously (no render gap).
+  //
+  // Returns `null` while the slug cannot be resolved yet: categories are still
+  // loading and the slug names a real category. Previously this returned "All"
+  // in that window, so the page fetched and briefly rendered every product
+  // before the chosen category loaded — the "wrong products flash" glitch.
+  const selectedCategory = useMemo<string | null>(() => {
+    if (!categorySlug || categorySlug === "all") return "All";
+    if (!categories.length) return categoriesLoaded ? "All" : null;
     const cat = categories.find(
       (c) =>
         c.slug === categorySlug ||
         c.name.toLowerCase().replace(/\s+/g, "-") === categorySlug
     );
     return cat ? cat.name : "All";
-  }, [categorySlug, categories]);
+  }, [categorySlug, categories, categoriesLoaded]);
 
   // Track which category the currently-rendered products belong to.
   // Updated after a successful fetch, so the render can detect mismatches
@@ -57,6 +64,8 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
         }
       } catch (error) {
         devLog("Error fetching categories:", error);
+      } finally {
+        if (!cancelled) setCategoriesLoaded(true);
       }
     };
     fetchCategories();
@@ -136,8 +145,12 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
     []
   );
 
-  // Fetch products when selectedCategory changes
+  // Fetch products when selectedCategory changes.
+  // selectedCategory is null until a non-"all" slug resolves against the
+  // loaded categories, so we wait instead of fetching "All" and flashing the
+  // wrong products.
   useEffect(() => {
+    if (!selectedCategory) return;
     if (lastCategoryRef.current === selectedCategory) return;
     lastCategoryRef.current = selectedCategory;
 
@@ -152,15 +165,15 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
     setIsLoadingMore(false);
 
     async function loadProducts() {
-      await fetchProductsPage(1, selectedCategory, false);
-      productsCategoryRef.current = selectedCategory;
+      await fetchProductsPage(1, selectedCategory as string, false);
+      productsCategoryRef.current = selectedCategory as string;
       setApiLoading(false);
     }
     loadProducts();
   }, [selectedCategory, fetchProductsPage]);
 
   const handleLoadMore = async () => {
-    if (isLoadingMore || !hasMoreProducts) return;
+    if (isLoadingMore || !hasMoreProducts || !selectedCategory) return;
     setIsLoadingMore(true);
     await fetchProductsPage(currentPage + 1, selectedCategory, true);
     setIsLoadingMore(false);
@@ -170,10 +183,13 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
     selectedCategory === "Captcha Solver Api" ||
     categorySlug === "captcha-solver-api";
   const isTradeCategory = selectedCategory === "Trade";
+  // A slug is still resolving (categories in flight) — keep the whole shop in
+  // a loading state so nothing stale is painted.
+  const isResolvingCategory = selectedCategory === null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      {categories.length > 0 && (
+      {categories.length > 0 && selectedCategory && (
         <CategoryFilterBar
           selectedCategory={selectedCategory}
           router={navigate}
@@ -231,10 +247,13 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
         </div>
       )}
 
-      {/* Products Grid */}
+      {/* Products Grid.
+          While a slug is still resolving (isResolvingCategory) this still
+          renders — showSkeletons is true because the rendered products belong
+          to no category yet, so the user sees skeletons, never stale items. */}
       {!isTradeCategory && !isCaptchaCategory && (() => {
           const categoryMismatch = selectedCategory !== productsCategoryRef.current;
-          const showSkeletons = apiLoading || categoryMismatch;
+          const showSkeletons = apiLoading || categoryMismatch || isResolvingCategory;
           return (
         <div className="transform transition-all duration-300 ease-out">
           <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -294,7 +313,7 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
       {/* Trade category: products ARE shown here */}
       {isTradeCategory && !isCaptchaCategory && (() => {
           const categoryMismatch = selectedCategory !== productsCategoryRef.current;
-          const showSkeletons = apiLoading || categoryMismatch;
+          const showSkeletons = apiLoading || categoryMismatch || isResolvingCategory;
           return (
         <div className="transform transition-all duration-300 ease-out">
           <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

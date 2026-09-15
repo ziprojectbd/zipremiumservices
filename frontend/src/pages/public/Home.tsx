@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import api from "../../lib/axios";
 import { formatPrice } from "../../utils/formatPrice";
@@ -266,8 +266,25 @@ export default function Home() {
     fetchCategories();
   }, []);
 
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("all");
+  // Category selection is derived from the URL, not local state: this page is
+  // mounted at "/" only, and the filter bar navigates to "/<slug>". Deriving
+  // keeps the active chip (and the captcha/product branch) in sync with the
+  // route instead of being stuck on "All" forever.
+  const selectedCategorySlug = useMemo(() => {
+    const path = location.pathname.replace(/^\/+|\/+$/g, '');
+    if (!path || path.includes('/')) return 'all';
+    return path;
+  }, [location.pathname]);
+
+  const selectedCategory = useMemo(() => {
+    if (selectedCategorySlug === 'all') return 'All';
+    const cat = categories.find(
+      (c: any) =>
+        c.slug === selectedCategorySlug ||
+        String(c.name || '').toLowerCase().replace(/\s+/g, '-') === selectedCategorySlug
+    );
+    return cat?.name || 'All';
+  }, [selectedCategorySlug, categories]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -481,9 +498,15 @@ export default function Home() {
   const PAGE_SIZE = 50;
   const lastCategoryRef = useRef<string>('');
   const requestIdRef = useRef(0);
+  // Tracks which category the currently-rendered products belong to. Compared
+  // during render so stale products are never painted while the new category
+  // is still loading (the "wrong products flash" glitch).
+  const productsCategoryRef = useRef<string>('');
 
-  // Fetch a page of products
-  const fetchProductsPage = useCallback(async (page: number, categoryName: string, append: boolean = false) => {
+  // Fetch a page of products. Returns true only when the response was applied
+  // (not discarded as stale) so callers can keep their category bookkeeping
+  // consistent with what is actually rendered.
+  const fetchProductsPage = useCallback(async (page: number, categoryName: string, append: boolean = false): Promise<boolean> => {
     const requestId = requestIdRef.current;
     try {
       const params = new URLSearchParams();
@@ -495,7 +518,7 @@ export default function Home() {
 
       devLog(`Fetching products: /api/products?${params.toString()}`);
       const res = await api.get(`/products?${params.toString()}`);
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return false;
       const json = res.data;
       if (json.success && json.data) {
         const mapped: ShopProduct[] = json.data.map((p: any, idx: number) => {
@@ -533,15 +556,18 @@ export default function Home() {
           };
         });
 
-        if (requestId !== requestIdRef.current) return;
+        if (requestId !== requestIdRef.current) return false;
         setApiProducts(prev => append ? [...prev, ...mapped] : mapped);
         setHasMoreProducts(json.pagination?.page < json.pagination?.pages);
         setTotalProducts(json.pagination?.total || 0);
         setCurrentPage(page);
+        return true;
       }
+      return false;
     } catch (e) {
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return false;
       devLog('Failed to fetch products:', e);
+      return false;
     }
   }, []);
 
@@ -561,7 +587,10 @@ export default function Home() {
     setIsLoadingMore(false);
 
     async function loadProducts() {
-      await fetchProductsPage(1, selectedCategory, false);
+      const applied = await fetchProductsPage(1, selectedCategory, false);
+      // Only claim this category when the response actually landed; a stale
+      // response must not mark the new category as rendered.
+      if (applied) productsCategoryRef.current = selectedCategory;
       setApiLoading(false);
       setProductsLoaded(true);
       setShouldRefetchProducts(false);
@@ -912,10 +941,16 @@ export default function Home() {
             )}
 
             {/* Products Grid */}
-            {selectedCategory !== "Trade" && selectedCategorySlug !== 'captcha-solver-api' && (
+            {selectedCategory !== "Trade" && selectedCategorySlug !== 'captcha-solver-api' && (() => {
+              // The rendered products belong to a different category than the
+              // one now selected — keep skeletons until the new page lands so
+              // the previous category's products never flash on screen.
+              const categoryMismatch = selectedCategory !== productsCategoryRef.current;
+              const showSkeletons = apiLoading || categoryMismatch;
+              return (
               <div className="transform transition-all duration-300 ease-out opacity-100 translate-y-0">
                 <div id="products" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {apiLoading
+                  {showSkeletons
                     ? Array.from({ length: 6 }).map((_, index) => (
                         <div
                           key={`product-skeleton-${index}`}
@@ -938,7 +973,7 @@ export default function Home() {
                       ))}
                 </div>
 
-                {hasMoreProducts && (
+                {!showSkeletons && hasMoreProducts && (
                   <div className="text-center mb-16">
                     <button
                       onClick={handleLoadMore}
@@ -960,13 +995,14 @@ export default function Home() {
                   </div>
                 )}
 
-                {!apiLoading && !hasMoreProducts && apiProducts.length > 0 && (
+                {!showSkeletons && !hasMoreProducts && apiProducts.length > 0 && (
                   <div className="text-center mb-16 text-gray-500 text-sm">
                     Showing all {totalProducts} products
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* Get In Touch section */}
             <section className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white rounded-3xl shadow-2xl p-5 sm:p-8 mb-16 border border-gray-700 overflow-hidden">
