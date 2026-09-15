@@ -479,8 +479,20 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
           try {
             const { getCaptchaMasterService } = await import('@utils/captchamaster');
+            const CaptchaMasterSettings = (await import('@models/CaptchaMasterSettings')).default;
             const service = await getCaptchaMasterService();
-            const result = await service.purchasePackage(captchamasterPlanId, customerEmail);
+
+            // Greeting name for the CaptchaMaster completion email.
+            // Priority: the configured greeting (default "Dear Customer") so the
+            // email never falls back to the reseller store name.
+            const settings = await CaptchaMasterSettings.findById('global').lean();
+            const greetingName = String(settings?.emailGreetingName || 'Dear Customer').trim();
+
+            const result = await service.purchasePackage(
+              captchamasterPlanId,
+              customerEmail,
+              greetingName
+            );
 
             (order as any).captchaApiKey = result.apiKey || '';
             (order as any).delivery = {

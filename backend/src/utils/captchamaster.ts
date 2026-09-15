@@ -395,8 +395,18 @@ class CaptchaMasterService {
   /**
    * Purchase a package for a customer
    * POST /reseller/purchase
+   *
+   * `customerName` is sent so the CaptchaMaster completion email greets the
+   * recipient with our text instead of falling back to the reseller store name.
+   * The field is additive: if the endpoint ignores unknown body fields the
+   * request still succeeds, and once the vendor honours it the greeting
+   * switches automatically.
    */
-  async purchasePackage(planId: string, customerEmail: string): Promise<CaptchaMasterPurchaseResult> {
+  async purchasePackage(
+    planId: string,
+    customerEmail: string,
+    customerName?: string
+  ): Promise<CaptchaMasterPurchaseResult> {
     if (!planId) {
       throw new CaptchaMasterError('Plan ID is required');
     }
@@ -404,7 +414,16 @@ class CaptchaMasterService {
       throw new CaptchaMasterError('A valid customer email is required');
     }
 
-    devLog('[CaptchaMaster] Purchasing package - plan:', planId, 'customer:', customerEmail);
+    const name = String(customerName || '').trim();
+
+    devLog(
+      '[CaptchaMaster] Purchasing package - plan:',
+      planId,
+      'customer:',
+      customerEmail,
+      'name:',
+      name || '(none)'
+    );
     const response = await this.client.post<{
       success: boolean;
       message?: string;
@@ -415,7 +434,7 @@ class CaptchaMasterService {
       error?: string;
     }>(
       `/reseller/purchase/${planId}`,
-      { customerEmail }
+      name ? { customerEmail, customerName: name } : { customerEmail }
     );
     const result = response.data;
 

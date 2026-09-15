@@ -344,6 +344,7 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
+      emailGreetingName: settings.emailGreetingName || 'Dear Customer',
     })
   );
 });
@@ -352,7 +353,8 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
 export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const { discountPercent, discountEnabled, exchangeRate, resellerApiKey } = req.body;
+  const { discountPercent, discountEnabled, exchangeRate, resellerApiKey, emailGreetingName } =
+    req.body;
 
   const update: Record<string, unknown> = {};
   if (discountPercent !== undefined) {
@@ -375,6 +377,9 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   if (resellerApiKey !== undefined) {
     update.resellerApiKey = String(resellerApiKey || '').trim();
   }
+  if (emailGreetingName !== undefined) {
+    update.emailGreetingName = String(emailGreetingName || '').trim() || 'Dear Customer';
+  }
 
   const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, {
     new: true,
@@ -394,6 +399,7 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
+      emailGreetingName: settings.emailGreetingName || 'Dear Customer',
     })
   );
 });

@@ -374,6 +374,9 @@ export default function AdminCaptchaMasterPage() {
   const [discountSaving, setDiscountSaving] = useState(false);
   const [resellerApiKey, setResellerApiKey] = useState('');
   const [showResellerKey, setShowResellerKey] = useState(false);
+  // Greeting name sent with each CaptchaMaster purchase so the customer's
+  // completion email does not fall back to the reseller store name.
+  const [emailGreetingName, setEmailGreetingName] = useState('Dear Customer');
   const [discountLoading, setDiscountLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<
@@ -433,6 +436,7 @@ export default function AdminCaptchaMasterPage() {
         setDiscountEnabled(res.data.data.discountEnabled ?? true);
         setExchangeRate(res.data.data.exchangeRate ?? 110);
         setResellerApiKey(res.data.data.resellerApiKey ?? '');
+        setEmailGreetingName(res.data.data.emailGreetingName ?? 'Dear Customer');
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to load discount settings', 'error');
