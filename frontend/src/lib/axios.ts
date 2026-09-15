@@ -116,7 +116,7 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   if (typeof window !== 'undefined') {
     // Skip proactive refresh for auth endpoints to avoid refresh loops and for the refresh request itself
-    const isAuthEndpoint = config.url?.startsWith('/auth/') || config.url === '/signup';
+    const isAuthEndpoint = config.url?.startsWith('/auth/');
     if (!isAuthEndpoint) {
       const token = localStorage.getItem('token');
       if (token && isTokenExpired(token)) {
@@ -156,7 +156,7 @@ api.interceptors.response.use(
     if (status === 503) {
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
       const isAuthRoute = currentPath.startsWith('/admin/login') || currentPath.startsWith('/sign-in') || currentPath.startsWith('/sign-up');
-      const isAuthApi = url.startsWith('/auth/') || url === '/signup';
+      const isAuthApi = url.startsWith('/auth/');
 
       // Check if user is admin (they bypass maintenance on backend)
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -241,7 +241,7 @@ api.interceptors.response.use(
     // public endpoints (which legitimately 401 without meaning the session is
     // dead).
     if (status === 401 && typeof window !== 'undefined') {
-      const isAuthApi = url.startsWith('/auth/') || url === '/signup';
+      const isAuthApi = url.startsWith('/auth/');
       const isPublic = url.startsWith('/products') || url.startsWith('/categories') ||
         url.startsWith('/orders') || url.startsWith('/cart') || url.startsWith('/campaigns') ||
         url.startsWith('/coupons') || url.startsWith('/public') || url.startsWith('/reviews') ||

@@ -20,7 +20,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
-  signup: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
   googleLogin: (credential: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -183,18 +182,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signup = useCallback(async (data: Record<string, unknown>) => {
-    try {
-      const res = await api.post('/signup', data);
-      if (res.data.success) {
-        return { success: true };
-      }
-      return { success: false, error: res.data.error || 'Signup failed' };
-    } catch (err: any) {
-      return { success: false, error: err.response?.data?.error || 'Signup failed' };
-    }
-  }, []);
-
   const googleLogin = useCallback(async (credential: string) => {
     try {
       const res = await api.post('/auth/google', { credential });
@@ -260,7 +247,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!token,
     isAdmin: user?.role === 'admin',
     login,
-    signup,
     googleLogin,
     logout,
     refreshUser,

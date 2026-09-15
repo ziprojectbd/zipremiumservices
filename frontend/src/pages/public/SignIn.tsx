@@ -1,13 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { X, Shield, Zap, ArrowRight, Users, Sparkles, Lock } from 'lucide-react';
+import { X, Shield, Zap, Users, Sparkles, Lock, Mail, Eye, EyeOff, ChevronDown, HelpCircle } from 'lucide-react';
 import { useShopContext } from '../../store/ShopContext';
 import GoogleAuthButton from '../../components/public/GoogleAuthButton';
 
 export default function UserSignInPage() {
   const navigate = useNavigate();
-  const { googleLogin } = useAuth();
+  const { googleLogin, login } = useAuth();
   const { setAlertConfig } = useShopContext();
 
   React.useEffect(() => {
@@ -17,6 +17,14 @@ export default function UserSignInPage() {
   const [error, setError] = React.useState('');
   const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
   const [shake, setShake] = React.useState(false);
+
+  // Email/password stays behind a collapsed toggle. Accounts registered before
+  // the Google-only switch would otherwise have no way to sign in.
+  const [showEmailForm, setShowEmailForm] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [isEmailLoading, setIsEmailLoading] = React.useState(false);
 
   const fail = React.useCallback(
     (message?: string) => {
@@ -52,6 +60,28 @@ export default function UserSignInPage() {
       fail('An unexpected error occurred. Please try again.');
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      fail('Enter your email and password.');
+      return;
+    }
+    setIsEmailLoading(true);
+    setError('');
+    try {
+      const result = await login(email.trim(), password);
+      if (!result.success) {
+        fail(result.error || 'Invalid email or password');
+        return;
+      }
+      navigate('/');
+    } catch {
+      fail('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsEmailLoading(false);
     }
   };
 
@@ -225,14 +255,111 @@ export default function UserSignInPage() {
                   <span className="font-semibold text-purple-200">ZI Premium Services</span>? Just
                   tap above — your account is created automatically.
                 </p>
+                <p className="mt-2 text-[11px] text-gray-500 leading-relaxed">
+                  By continuing you agree to our{' '}
+                  <Link
+                    to="/terms-of-service"
+                    className="text-purple-400/90 font-medium hover:text-purple-300 underline underline-offset-2 transition-colors"
+                  >
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    to="/privacy-policy"
+                    className="text-purple-400/90 font-medium hover:text-purple-300 underline underline-offset-2 transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
+              </div>
+
+              {/* Existing email/password accounts. Collapsed by default so the
+                  Google flow stays the primary path. */}
+              <div className="mt-5">
                 <button
                   type="button"
-                  onClick={() => navigate('/sign-up')}
-                  className="mt-2.5 text-transparent bg-gradient-to-r from-pink-400 to-orange-400 bg-clip-text hover:from-pink-300 hover:to-orange-300 font-bold transition-all inline-flex items-center gap-1 group text-sm sm:text-base"
+                  onClick={() => {
+                    setShowEmailForm((v) => !v);
+                    setError('');
+                  }}
+                  aria-expanded={showEmailForm}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-300 transition-colors py-1.5"
                 >
-                  Go to Sign Up
-                  <ArrowRight className="w-4 h-4 text-pink-400 group-hover:translate-x-1 transition-transform" />
+                  <Mail className="w-3.5 h-3.5" />
+                  {showEmailForm ? 'Hide email sign in' : 'Sign in with email instead'}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${showEmailForm ? 'rotate-180' : ''}`}
+                  />
                 </button>
+
+                {showEmailForm && (
+                  <form
+                    onSubmit={handleEmailSubmit}
+                    className="mt-3 space-y-3 animate-[fade-in_0.25s_ease-out]"
+                  >
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full rounded-xl border border-white/10 bg-gray-800/50 pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      />
+                    </div>
+
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Your password"
+                        className="w-full rounded-xl border border-white/10 bg-gray-800/50 pl-10 pr-11 py-3 text-sm text-white placeholder-gray-600 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-300"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isEmailLoading}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-semibold py-3 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isEmailLoading ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          Signing in...
+                        </>
+                      ) : (
+                        'Sign In'
+                      )}
+                    </button>
+
+                    <p className="flex items-start gap-1.5 text-[11px] text-gray-500 leading-relaxed pt-0.5">
+                      <HelpCircle className="w-3.5 h-3.5 shrink-0 mt-[1px] text-gray-600" />
+                      <span>
+                        Old account on a different email?{' '}
+                        <Link
+                          to="/contact-us"
+                          className="text-purple-400/90 font-medium hover:text-purple-300 transition-colors"
+                        >
+                          Contact support
+                        </Link>{' '}
+                        and we'll help you get back in.
+                      </span>
+                    </p>
+                  </form>
+                )}
               </div>
             </div>
           </div>

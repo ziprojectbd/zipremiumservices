@@ -6,8 +6,9 @@
 # ===== Build Stage =====
 FROM node:22-alpine AS builder
 
-# Corepack enables Yarn 4 (Berry) — much faster installs than npm
-RUN corepack enable
+# Corepack pins Yarn 1.x (classic) — matches the committed yarn.lock v1 format.
+# yarn install is dramatically faster than npm install and uses far less CPU/RAM.
+RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
 WORKDIR /app
 
@@ -15,8 +16,7 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 
 # Install all deps including dev for build step
-# yarn install is dramatically faster than npm install and uses far less CPU/RAM
-RUN yarn install --immutable
+RUN yarn install --frozen-lockfile --non-interactive
 
 # Copy source code
 COPY tsconfig.json .npmrc ./
@@ -26,7 +26,7 @@ COPY src ./src
 RUN yarn build
 
 # Prune dev dependencies (keep only production)
-RUN yarn workspaces focus --production || yarn install --immutable --production
+RUN yarn install --frozen-lockfile --non-interactive --production
 
 # ===== Production Stage =====
 FROM node:22-alpine AS runner

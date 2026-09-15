@@ -6,8 +6,8 @@
 # ===== Build Stage =====
 FROM node:22-alpine AS builder
 
-# Corepack enables Yarn 4 (Berry) — much faster installs than npm
-RUN corepack enable
+# Corepack pins Yarn 1.x (classic) — matches the committed yarn.lock v1 format.
+RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
 ARG VITE_API_URL=""
 ARG VITE_GOOGLE_CLIENT_ID=""
@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 
 # Install dependencies — yarn is faster & lighter than npm
-RUN yarn install --immutable
+RUN yarn install --frozen-lockfile --non-interactive
 
 # Copy source
 COPY . .
