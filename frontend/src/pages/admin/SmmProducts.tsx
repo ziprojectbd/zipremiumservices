@@ -21,6 +21,10 @@ interface SmmSettingsData {
   categoryOverrides: Record<string, string>;
   enabledCategories: string[];
   categoryOrderFields?: Record<string, any[]>;
+  // Advertised by the vendor on the last successful sync. 0 means the vendor
+  // returned an empty catalogue and we are showing our stored products.
+  totalServices?: number;
+  syncedServices?: number;
 }
 
 interface ApiCategory {
@@ -354,7 +358,7 @@ export default function SmmProducts() {
       </div>
 
       {/* ── Stats Overview ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="relative bg-white/[0.04] backdrop-blur-xl rounded-2xl border border-white/10 p-4 overflow-hidden group hover:border-white/20 transition-all">
           <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br from-blue-500 to-cyan-500" />
           <div className="relative">
@@ -363,6 +367,16 @@ export default function SmmProducts() {
             </div>
             <p className="text-2xl font-bold text-white">{totalServices}</p>
             <p className="text-xs text-gray-500 mt-1">Total Services</p>
+          </div>
+        </div>
+        <div className="relative bg-white/[0.04] backdrop-blur-xl rounded-2xl border border-white/10 p-4 overflow-hidden group hover:border-white/20 transition-all">
+          <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br from-green-500 to-emerald-500" />
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mb-3">
+              <CheckCircle className="w-5 h-5 text-white" />
+            </div>
+            <p className="text-2xl font-bold text-white">{categories.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Platforms</p>
           </div>
         </div>
         <div className="relative bg-white/[0.04] backdrop-blur-xl rounded-2xl border border-white/10 p-4 overflow-hidden group hover:border-white/20 transition-all">
@@ -448,6 +462,18 @@ export default function SmmProducts() {
         <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span className="flex-1">{settings.lastErrorMessage}</span>
+        </div>
+      )}
+      {/* Vendor returned no services on the last sync — the platforms and
+          products below are the ones already stored in our database. */}
+      {settings?.totalServices === 0 && syncedCount > 0 && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 text-sm">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">
+            The vendor API returned no services on the last sync. Showing the{' '}
+            <strong className="font-semibold">{syncedCount}</strong> services already stored in your
+            database. Existing products are kept, nothing is deleted.
+          </span>
         </div>
       )}
 

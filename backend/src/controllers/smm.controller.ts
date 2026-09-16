@@ -20,13 +20,58 @@ export const getSmmServices = asyncHandler(async (req, res) => {
     return res.status(500).json(error('Failed to create settings'));
   }
 
-  // Respond in the format the frontend expects
+  // Derive the platform list from the products we actually have.
+  //
+  // The stored `categories` array only reflects the last vendor sync, and the
+  // OneServiceBD API can return an empty service list. Counting the synced
+  // products instead means the admin page always shows the real platforms and
+  // their product counts, even while the vendor API is unavailable.
+  const productCounts = await Product.aggregate<{ _id: string; count: number }>([
+    { $match: { smmProvider: 'oneservicebd' } },
+    { $group: { _id: '$category', count: { $sum: 1 } } },
+  ]);
+
+  const enabledList = (settings.enabledCategories as string[]) || [];
+  const storedCats = (settings.categories as Array<Record<string, unknown>>) || [];
+  const storedMap = new Map(storedCats.map((c) => [String(c.name), c]));
+
+  const categories = productCounts
+    .filter((c) => c._id)
+    .map((c) => {
+      const stored = storedMap.get(c._id);
+      return {
+        name: c._id,
+        // Keep the vendor's advertised count when we have it, otherwise the
+        // number of services we hold locally.
+        serviceCount: Number(stored?.serviceCount) || c.count,
+        syncedCount: c.count,
+        enabled: enabledList.includes(c._id) || Boolean(stored?.enabled),
+      };
+    })
+    .sort((a, b) => b.syncedCount - a.syncedCount);
+
+  // Any stored platform that has no products yet (newly fetched, not synced).
+  for (const stored of storedCats) {
+    const name = String(stored.name);
+    if (!name || categories.some((c) => c.name === name)) continue;
+    categories.push({
+      name,
+      serviceCount: Number(stored.serviceCount) || 0,
+      syncedCount: 0,
+      enabled: enabledList.includes(name) || Boolean(stored.enabled),
+    });
+  }
+
+  const synced = await Product.countDocuments({ smmProvider: 'oneservicebd' });
+
   return res.json(success({
-    categories: settings.categories || [],
+    categories,
     balance: settings.balance ?? 0,
     currency: settings.currency || 'BDT',
-    total: settings.totalServices || 0,
-    synced: settings.syncedServices || 0,
+    // Prefer the vendor's advertised total; fall back to local product count so
+    // the stat card is not stuck at 0 when the last sync returned nothing.
+    total: Number(settings.totalServices) || synced,
+    synced,
   }));
 });
 
@@ -184,6 +229,24 @@ export const syncSmmServices = asyncHandler(async (req, res) => {
 
     if (!Array.isArray(services)) {
       throw new Error('Invalid services response from API');
+    }
+
+    // The vendor API can return an empty list (e.g. while its catalogue is
+    // disabled). Wiping our stored categories / counts in that case blanked the
+    // admin page, so treat an empty full sync as "nothing to change".
+    if (services.length === 0 && !platform) {
+      await SmmSettings.findOneAndUpdate(
+        {},
+        { $set: { syncStatus: 'success', lastErrorMessage: '', lastSyncAt: new Date() } },
+        { upsert: true }
+      );
+      const kept = await Product.countDocuments({ smmProvider: 'oneservicebd' });
+      return res.json(success({
+        syncStatus: 'success',
+        synced: kept,
+        categories: 0,
+        unchanged: true,
+      }, 'Vendor returned no services — existing products and platforms were kept'));
     }
 
     // Filter by platform if specified
@@ -457,16 +520,22 @@ export const syncSmmServices = asyncHandler(async (req, res) => {
     // Count all synced products so far (for per-platform sync, we need the cumulative count)
     const totalSynced = await Product.countDocuments({ smmProvider: 'oneservicebd' });
 
-    // Update SmmSettings with fetched data
+    // Update SmmSettings with fetched data.
+    // `categories` / `totalServices` are only written when the vendor actually
+    // returned services, so a transient empty response cannot blank the admin
+    // page's platform list.
     const updateData: Record<string, unknown> = {
       balance: parseFloat(rawBalance),
       currency,
-      categories,
-      totalServices: services.length,
       syncedServices: totalSynced,
       syncStatus: 'success',
       lastErrorMessage: '',
+      lastSyncCount: services.length,
     };
+    if (services.length > 0) {
+      updateData.categories = categories;
+      updateData.totalServices = services.length;
+    }
     if (!platform) {
       // Full sync: also store raw services list
       updateData.services = services;
