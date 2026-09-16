@@ -453,6 +453,7 @@ export default function AdminCaptchaMasterPage() {
         discountEnabled,
         exchangeRate,
         resellerApiKey,
+        emailGreetingName,
       });
       if (res.data.success) {
         showToast('Settings saved successfully', 'success');
@@ -460,13 +461,14 @@ export default function AdminCaptchaMasterPage() {
         setDiscountEnabled(res.data.data.discountEnabled ?? discountEnabled);
         setExchangeRate(res.data.data.exchangeRate ?? exchangeRate);
         setResellerApiKey(res.data.data.resellerApiKey ?? resellerApiKey);
+        setEmailGreetingName(res.data.data.emailGreetingName ?? emailGreetingName);
       } else throw new Error(res.data.error);
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', 'error');
     } finally {
       setDiscountSaving(false);
     }
-  }, [discountPercent, discountEnabled, exchangeRate, resellerApiKey, showToast]);
+  }, [discountPercent, discountEnabled, exchangeRate, resellerApiKey, emailGreetingName, showToast]);
 
   useEffect(() => {
     const load = async () => {
@@ -1242,6 +1244,24 @@ export default function AdminCaptchaMasterPage() {
                   </div>
                   <p className="text-white/40 text-xs mt-2">
                     CaptchaMaster reseller API key for automatic delivery. Found in your CaptchaMaster reseller dashboard.
+                  </p>
+                </div>
+
+                {/* Email greeting name */}
+                <div className="mb-6">
+                  <label className="block text-white font-medium text-sm mb-2">Email Greeting Name</label>
+                  <input
+                    type="text"
+                    value={emailGreetingName}
+                    onChange={(e) => setEmailGreetingName(e.target.value)}
+                    placeholder="Dear Customer"
+                    maxLength={60}
+                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                  />
+                  <p className="text-white/40 text-xs mt-2">
+                    Sent with every purchase so the CaptchaMaster completion email greets the customer
+                    with this text. Without it the email falls back to your store name
+                    (&quot;ZI PREMIUM SERVICES&quot;). Default: <span className="text-white/60">Dear Customer</span>
                   </p>
                 </div>
 
