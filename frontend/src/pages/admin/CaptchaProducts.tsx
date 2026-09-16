@@ -17,6 +17,7 @@ import {
   Loader2,
   AlertTriangle,
   BarChart3,
+  Settings,
 } from 'lucide-react';
 import api from '../../lib/axios';
 
@@ -751,11 +752,12 @@ export default function AdminCaptchaMasterPage() {
       )}
 
       {/* Tabs — equal width, fits mobile & desktop */}
-      <div className="grid grid-cols-4 gap-1 p-1 bg-white/5 rounded-xl border border-white/10">        {[
+      <div className="grid grid-cols-4 gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
+        {[
           { id: 'stats', label: 'Stats', icon: BarChart3 },
           { id: 'packages', label: 'Packages', icon: Package },
           { id: 'api-keys', label: 'API Keys', icon: Key },
-          { id: 'settings', label: 'Settings', icon: BarChart3 },
+          { id: 'settings', label: 'Settings', icon: Settings },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -776,7 +778,7 @@ export default function AdminCaptchaMasterPage() {
       {/* STATS TAB */}
       {/* ============================================================ */}
       {activeTab === 'stats' && (
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {statCards.map((card) => (
             <div
               key={card.title}
@@ -785,12 +787,12 @@ export default function AdminCaptchaMasterPage() {
               <div className="absolute top-0 right-0 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity">
                 <card.icon className="w-full h-full" />
               </div>
-              <div className="relative z-10">
+              <div className="relative z-10 min-w-0">
                 <div className={`inline-flex p-2 rounded-lg ${card.bg} mb-2 sm:mb-3`}>
                   <card.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${card.text}`} />
                 </div>
-                <p className="text-white/50 text-[10px] sm:text-xs uppercase tracking-wider mb-1">{card.title}</p>
-                <p className="text-lg sm:text-xl font-bold text-white">{card.value}</p>
+                <p className="text-white/50 text-[10px] sm:text-xs uppercase tracking-wider mb-1 truncate">{card.title}</p>
+                <p className="text-lg sm:text-xl font-bold text-white truncate">{card.value}</p>
               </div>
             </div>
           ))}
@@ -871,12 +873,12 @@ export default function AdminCaptchaMasterPage() {
                         <p className="text-white/40 text-xs">ID: {pkg.id.slice(-8)}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-white/80 text-sm">{pkg.customerEmail}</p>
+                        <p className="text-white/80 text-sm break-all">{pkg.customerEmail}</p>
                       </td>
                       <td className="px-4 py-3">
                         {pkg.key ? (
                           <div className="flex items-center gap-2">
-                            <code className="text-xs bg-black/30 px-2 py-1 rounded font-mono text-white/80">
+                            <code className="text-xs bg-black/30 px-2 py-1 rounded font-mono text-white/80 max-w-[220px] truncate">
                               {visibleKeys.has(pkg.id)
                                 ? pkg.key
                                 : `${pkg.key.slice(0, 12)}${'.'.repeat(20)}`}
@@ -1054,7 +1056,7 @@ export default function AdminCaptchaMasterPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <code className="text-xs bg-black/30 px-2 py-1 rounded font-mono text-white/80">
+                            <code className="text-xs bg-black/30 px-2 py-1 rounded font-mono text-white/80 max-w-[220px] truncate">
                               {visibleKeys.has(key.id)
                                 ? key.key
                                 : `${key.key.slice(0, 12)}${'.'.repeat(20)}`}
@@ -1145,22 +1147,28 @@ export default function AdminCaptchaMasterPage() {
       )}
 
       {/* ============================================================ */}
-      {/* SETTINGS TAB — Discount Management */}
+      {/* SETTINGS TAB — Pricing + CaptchaMaster API */}
       {/* ============================================================ */}
       {activeTab === 'settings' && (
-        <div className="max-w-lg">
-          <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-white mb-1">Pricing Settings</h2>
-            <p className="text-white/50 text-sm mb-6">
-              Configure the automatic discount and USD to BDT exchange rate for Captcha Solver Api plans. Changes apply to new cart items immediately.
-            </p>
+        <div>
+          {discountLoading ? (
+            <div className="flex items-center justify-center py-16 bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10">
+              <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
+              {/* Pricing card */}
+              <section className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 sm:p-6">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="inline-flex p-2 rounded-lg bg-emerald-500/10">
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                  </span>
+                  <h2 className="text-lg font-bold text-white">Pricing Settings</h2>
+                </div>
+                <p className="text-white/50 text-sm mb-6">
+                  Automatic discount and USD to BDT exchange rate for Captcha Solver Api plans. Changes apply to new cart items immediately.
+                </p>
 
-            {discountLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-              </div>
-            ) : (
-              <>
                 {/* Enable toggle */}
                 <div className="flex items-center justify-between py-3 border-b border-white/10 mb-5">
                   <div>
@@ -1169,8 +1177,10 @@ export default function AdminCaptchaMasterPage() {
                   </div>
                   <button
                     type="button"
+                    role="switch"
+                    aria-checked={discountEnabled}
                     onClick={() => setDiscountEnabled((prev) => !prev)}
-                    className={`relative w-12 h-6 rounded-full transition-all ${discountEnabled ? 'bg-blue-500' : 'bg-gray-600'}`}
+                    className={`relative w-12 h-6 rounded-full transition-all shrink-0 ${discountEnabled ? 'bg-blue-500' : 'bg-gray-600'}`}
                   >
                     <span
                       className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${discountEnabled ? 'left-6' : 'left-0.5'}`}
@@ -1192,7 +1202,7 @@ export default function AdminCaptchaMasterPage() {
                       className="w-24 sm:w-28 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50 disabled:opacity-50"
                     />
                     <span className="text-white/40 text-sm">%</span>
-                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden min-w-[60px]">
                       <div
                         className={`h-full rounded-full transition-all ${discountEnabled ? 'bg-blue-500' : 'bg-gray-600'}`}
                         style={{ width: `${discountPercent}%` }}
@@ -1205,7 +1215,7 @@ export default function AdminCaptchaMasterPage() {
                 </div>
 
                 {/* USD to BDT exchange rate */}
-                <div className="mb-6">
+                <div>
                   <label className="block text-white font-medium text-sm mb-2">USD to BDT Rate</label>
                   <div className="flex items-center gap-3">
                     <input
@@ -1222,6 +1232,19 @@ export default function AdminCaptchaMasterPage() {
                     1 USD = {exchangeRate} BDT for captcha solver api packages.
                   </p>
                 </div>
+              </section>
+
+              {/* CaptchaMaster API card */}
+              <section className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 sm:p-6">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="inline-flex p-2 rounded-lg bg-blue-500/10">
+                    <Key className="w-4 h-4 text-blue-400" />
+                  </span>
+                  <h2 className="text-lg font-bold text-white">CaptchaMaster API</h2>
+                </div>
+                <p className="text-white/50 text-sm mb-6">
+                  Reseller credentials and the greeting used for automatic delivery emails.
+                </p>
 
                 {/* Reseller API Key */}
                 <div className="mb-6">
@@ -1231,13 +1254,14 @@ export default function AdminCaptchaMasterPage() {
                       type={showResellerKey ? 'text' : 'password'}
                       value={resellerApiKey}
                       onChange={(e) => setResellerApiKey(e.target.value)}
-                      placeholder="cm_..."
-                      className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50 font-mono"
+                      placeholder="rk_live_..."
+                      className="flex-1 min-w-0 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50 font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowResellerKey((prev) => !prev)}
-                      className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                      aria-label={showResellerKey ? 'Hide API key' : 'Show API key'}
+                      className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-colors shrink-0"
                     >
                       {showResellerKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -1260,13 +1284,13 @@ export default function AdminCaptchaMasterPage() {
                   />
                   <p className="text-white/40 text-xs mt-2">
                     Sent with every purchase so the CaptchaMaster completion email greets the customer
-                    with this text. Without it the email falls back to your store name
-                    (&quot;ZI PREMIUM SERVICES&quot;). Default: <span className="text-white/60">Dear Customer</span>
+                    with this text. Without it the email falls back to your store name. Default:{' '}
+                    <span className="text-white/60">Dear Customer</span>
                   </p>
                 </div>
 
                 {/* Test connection */}
-                <div className="mb-6">
+                <div>
                   <button
                     type="button"
                     onClick={testConnection}
@@ -1302,12 +1326,17 @@ export default function AdminCaptchaMasterPage() {
                     </div>
                   )}
                 </div>
+              </section>
 
-                {/* Save button */}
+              {/* Save bar — spans both cards */}
+              <div className="lg:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-4 sm:px-6">
+                <p className="text-white/50 text-xs sm:text-sm">
+                  Changes apply to new carts, new deliveries and future purchase emails.
+                </p>
                 <button
                   onClick={saveCaptchaSettings}
                   disabled={discountSaving}
-                  className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl text-sm font-medium hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl text-sm font-medium hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
                 >
                   {discountSaving ? (
                     <>
@@ -1318,9 +1347,9 @@ export default function AdminCaptchaMasterPage() {
                     'Save Settings'
                   )}
                 </button>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
