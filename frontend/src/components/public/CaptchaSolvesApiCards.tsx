@@ -197,6 +197,19 @@ export default function CaptchaSolvesApiCards({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean; exchangeRate: number }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
 
+  // Only live packages belong under "Your Active API Keys". The backend already
+  // filters expired/exhausted ones, but re-checking here means a stale response
+  // or an unfiltered reseller payload can never surface a dead key.
+  const livePackages = activePackages.filter((pkg) => {
+    if (pkg.status === 'expired' || pkg.status === 'suspended') return false;
+    if (typeof pkg.creditsRemaining === 'number' && pkg.creditsRemaining <= 0) return false;
+    if (pkg.expiresAt) {
+      const target = new Date(pkg.expiresAt).getTime();
+      if (Number.isFinite(target) && target <= Date.now()) return false;
+    }
+    return true;
+  });
+
   useEffect(() => {
     // Fetch pricing from OUR backend, which proxies the CaptchaMaster
     // reseller pricing-plans endpoint server-side (no API key in the browser).
@@ -284,7 +297,7 @@ export default function CaptchaSolvesApiCards({
         Loading your packages...
       </div>
     )}
-    {isAuthenticated && !packagesLoading && activePackages.length === 0 && (
+    {isAuthenticated && !packagesLoading && livePackages.length === 0 && (
       <div className="mt-0 mb-8 p-8 bg-white/[0.03] rounded-xl border border-white/10 text-center">
         <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
         <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active API Keys</h3>
@@ -293,7 +306,7 @@ export default function CaptchaSolvesApiCards({
         </p>
       </div>
     )}
-    {isAuthenticated && !packagesLoading && activePackages.length > 0 && (
+    {isAuthenticated && !packagesLoading && livePackages.length > 0 && (
       <div className="mt-0 mb-8">
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg shadow-yellow-500/20">
@@ -303,12 +316,12 @@ export default function CaptchaSolvesApiCards({
             Your Active API Keys
           </h2>
           <span className="px-2.5 py-0.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full">
-            {activePackages.length} package{activePackages.length > 1 ? 's' : ''}
+            {livePackages.length} package{livePackages.length > 1 ? 's' : ''}
           </span>
         </div>
 
         <div className="grid gap-4">
-          {activePackages.map((pkg) => (
+          {livePackages.map((pkg) => (
             <div
               key={pkg.id}
               className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 hover:border-yellow-400/30 transition-all"

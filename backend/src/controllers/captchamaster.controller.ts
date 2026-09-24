@@ -23,10 +23,32 @@ function resolveEmail(req: any): string {
   return userEmail;
 }
 
+// A package counts as expired when its end date has passed, or when it has no
+// credits left. The vendor's `status` field is not authoritative: it keeps
+// reporting "active" for packages whose endDate is in the past, which made
+// expired keys show up under "Your Active API Keys".
+function isExpiredPackage(expiresAt?: string | null, creditsRemaining?: number): boolean {
+  if (typeof creditsRemaining === 'number' && creditsRemaining <= 0) return true;
+  if (!expiresAt) return false;
+  const target = new Date(expiresAt).getTime();
+  if (!Number.isFinite(target)) return false;
+  return target <= Date.now();
+}
+
+// Derived lifecycle status used by the customer dashboard.
+function effectiveStatus(rawStatus: string | undefined, expiresAt?: string | null, creditsRemaining?: number): string {
+  const normalized = String(rawStatus || '').toLowerCase();
+  if (normalized === 'suspended') return 'suspended';
+  if (isExpiredPackage(expiresAt, creditsRemaining)) return 'expired';
+  return normalized || 'active';
+}
+
 // Normalise a reseller package into the shape the customer dashboard expects.
 function toCustomerPackage(p: any) {
   const credits = Number(p.credits ?? 0);
   const creditsUsed = Number(p.creditsUsed ?? 0);
+  const creditsRemaining = Number(p.creditsRemaining ?? Math.max(0, credits - creditsUsed));
+  const expiresAt = p.expiresAt ?? p.endDate ?? '';
   const apiKey = p.apiKey ?? p.key ?? p.captchaApiKey ?? null;
   return {
     id: String(p.id ?? p._id ?? ''),
@@ -34,11 +56,11 @@ function toCustomerPackage(p: any) {
     planId: p.planId ?? p.packageCode ?? '',
     credits,
     creditsUsed,
-    creditsRemaining: Number(p.creditsRemaining ?? Math.max(0, credits - creditsUsed)),
+    creditsRemaining,
     price: Number(p.price ?? 0),
     currency: p.currency ?? 'USD',
-    status: p.status ?? 'active',
-    expiresAt: p.expiresAt ?? p.endDate ?? '',
+    status: effectiveStatus(p.status, expiresAt, creditsRemaining),
+    expiresAt,
     activatedAt: p.startDate ?? p.activatedAt ?? p.createdAt ?? '',
     captchaMasterPackageId: String(p.id ?? p._id ?? ''),
     captchaApiKey: apiKey,
@@ -50,17 +72,19 @@ function toCustomerPackage(p: any) {
 function toLocalPackage(p: any) {
   const credits = Number(p.credits ?? 0);
   const creditsUsed = Number(p.creditsUsed ?? 0);
+  const creditsRemaining = Number(p.creditsRemaining ?? Math.max(0, credits - creditsUsed));
+  const expiresAt = p.expiresAt ? new Date(p.expiresAt).toISOString() : '';
   return {
     id: p.captchaMasterPackageId || String(p._id ?? ''),
     planName: p.planName ?? 'Unknown',
     planId: p.planId ?? '',
     credits,
     creditsUsed,
-    creditsRemaining: Number(p.creditsRemaining ?? Math.max(0, credits - creditsUsed)),
+    creditsRemaining,
     price: Number(p.price ?? 0),
     currency: p.currency ?? 'USD',
-    status: p.status ?? 'active',
-    expiresAt: p.expiresAt ? new Date(p.expiresAt).toISOString() : '',
+    status: effectiveStatus(p.status, expiresAt, creditsRemaining),
+    expiresAt,
     activatedAt: p.activatedAt ? new Date(p.activatedAt).toISOString() : '',
     captchaMasterPackageId: p.captchaMasterPackageId || String(p._id ?? ''),
     captchaApiKey: p.captchaApiKey ?? null,
@@ -115,6 +139,15 @@ export const getCustomerPackages = asyncHandler(async (req, res) => {
   for (const p of resellerPackages) merged.set(p.id, p);
 
   let data = Array.from(merged.values());
+
+  // Expired and exhausted packages are dropped entirely. This endpoint backs
+  // "Your Active API Keys", so an expired key must not be listed there — the
+  // vendor keeps reporting `status: "active"` for packages past their endDate.
+  const includeExpired = String(req.query.includeExpired || '').toLowerCase() === 'true' && req.user?.role === 'admin';
+  if (!includeExpired) {
+    data = data.filter((p) => p.status !== 'expired');
+  }
+
   if (search) {
     data = data.filter(
       (p) =>

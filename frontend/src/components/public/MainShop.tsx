@@ -189,14 +189,14 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      {categories.length > 0 && selectedCategory && (
-        <CategoryFilterBar
-          selectedCategory={selectedCategory}
-          router={navigate}
-          containerClassName="mb-6 sm:mb-8"
-          categories={categories}
-        />
-      )}
+      {/* Category filter is always shown — including on the Captcha Solver Api
+          page — so the user can switch categories from anywhere. */}
+      <CategoryFilterBar
+        selectedCategory={selectedCategory ?? "All"}
+        router={navigate}
+        containerClassName="mb-6 sm:mb-8"
+        categories={categories}
+      />
 
       {/* Special Offer Promo Banner (only on "all") */}
       {categorySlug === "all" && (
