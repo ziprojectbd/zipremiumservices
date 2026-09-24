@@ -176,16 +176,9 @@ function RefillCountdown({ packageType }: { packageType?: string }) {
 export default function CaptchaSolvesApiCards({
   lastAddedProductId,
   addToCart,
-  planCodePrefix,
 }: {
   lastAddedProductId: string | number | null;
   addToCart: (product: any) => void;
-  /**
-   * Restrict the plans shown to those whose code starts with this prefix.
-   * The reseller marks FunCaptcha plans with an `F` code (F1, F2, … F30); the
-   * other series (D/C/P) cover the remaining services.
-   */
-  planCodePrefix?: string;
 }) {
   const { exchangeRate } = useShopContext();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -193,27 +186,21 @@ export default function CaptchaSolvesApiCards({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // "funcaptcha" is a service filter rather than a billing type: the reseller
-  // marks FunCaptcha plans with an F code (F1…F30) while the rest of the
+  // marks FunCaptcha plans with an F code (F1-F30) while the rest of the
   // catalogue is D/C/P. It sits in the same row as the type tabs because from
   // the customer's point of view it is just another way to slice the pricing.
   const [pricingTab, setPricingTab] = useState<"all" | "daily" | "count" | "funcaptcha">("all");
 
-  // Prefix filter first, so the tab counts and the empty state both reflect the
-  // series this page is about (e.g. the FunCaptcha page only ever counts F plans).
-  const prefixPlans = planCodePrefix
-    ? plans.filter((plan) => String(plan.code).toUpperCase().startsWith(planCodePrefix.toUpperCase()))
-    : plans;
-
   const isFuncaptchaCode = (code: string) => /^F\d+$/i.test(String(code || '').trim());
 
-  const filteredPlans = prefixPlans.filter((plan) => {
+  const filteredPlans = plans.filter((plan) => {
     if (pricingTab === "all") return true;
     if (pricingTab === "funcaptcha") return isFuncaptchaCode(plan.code);
     return plan.type === pricingTab;
   });
 
   // How many plans each tab would show — used to keep the chips honest.
-  const funcaptchaCount = prefixPlans.filter((plan) => isFuncaptchaCode(plan.code)).length;
+  const funcaptchaCount = plans.filter((plan) => isFuncaptchaCode(plan.code)).length;
   const [activePackages, setActivePackages] = useState<ActivePackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
@@ -301,7 +288,7 @@ export default function CaptchaSolvesApiCards({
     );
   }
 
-  if (prefixPlans.length === 0) {
+  if (plans.length === 0) {
     return (
       <EmptyState
         icon={<ShoppingCart className="w-8 h-8 text-gray-500" />}
@@ -451,7 +438,8 @@ export default function CaptchaSolvesApiCards({
           const isActive = pricingTab === tab;
           const isFuncaptchaTab = tab === "funcaptcha";
 
-          // The FunCaptcha chip reuses the violet identity from the category bar.
+          // The FunCaptcha chip uses a violet identity so it reads as a service
+          // filter next to the green billing-type tabs.
           const activeClass = isFuncaptchaTab
             ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30 border border-white/20"
             : "bg-[#9CD321] text-black";

@@ -43,7 +43,6 @@ import {
   Bot,
   Clock,
   Package,
-  Puzzle,
   Users,
   Settings,
 } from "lucide-react";
@@ -251,13 +250,6 @@ export default function Home() {
               slug: 'captcha-solver-api',
               icon: '🤖',
               gradient: 'from-cyan-500 to-blue-500',
-              productCount: 0,
-            },
-            {
-              name: 'FunCaptcha',
-              slug: 'funcaptcha',
-              icon: '🧩',
-              gradient: 'from-violet-500 to-purple-600',
               productCount: 0,
             },
           ];
@@ -948,34 +940,9 @@ export default function Home() {
               </div>
             )}
 
-            {/* FunCaptcha — the reseller marks these plans with an "F" code */}
-            {selectedCategorySlug === 'funcaptcha' && (
-              <div className="transform transition-all duration-300 ease-out">
-                <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                      <Puzzle className="w-4 h-4 text-white" />
-                    </div>
-                    <h2 className="text-xl font-bold text-white">
-                      FunCaptcha Api Plans
-                    </h2>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    Dedicated FunCaptcha solving plans (F-series).
-                  </p>
-                </div>
-                <CaptchaSolvesApiCards
-                  lastAddedProductId={lastAddedProductId}
-                  addToCart={addToCart}
-                  planCodePrefix="F"
-                />
-              </div>
-            )}
-
             {/* Products Grid */}
             {selectedCategory !== "Trade" &&
-              selectedCategorySlug !== 'captcha-solver-api' &&
-              selectedCategorySlug !== 'funcaptcha' && (() => {
+              selectedCategorySlug !== 'captcha-solver-api' && (() => {
               // The rendered products belong to a different category than the
               // one now selected — keep skeletons until the new page lands so
               // the previous category's products never flash on screen.

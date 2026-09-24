@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, ChevronRight, Puzzle } from "lucide-react";
+import { Bot, ChevronRight } from "lucide-react";
 import ProductCard from "./ProductCard";
 import CategoryFilterBar from "./CategoryFilterBar";
 import CaptchaSolvesApiCards from "./CaptchaSolvesApiCards";
@@ -57,13 +57,6 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
               slug: "captcha-solver-api",
               icon: "🤖",
               gradient: "from-cyan-500 to-blue-500",
-              productCount: 0,
-            },
-            {
-              name: "FunCaptcha",
-              slug: "funcaptcha",
-              icon: "🧩",
-              gradient: "from-violet-500 to-purple-600",
               productCount: 0,
             },
           ];
@@ -189,10 +182,6 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
   const isCaptchaCategory =
     selectedCategory === "Captcha Solver Api" ||
     categorySlug === "captcha-solver-api";
-  // The reseller marks FunCaptcha plans with an "F" code (F1, F2, … F30).
-  const isFuncaptchaCategory =
-    selectedCategory === "FunCaptcha" ||
-    categorySlug === "funcaptcha";
   const isTradeCategory = selectedCategory === "Trade";
   // A slug is still resolving (categories in flight) — keep the whole shop in
   // a loading state so nothing stale is painted.
@@ -258,33 +247,11 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
         </div>
       )}
 
-      {/* FunCaptcha Cards — reseller "F" series plans only */}
-      {isFuncaptchaCategory && (
-        <div className="transform transition-all duration-300 ease-out">
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                <Puzzle className="w-4 h-4 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white">FunCaptcha Api Plans</h2>
-            </div>
-            <p className="text-sm text-gray-400">
-              Dedicated FunCaptcha solving plans (F-series).
-            </p>
-          </div>
-          <CaptchaSolvesApiCards
-            lastAddedProductId={lastAddedProductId}
-            addToCart={addToCart}
-            planCodePrefix="F"
-          />
-        </div>
-      )}
-
       {/* Products Grid.
           While a slug is still resolving (isResolvingCategory) this still
           renders — showSkeletons is true because the rendered products belong
           to no category yet, so the user sees skeletons, never stale items. */}
-      {!isTradeCategory && !isCaptchaCategory && !isFuncaptchaCategory && (() => {
+      {!isTradeCategory && !isCaptchaCategory && (() => {
           const categoryMismatch = selectedCategory !== productsCategoryRef.current;
           const showSkeletons = apiLoading || categoryMismatch || isResolvingCategory;
           return (
@@ -344,7 +311,7 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
       )})()}
 
       {/* Trade category: products ARE shown here */}
-      {isTradeCategory && !isCaptchaCategory && !isFuncaptchaCategory && (() => {
+      {isTradeCategory && !isCaptchaCategory && (() => {
           const categoryMismatch = selectedCategory !== productsCategoryRef.current;
           const showSkeletons = apiLoading || categoryMismatch || isResolvingCategory;
           return (
