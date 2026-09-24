@@ -243,15 +243,24 @@ export default function Home() {
         const res = await api.get('/categories');
         const json = res.data;
         if (json.success && json.data) {
+          // "Captcha Solver Api" is not a database category, so it is injected
+          // here. It sits directly after "All" (rather than at the end) so the
+          // storefront's flagship product is the second chip in the bar.
+          const captchaCategory = {
+            name: 'Captcha Solver Api',
+            slug: 'captcha-solver-api',
+            icon: '🤖',
+            gradient: 'from-cyan-500 to-blue-500',
+            productCount: 0,
+          };
+          const allIndex = json.data.findIndex(
+            (c: any) => String(c.slug || '').toLowerCase() === 'all' || String(c.name || '').toLowerCase() === 'all'
+          );
+          const insertAt = allIndex === -1 ? 0 : allIndex + 1;
           const injected = [
-            ...json.data,
-            {
-              name: 'Captcha Solver Api',
-              slug: 'captcha-solver-api',
-              icon: '🤖',
-              gradient: 'from-cyan-500 to-blue-500',
-              productCount: 0,
-            },
+            ...json.data.slice(0, insertAt),
+            captchaCategory,
+            ...json.data.slice(insertAt),
           ];
           setCategories(injected);
         } else {
