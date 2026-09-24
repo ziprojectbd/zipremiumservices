@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import ProductCard from "./ProductCard";
 import CategoryFilterBar from "./CategoryFilterBar";
 import CaptchaSolvesApiCards from "./CaptchaSolvesApiCards";
@@ -230,16 +230,6 @@ export default function MainShop({ categorySlug = "all" }: MainShopProps) {
       {/* Captcha Solver Api Cards */}
       {isCaptchaCategory && (
         <div className="transform transition-all duration-300 ease-out">
-          <div className="mb-10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white">
-                Our Bot Access Api Plans
-              </h2>
-            </div>
-          </div>
           <CaptchaSolvesApiCards
             lastAddedProductId={lastAddedProductId}
             addToCart={addToCart}
