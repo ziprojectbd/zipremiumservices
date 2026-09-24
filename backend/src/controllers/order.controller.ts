@@ -3,6 +3,7 @@ import Product from '@models/Product';
 import Campaign from '@models/Campaign';
 import Coupon from '@models/Coupon';
 import CaptchaPackage from '@models/CaptchaPackage';
+import PaymentSettings from '@models/PaymentSettings';
 import connectDB from '@db/connect';
 import { success, error } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
@@ -154,8 +155,8 @@ export const createOrder = asyncHandler(async (req, res) => {
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json(error('At least one item is required'));
   }
-  if (isCrypto && payType === 'uid' && (!senderUid || !/^\d{9,}$/.test(String(senderUid).trim()))) {
-    return res.status(400).json(error('UID must be at least 9 digits'));
+  if (isCrypto && payType === 'uid' && (!senderUid || !/^\d{9,20}$/.test(String(senderUid).trim()))) {
+    return res.status(400).json(error('UID must be 9 to 20 digits'));
   }
 
   // -----------------------------------------------------------------------
@@ -167,7 +168,25 @@ export const createOrder = asyncHandler(async (req, res) => {
     isDeleted: { $ne: true },
   }).lean();
 
+  // Exchange rate used to derive a USD price for products that only carry a BDT
+  // price. Many catalogue items have `priceUSDT: 0`, and the client converts
+  // them with `price / exchangeRate`; without the same conversion here the
+  // server valued a ৳50 item at $50 and the anti-manipulation check rejected
+  // the order with "Price mismatch detected".
+  let exchangeRate = 0;
+  try {
+    const settings = await PaymentSettings.findOne().select('exchangeRate').lean();
+    exchangeRate = Number(settings?.exchangeRate) || 0;
+  } catch {
+    exchangeRate = 0;
+  }
+
   const validatedItems: Array<Record<string, unknown>> = [];
+
+  // Unrounded line sum. The client adds unrounded line totals and rounds once
+  // at the end, so the server must do the same or a multi-line order can
+  // disagree by a cent and be rejected by the exact-match price guard.
+  let rawLineTotalSum = 0;
 
   for (const item of items) {
     // Accept both 'product' and 'productId' field names for compatibility
@@ -178,11 +197,22 @@ export const createOrder = asyncHandler(async (req, res) => {
     const details = item.details;
     const name = item.name;
 
-    // P2P / captcha / non-ObjectId items: accept at face value
+    // P2P / captcha / non-ObjectId items: accept at face value.
+    //
+    // `price` from these items is a BDT amount, while a crypto order is billed
+    // in USD. Using the BDT number directly made the server total
+    // `exchangeRate`x larger than the client's and tripped the price-mismatch
+    // guard, so convert for crypto (preferring the client's own USD figure).
     if (!productId || typeof productId !== 'string' || productId.length < 12 || productId.startsWith('p2p') || productId === 'captcha') {
       const isSmmItem = item.smmProvider === 'oneservicebd';
       const qty = quantity || 1;
-      const unitPx = price || 0;
+      const clientUsdt = Number(item.usdtAmount) || 0;
+      const bdtUnit = Number(price) || 0;
+      const unitPx = isCrypto
+        ? (clientUsdt > 0
+            ? clientUsdt
+            : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit))
+        : bdtUnit;
       const effectiveQty = isSmmItem ? qty / 1000 : qty;
 
       // Server-side required field validation for orderFields
@@ -198,10 +228,16 @@ export const createOrder = asyncHandler(async (req, res) => {
         }
       }
 
+      rawLineTotalSum += unitPx * effectiveQty;
+
       validatedItems.push({
         quantity: qty,
         price: roundCurrency(unitPx * effectiveQty),
-        usdtAmount: roundCurrency(unitPx * effectiveQty),
+        // The BDT-side amount is kept for display on BDT orders; on crypto
+        // orders both fields carry the USD figure the customer pays.
+        usdtAmount: isCrypto
+          ? roundCurrency(unitPx * effectiveQty)
+          : roundCurrency(bdtUnit * effectiveQty),
         productName: item.productName || name || (productId ? productId : '') || '',
         category: item.category || '',
         link: link || '',
@@ -221,11 +257,17 @@ export const createOrder = asyncHandler(async (req, res) => {
       return res.status(400).json(error(`Product not found: ${productId}`));
     }
 
-    // Use currency-appropriate price
-    const basePrice = isCrypto
-      ? (product.priceUSDT || product.price)
-      : (product.priceBDT || product.price);
-    const usdtPrice = product.priceUSDT || product.price || 0;
+    // Use currency-appropriate price.
+    //
+    // For crypto the USD price must be derived when the product only stores a
+    // BDT price (`priceUSDT` is 0/absent), exactly like the client does, or the
+    // totals disagree by the exchange-rate factor.
+    const rawUsdt = Number(product.priceUSDT) || 0;
+    const rawBdt = Number(product.priceBDT) || Number(product.price) || 0;
+    const usdtPrice = rawUsdt > 0
+      ? rawUsdt
+      : (exchangeRate > 0 ? roundCurrency(rawBdt / exchangeRate, 3) : rawBdt);
+    const basePrice = isCrypto ? usdtPrice : (product.priceBDT || product.price);
 
     // Find applicable campaign discount
     let unitPrice = basePrice;
@@ -247,8 +289,12 @@ export const createOrder = asyncHandler(async (req, res) => {
 
     const isSmmProduct = product.smmProvider === 'oneservicebd';
     const effectiveQuantity = isSmmProduct ? (quantity || 1) / 1000 : (quantity || 1);
-    const lineTotal = roundCurrency(unitPrice * effectiveQuantity);
-    const usdtLineTotal = isCrypto ? lineTotal : roundCurrency(usdtPrice * effectiveQuantity);
+    // Line totals are NOT rounded for the running sum. The client adds the
+    // unrounded lines and rounds once at the end; rounding per line here would
+    // let a multi-line order disagree by a cent and trip the exact-match guard.
+    const lineTotal = unitPrice * effectiveQuantity;
+    const usdtLineTotal = isCrypto ? lineTotal : usdtPrice * effectiveQuantity;
+    rawLineTotalSum += lineTotal;
 
     validatedItems.push({
       product: product._id,
@@ -274,8 +320,11 @@ export const createOrder = asyncHandler(async (req, res) => {
   // -----------------------------------------------------------------------
   // BDT totals are whole-taka integers; crypto (USDT/USD) totals keep 2
   // decimal places so e.g. $4.60 is not truncated to $4.
-  const lineTotalSum = validatedItems.reduce((sum, item) => sum + (item.price as number), 0);
-  const serverTotal = isCrypto ? roundCurrency(lineTotalSum, 2) : Math.round(lineTotalSum);
+  //
+  // The sum uses the UNROUNDED line totals (`rawLineTotalSum`) to mirror the
+  // client, which also sums unrounded lines and rounds once. Summing the
+  // per-line rounded values here would drift on multi-line orders.
+  const serverTotal = isCrypto ? roundCurrency(rawLineTotalSum, 2) : Math.round(rawLineTotalSum);
 
   // -----------------------------------------------------------------------
   // Coupon validation

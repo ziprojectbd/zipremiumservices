@@ -99,19 +99,26 @@ export default function PaymentDetails({
                 type="text"
                 value={payerNumber}
                 onChange={(e) => {
-                  let v = e.target.value;
+                  let v = e.target.value.trim();
+                  // UIDs are numeric on the exchanges this storefront pays
+                  // through (Binance), so non-digits are stripped as you type.
                   if (paymentType === "uid") {
                     v = v.replace(/\D/g, "");
                   }
                   setPayerNumber(v);
                 }}
-                placeholder={paymentType === "network" ? "Enter your wallet address" : "Enter your UID (min 9 digits)"}
+                placeholder={
+                  paymentType === "network"
+                    ? "Enter your wallet address"
+                    : "Enter your UID (9-20 digits)"
+                }
+                inputMode={paymentType === "uid" ? "numeric" : "text"}
                 className="w-full px-3 py-2 sm:px-3 sm:py-2 border rounded-lg bg-slate-900/60 border-white/10 text-white text-sm"
                 maxLength={paymentType === "uid" ? 20 : undefined}
               />
-              {paymentType === "uid" && payerNumber && payerNumber.length < 9 && (
+              {paymentType === "uid" && payerNumber && !/^\d{9,20}$/.test(payerNumber) && (
                 <p className="mt-1 text-[10px] sm:text-xs text-amber-400">
-                  UID must be at least 9 digits.
+                  UID must be 9 to 20 digits.
                 </p>
               )}
             </div>

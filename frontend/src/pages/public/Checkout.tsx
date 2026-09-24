@@ -92,6 +92,31 @@ export default function Checkout() {
     }
   }, [paymentMethod, paymentType, cryptoNetworksData, cryptoPlatformsData]);
 
+  // Switching Pay Via between Network and UID changes what the single payer
+  // field means — a wallet address vs a numeric UID. Carry nothing across, or a
+  // leftover hex address fails the digits-only UID rule and silently disables
+  // Confirm. Keying off the previous value keeps this from firing on mount.
+  const prevPaymentTypeRef = React.useRef(paymentType);
+  React.useEffect(() => {
+    if (prevPaymentTypeRef.current === paymentType) return;
+    prevPaymentTypeRef.current = paymentType;
+    setPayerNumber('');
+    setTrxId('');
+    setTxHash('');
+  }, [paymentType, setPayerNumber, setTrxId, setTxHash]);
+
+  // Same for switching the crypto platform/network: the address and UID shown
+  // change, so a value entered for the previous target is no longer meaningful.
+  const prevTargetRef = React.useRef(`${selectedNetwork}|${selectedPlatform}`);
+  React.useEffect(() => {
+    const next = `${selectedNetwork}|${selectedPlatform}`;
+    if (prevTargetRef.current === next) return;
+    prevTargetRef.current = next;
+    setPayerNumber('');
+    setTrxId('');
+    setTxHash('');
+  }, [selectedNetwork, selectedPlatform, setPayerNumber, setTrxId, setTxHash]);
+
   // Get payment instructions based on selected payment method
   const getPaymentInstructions = () => {
     if (!paymentSettings?.mobilePayments) return { instructions: '', warningInstructions: '' };
@@ -128,8 +153,10 @@ export default function Checkout() {
   // ZI Pay gateway — the mobile branch is simply "anything that isn't crypto".
   const isBDMobileMethod = !isPayCrypto;
   // For mobile payments the gateway collects payer number + TRX ID, so they aren't required here.
+  // UID rule must match the backend (`/^\d{9,20}$/`) exactly, otherwise the
+  // button enables but the server rejects the order.
   const payerFilled = isPayCrypto
-    ? (paymentType === 'uid' ? /^\d{9,}$/.test(payerNumber.trim()) : payerNumber.trim().length >= 10)
+    ? (paymentType === 'uid' ? /^\d{9,20}$/.test(payerNumber.trim()) : payerNumber.trim().length >= 10)
     : true;
   const trxFilled = (isPayCrypto && paymentType === 'network') ? trxId.trim().length >= 6 : true;
 
@@ -249,6 +276,11 @@ export default function Checkout() {
           productId: item.dbId,
           name: item.name,
           price: item.price,
+          // USD unit price for crypto orders. Sent so the server never has to
+          // guess the rate for items it cannot look up in the product table
+          // (captcha packages, P2P fees) — for DB products it still uses its
+          // own stored price, so this cannot be used to underpay.
+          usdtAmount: item.priceUSDT || (exchangeRate > 0 ? (item.price || 0) / exchangeRate : 0),
           quantity: item.quantity,
           category: item.category,
           smmProvider: item.smmProvider,
