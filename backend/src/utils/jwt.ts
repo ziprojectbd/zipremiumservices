@@ -7,6 +7,8 @@ export interface JwtPayload {
   email: string;
   role: string;
   type: 'access' | 'refresh';
+  /** Session (refresh-token) id. Older tokens issued before sessions existed omit it. */
+  sid?: string;
 }
 
 export interface TokenPair {
@@ -14,26 +16,41 @@ export interface TokenPair {
   refreshToken: string;
 }
 
-export function signAccessToken(user: Pick<IUser, '_id' | 'email' | 'role'>): string {
+/**
+ * `sid` ties both tokens to a Session document. Revoking the session therefore
+ * invalidates the access token as well, without a database hit on every request
+ * (the middleware only checks liveness when the claim is present).
+ */
+function baseClaims(user: Pick<IUser, '_id' | 'email' | 'role'>, sid?: string) {
+  const claims: Record<string, unknown> = {
+    id: user._id.toString(),
+    email: user.email,
+    role: user.role,
+  };
+  if (sid) claims.sid = sid;
+  return claims;
+}
+
+export function signAccessToken(user: Pick<IUser, '_id' | 'email' | 'role'>, sid?: string): string {
   return jwt.sign(
-    { id: user._id.toString(), email: user.email, role: user.role, type: 'access' },
+    { ...baseClaims(user, sid), type: 'access' },
     env.JWT_SECRET,
     { expiresIn: env.JWT_ACCESS_EXPIRY } as SignOptions,
   );
 }
 
-export function signRefreshToken(user: Pick<IUser, '_id' | 'email' | 'role'>): string {
+export function signRefreshToken(user: Pick<IUser, '_id' | 'email' | 'role'>, sid?: string): string {
   return jwt.sign(
-    { id: user._id.toString(), email: user.email, role: user.role, type: 'refresh' },
+    { ...baseClaims(user, sid), type: 'refresh' },
     env.JWT_REFRESH_SECRET,
     { expiresIn: env.JWT_REFRESH_EXPIRY } as SignOptions,
   );
 }
 
-export function signTokenPair(user: Pick<IUser, '_id' | 'email' | 'role'>): TokenPair {
+export function signTokenPair(user: Pick<IUser, '_id' | 'email' | 'role'>, sid?: string): TokenPair {
   return {
-    accessToken: signAccessToken(user),
-    refreshToken: signRefreshToken(user),
+    accessToken: signAccessToken(user, sid),
+    refreshToken: signRefreshToken(user, sid),
   };
 }
 

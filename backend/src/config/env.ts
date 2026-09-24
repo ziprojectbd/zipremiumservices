@@ -34,6 +34,14 @@ export interface EnvConfig {
   JWT_ACCESS_EXPIRY: string;
   JWT_REFRESH_EXPIRY: string;
 
+  // Refresh-token cookie / sessions
+  REFRESH_COOKIE_NAME: string;
+  REFRESH_COOKIE_DOMAIN: string;
+  REFRESH_COOKIE_PATH: string;
+  REFRESH_COOKIE_SECURE: boolean;
+  REFRESH_COOKIE_SAME_SITE: 'lax' | 'strict' | 'none';
+  SESSION_GRACE_SECONDS: number;
+
   // External APIs
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
@@ -95,7 +103,24 @@ const env: EnvConfig = {
   JWT_SECRET: process.env.JWT_SECRET || '',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || '',
   JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY || '15m',
-  JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '7d',
+  // Long-lived by design: the session stays valid until the user logs out. Each
+  // refresh slides the window forward from the moment of use.
+  JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '30d',
+
+  // Refresh-token cookie / sessions.
+  // The refresh token lives in an HttpOnly cookie so no script (and therefore no
+  // XSS payload) can read it. `secure` is forced on in production so the cookie
+  // is only ever sent over HTTPS.
+  REFRESH_COOKIE_NAME: process.env.REFRESH_COOKIE_NAME || 'zi_rt',
+  REFRESH_COOKIE_DOMAIN: process.env.REFRESH_COOKIE_DOMAIN || '',
+  REFRESH_COOKIE_PATH: process.env.REFRESH_COOKIE_PATH || '/api/auth',
+  REFRESH_COOKIE_SECURE:
+    process.env.REFRESH_COOKIE_SECURE === 'true' ||
+    (process.env.REFRESH_COOKIE_SECURE !== 'false' && (process.env.NODE_ENV || 'development') === 'production'),
+  REFRESH_COOKIE_SAME_SITE: (process.env.REFRESH_COOKIE_SAME_SITE as 'lax' | 'strict' | 'none') || 'lax',
+  // Window during which a just-rotated token may be replayed (multi-tab races)
+  // instead of being treated as token theft.
+  SESSION_GRACE_SECONDS: parseInt(process.env.SESSION_GRACE_SECONDS || '120', 10),
 
   // External APIs
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,

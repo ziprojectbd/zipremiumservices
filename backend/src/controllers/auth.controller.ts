@@ -4,8 +4,14 @@ import User from '@models/User';
 import { success, error } from '@utils/apiResponse';
 import env from '@config/env';
 import { getClientIP, getGeoFromIP } from '@utils/geo';
-import { authenticateUser, refreshUserToken, logoutUser, logoutAllSessions } from '@services/auth.service';
-import { getRedis } from '@config/redis';
+import {
+  authenticateUser,
+  refreshUserToken,
+  revokeSessionByToken,
+  logoutAllSessions,
+} from '@services/auth.service';
+import { setRefreshCookie, clearRefreshCookie, readRefreshToken } from '@utils/cookies';
+import { refreshExpiryToMs } from '@utils/cookies';
 import logger from '@config/logger';
 
 const GOOGLE_REDIRECT_URI = `${(env.CLIENT_URL as string).replace(/\/$/, '')}/api/auth/google/callback`;
@@ -13,6 +19,43 @@ const GOOGLE_REDIRECT_URI = `${(env.CLIENT_URL as string).replace(/\/$/, '')}/ap
 const googleClient = env.GOOGLE_CLIENT_ID
   ? new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI)
   : null;
+
+// Shape the user object returned to the client (never includes secrets).
+function publicUser(user: {
+  _id: unknown;
+  name: string;
+  email: string;
+  role: string;
+  image?: string | null;
+  isTrader?: boolean;
+  kycStatus?: string;
+}) {
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    image: user.image,
+    isTrader: user.isTrader,
+    kycStatus: user.kycStatus,
+  };
+}
+
+// Login response: the access token goes in the JSON body, the refresh token is
+// delivered as an HttpOnly cookie so scripts (and XSS payloads) cannot read it.
+// `refreshToken` is still included in the body for the separate pay.* client and
+// for older frontends; it is never persisted by the main app.
+function sendAuthResponse(
+  res: import('express').Response,
+  result: { user: { _id: unknown; name: string; email: string; role: string; image?: string | null; isTrader?: boolean; kycStatus?: string }; accessToken: string; refreshToken: string },
+) {
+  setRefreshCookie(res, result.refreshToken, refreshExpiryToMs());
+  return res.json(success({
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    user: publicUser(result.user),
+  }));
+}
 
 // POST /api/auth/login
 export async function login(req: import('express').Request, res: import('express').Response) {
@@ -42,18 +85,7 @@ export async function login(req: import('express').Request, res: import('express
 
     try {
       const result = await authenticateUser(email, password, ip, userAgent);
-      return res.json(success({
-        ...result,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          image: user.image,
-          isTrader: user.isTrader,
-          kycStatus: user.kycStatus,
-        },
-      }));
+      return sendAuthResponse(res, result);
     } catch (err: unknown) {
       const appErr = err as { statusCode?: number; message?: string };
       return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Authentication failed'));
@@ -63,18 +95,7 @@ export async function login(req: import('express').Request, res: import('express
   // 2. Check DB user login
   try {
     const result = await authenticateUser(email, password, ip, userAgent);
-    return res.json(success({
-      ...result,
-      user: {
-        id: result.user._id,
-        name: result.user.name,
-        email: result.user.email,
-        role: result.user.role,
-        image: result.user.image,
-        isTrader: result.user.isTrader,
-        kycStatus: result.user.kycStatus,
-      },
-    }));
+    return sendAuthResponse(res, result);
   } catch (err: unknown) {
     const appErr = err as { statusCode?: number; message?: string };
     return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Authentication failed'));
@@ -82,49 +103,46 @@ export async function login(req: import('express').Request, res: import('express
 }
 
 // POST /api/auth/refresh
+// Reads the refresh token from the HttpOnly cookie, falling back to the request
+// body for non-browser clients. Rotates the session and re-issues the cookie.
 export async function refresh(req: import('express').Request, res: import('express').Response) {
-  const { refreshToken } = req.body;
+  const refreshToken = readRefreshToken(req);
 
   if (!refreshToken) {
-    return res.status(400).json(error('Refresh token is required'));
+    clearRefreshCookie(res);
+    return res.status(401).json(error('Session expired. Please sign in again.'));
   }
 
   try {
     const ip = getClientIP(req);
     const userAgent = req.headers['user-agent'] || '';
     const result = await refreshUserToken(refreshToken, ip, userAgent);
-
-    return res.json(success({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-      user: {
-        id: result.user._id,
-        name: result.user.name,
-        email: result.user.email,
-        role: result.user.role,
-        image: result.user.image,
-        isTrader: result.user.isTrader,
-        kycStatus: result.user.kycStatus,
-      },
-    }));
+    return sendAuthResponse(res, result);
   } catch (err: unknown) {
     const appErr = err as { statusCode?: number; message?: string };
+    // Any definitive rejection clears the cookie so the browser stops sending a
+    // token that can never work again.
+    if ((appErr.statusCode || 401) === 401) clearRefreshCookie(res);
     return res.status(appErr.statusCode || 401).json(error(appErr.message || 'Token refresh failed'));
   }
 }
 
 // POST /api/auth/logout
+// Revokes the session behind the refresh cookie. Deliberately does NOT require a
+// (possibly already expired) access token, so sign-out always revokes.
 export async function logout(req: import('express').Request, res: import('express').Response) {
-  const { refreshToken } = req.body;
+  const refreshToken = readRefreshToken(req);
+  const userId = req.user?._id?.toString();
 
   try {
-    if (req.user?._id && refreshToken) {
-      await logoutUser(req.user._id.toString(), refreshToken);
-    }
-    return res.json(success({ message: 'Logged out successfully' }));
-  } catch {
-    return res.json(success({ message: 'Logged out successfully' }));
+    await revokeSessionByToken(refreshToken, userId);
+  } catch (err) {
+    logger.warn('Logout revocation failed', { error: err instanceof Error ? err.message : String(err) });
+  } finally {
+    clearRefreshCookie(res);
   }
+
+  return res.json(success({ message: 'Logged out successfully' }));
 }
 
 // POST /api/auth/logout-all
@@ -133,10 +151,12 @@ export async function logoutAll(req: import('express').Request, res: import('exp
     if (req.user?._id) {
       await logoutAllSessions(req.user._id.toString());
     }
-    return res.json(success({ message: 'All sessions logged out' }));
-  } catch {
-    return res.json(success({ message: 'All sessions logged out' }));
+  } catch (err) {
+    logger.warn('Logout-all failed', { error: err instanceof Error ? err.message : String(err) });
+  } finally {
+    clearRefreshCookie(res);
   }
+  return res.json(success({ message: 'All sessions logged out' }));
 }
 
 // POST /api/auth/check-lock
@@ -256,18 +276,33 @@ export async function googleAuthWithCredential(req: import('express').Request, r
     }
 
     const { signTokenPair } = await import('@utils/jwt');
-    const tokens = signTokenPair(user);
+    const { newFamilyId } = await import('@utils/sessionToken');
+    const { hashSessionToken, encryptSessionToken } = await import('@utils/sessionToken');
+    const Session = (await import('@models/Session')).default;
+    const mongoose = (await import('mongoose')).default;
+
+    // Create the session first so the token pair can carry its id — this makes
+    // a Google sign-in exactly as revocable as a password sign-in.
+    const sessionId = new mongoose.Types.ObjectId();
+    const tokens = signTokenPair(user, sessionId.toString());
+    const now = new Date();
+    await Session.create({
+      _id: sessionId,
+      user: user._id,
+      tokenHash: hashSessionToken(tokens.refreshToken),
+      tokenEnc: encryptSessionToken(tokens.refreshToken),
+      familyId: newFamilyId(),
+      lastUsedAt: now,
+      expiresAt: new Date(now.getTime() + refreshExpiryToMs()),
+      ip: getClientIP(req),
+      userAgent: String(req.headers['user-agent'] || '').substring(0, 500),
+    });
+
+    setRefreshCookie(res, tokens.refreshToken, refreshExpiryToMs());
     return res.json(success({
-      ...tokens,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        image: user.image,
-        isTrader: user.isTrader,
-        kycStatus: user.kycStatus,
-      },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: publicUser(user),
     }));
   } catch (err) {
     logger.error('Google auth failed', { error: err instanceof Error ? err.message : String(err) });
@@ -327,8 +362,30 @@ export async function googleCallback(req: import('express').Request, res: import
     }
 
     const { signTokenPair } = await import('@utils/jwt');
-    const tokens2 = signTokenPair(user);
-    return res.redirect(`${env.CLIENT_URL}/?token=${tokens2.accessToken}&refreshToken=${tokens2.refreshToken}`);
+    const { newFamilyId, hashSessionToken, encryptSessionToken } = await import('@utils/sessionToken');
+    const Session = (await import('@models/Session')).default;
+    const mongoose = (await import('mongoose')).default;
+
+    const sessionId = new mongoose.Types.ObjectId();
+    const sessionTokens = signTokenPair(user, sessionId.toString());
+    const now = new Date();
+    await Session.create({
+      _id: sessionId,
+      user: user._id,
+      tokenHash: hashSessionToken(sessionTokens.refreshToken),
+      tokenEnc: encryptSessionToken(sessionTokens.refreshToken),
+      familyId: newFamilyId(),
+      lastUsedAt: now,
+      expiresAt: new Date(now.getTime() + refreshExpiryToMs()),
+      ip: getClientIP(req),
+      userAgent: String(req.headers['user-agent'] || '').substring(0, 500),
+    });
+
+    // The refresh token is delivered as an HttpOnly cookie. Nothing sensitive is
+    // put in the redirect URL any more (tokens in a URL leak through history,
+    // referrers and logs).
+    setRefreshCookie(res, sessionTokens.refreshToken, refreshExpiryToMs());
+    return res.redirect(`${env.CLIENT_URL}/?auth=success`);
   } catch (err) {
     logger.error('Google callback failed', { error: err instanceof Error ? err.message : String(err) });
     return res.status(401).json(error('Google authentication failed'));
