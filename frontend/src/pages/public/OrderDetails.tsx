@@ -191,7 +191,7 @@ export default function OrderDetails() {
     title: string;
     children: React.ReactNode;
   }) => (
-    <section className="mt-4 border border-white/10 rounded-xl bg-white/[0.02] px-3 sm:px-4 py-3">
+    <section className="border border-white/10 rounded-xl bg-white/[0.02] px-3 sm:px-4 py-3">
       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
         {title}
       </h4>
@@ -238,26 +238,27 @@ export default function OrderDetails() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100 transition-colors">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <button
           onClick={() => navigate('/order-history')}
-          className="mb-6 text-sm px-4 py-2 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition-colors"
+          className="mb-5 text-sm px-4 py-2 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition-colors"
         >
           &larr; Back to Order History
         </button>
 
         <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-4 border-b border-white/10">
+            <div className="min-w-0">
               <h3 className="text-lg sm:text-xl font-bold text-white">Order Details</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-gray-500 mt-0.5 break-all">
                 {order.orderNumber ? `Order #${order.orderNumber}` : `Order #${order.id}`}
                 {' · '}
                 {new Date(order.date).toLocaleString()}
               </p>
             </div>
             <span
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize shrink-0 ${
+              className={`self-start px-3 py-1 rounded-full text-[11px] font-semibold capitalize shrink-0 ${
                 order.status === 'completed'
                   ? 'bg-green-500/15 text-green-400'
                   : order.status === 'processing'
@@ -273,6 +274,7 @@ export default function OrderDetails() {
 
           {/* Delivery link (e.g. install a browser extension) */}
           <DeliveryLinkCard
+            className="mt-4"
             link={order.deliveryLink}
             label={order.deliveryLinkLabel}
             message={order.deliveryMessage}
@@ -285,158 +287,168 @@ export default function OrderDetails() {
             </div>
           )}
 
-          {/* Summary */}
-          <Section title="Summary">
-            <Field label="Order ID" value={order.orderNumber || order.id} copyKey="order_id" />
-            <Field label="Email" value={order.email} copyKey="email" />
-            <Field label="Amount" value={formatOrderPrice(order.total, order.currency)} />
-            <Field label="Status" value={order.status} />
-            <Field label="Payment Method" value={order.paymentMethod} />
-            <Field label="Payment Status" value={order.paymentStatus} />
-          </Section>
-
-          {/* Payment details — mobile wallet vs crypto */}
-          {!isCrypto(order) ? (
-            <Section title="Payment Details">
-              <Field
-                label="Payment Number"
-                value={order.paymentNumber || order.payerNumber}
-                copyKey="payment_number"
-                mono
-              />
-              <Field
-                label="Transaction ID"
-                value={order.transactionId || order.trxId}
-                copyKey="transaction_id"
-                mono
-              />
+          {/* Single column on mobile, two columns from lg up. Items spans the
+              full width because a long product name reads badly in a narrow
+              column. */}
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 items-start">
+            {/* Summary */}
+            <Section title="Summary">
+              <Field label="Order ID" value={order.orderNumber || order.id} copyKey="order_id" />
+              <Field label="Email" value={order.email} copyKey="email" />
+              <Field label="Amount" value={formatOrderPrice(order.total, order.currency)} />
+              <Field label="Status" value={order.status} />
+              <Field label="Payment Method" value={order.paymentMethod} />
+              <Field label="Payment Status" value={order.paymentStatus} />
             </Section>
-          ) : (
-            <Section title="Payment Details">
-              <Field label="Currency" value={order.cryptoCurrency || 'USDT'} />
-              <Field label="Paid Via" value={order.paidVia} />
-              <Field
-                label={isNetwork(order) ? 'Selected Network' : 'Selected Platform'}
-                value={isNetwork(order) ? order.selectedNetwork : order.selectedPlatform}
-              />
-              {isNetwork(order) ? (
-                <>
-                  <Field label="Wallet Address" value={order.walletAddress} copyKey="wallet_address" mono />
-                  <Field label="Transaction Hash" value={order.txHash} copyKey="tx_hash" mono />
-                </>
-              ) : (
-                <Field label="Sender UID" value={order.senderUid} copyKey="sender_uid" mono />
-              )}
-            </Section>
-          )}
 
-          {/* Items */}
-          <Section title={`Items (${order.items.length})`}>
-            <div className="divide-y divide-white/5">
-              {order.items.map((item: any, idx: number) => (
-                <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs sm:text-sm text-gray-100 min-w-0">
-                      {item.productName || item.name}
-                      <span className="text-gray-500"> ×{item.quantity}</span>
-                    </span>
-                    <div className="text-right shrink-0">
-                      <div className="text-xs sm:text-sm font-medium text-gray-100">
-                        ৳{formatPrice(item.price * item.quantity, 2)}
+            {/* Payment details — mobile wallet vs crypto */}
+            {!isCrypto(order) ? (
+              <Section title="Payment Details">
+                <Field
+                  label="Payment Number"
+                  value={order.paymentNumber || order.payerNumber}
+                  copyKey="payment_number"
+                  mono
+                />
+                <Field
+                  label="Transaction ID"
+                  value={order.transactionId || order.trxId}
+                  copyKey="transaction_id"
+                  mono
+                />
+              </Section>
+            ) : (
+              <Section title="Payment Details">
+                <Field label="Currency" value={order.cryptoCurrency || 'USDT'} />
+                <Field label="Paid Via" value={order.paidVia} />
+                <Field
+                  label={isNetwork(order) ? 'Selected Network' : 'Selected Platform'}
+                  value={isNetwork(order) ? order.selectedNetwork : order.selectedPlatform}
+                />
+                {isNetwork(order) ? (
+                  <>
+                    <Field label="Wallet Address" value={order.walletAddress} copyKey="wallet_address" mono />
+                    <Field label="Transaction Hash" value={order.txHash} copyKey="tx_hash" mono />
+                  </>
+                ) : (
+                  <Field label="Sender UID" value={order.senderUid} copyKey="sender_uid" mono />
+                )}
+              </Section>
+            )}
+
+            {/* Captcha API Key */}
+            {order.captchaApiKey && (
+              <Section title="Captcha API Key">
+                <div className="flex items-start justify-between gap-3 py-2">
+                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">API Key</span>
+                  <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right min-w-0">
+                    <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
+                      {visibleKeys.has('captcha_api_key')
+                        ? order.captchaApiKey
+                        : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('captcha_api_key')}
+                      className="p-1 text-gray-500 hover:text-white transition-colors shrink-0"
+                      title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
+                    >
+                      {visibleKeys.has('captcha_api_key') ? (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    {visibleKeys.has('captcha_api_key') && (
+                      <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
+                    )}
+                  </span>
+                </div>
+              </Section>
+            )}
+
+            {/* P2P Trade Details */}
+            {order.items.some((item: any) => (item.productName || item.name || '').includes('P2P Fee')) && (
+              <Section title="P2P Trade Details">
+                <Field label="Token" value={order.p2pToken} />
+                <Field label="Network" value={order.p2pNetwork} />
+                <Field
+                  label="Wallet Address"
+                  value={order.p2pWalletAddress}
+                  copyKey="p2p_wallet_user"
+                  mono
+                />
+              </Section>
+            )}
+
+            {/* Delivery Note */}
+            {order.deliveryNote && (
+              <Section title="Delivery Note">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                    {order.deliveryNote}
+                  </p>
+                  <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
+                </div>
+              </Section>
+            )}
+
+            {/* Items — full width so long names and links stay readable */}
+            <div className="lg:col-span-2">
+              <Section title={`Items (${order.items.length})`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y divide-white/5 md:divide-y-0">
+                  {order.items.map((item: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="py-2.5 first:pt-0 last:pb-0 md:border-b md:border-white/5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-xs sm:text-sm text-gray-100 min-w-0">
+                          {item.productName || item.name}
+                          <span className="text-gray-500"> ×{item.quantity}</span>
+                        </span>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs sm:text-sm font-medium text-gray-100">
+                            ৳{formatPrice(item.price * item.quantity, 2)}
+                          </div>
+                          {isCrypto(order) && item.usdtAmount && (
+                            <div className="text-[11px] text-gray-500">
+                              ${formatPrice(item.usdtAmount * item.quantity, 2)}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {isCrypto(order) && item.usdtAmount && (
-                        <div className="text-[11px] text-gray-500">
-                          ${formatPrice(item.usdtAmount * item.quantity, 2)}
+                      {item.link && (
+                        <div className="mt-1 text-[11px] text-gray-500">
+                          Link: <span className="font-mono text-cyan-400/90 break-all">{item.link}</span>
                         </div>
                       )}
+                      {item.smmServiceId && (
+                        <div className="mt-0.5 text-[11px] text-gray-500">
+                          Service ID: <span className="font-mono text-orange-400/90">{item.smmServiceId}</span>
+                        </div>
+                      )}
+                      {item.smmOrderId && (
+                        <div className="mt-0.5 text-[11px] text-gray-500">
+                          SMM Order ID: <span className="font-mono text-green-400/90">{item.smmOrderId}</span>
+                        </div>
+                      )}
+                      {item.details && (
+                        <details className="mt-1.5">
+                          <summary className="text-[11px] text-blue-400 cursor-pointer hover:text-blue-300">
+                            Service info &amp; instructions
+                          </summary>
+                          <div className="mt-1.5 p-2.5 bg-black/20 rounded-lg whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed">
+                            {item.details}
+                          </div>
+                        </details>
+                      )}
                     </div>
-                  </div>
-                  {item.link && (
-                    <div className="mt-1 text-[11px] text-gray-500">
-                      Link: <span className="font-mono text-cyan-400/90 break-all">{item.link}</span>
-                    </div>
-                  )}
-                  {item.smmServiceId && (
-                    <div className="mt-0.5 text-[11px] text-gray-500">
-                      Service ID: <span className="font-mono text-orange-400/90">{item.smmServiceId}</span>
-                    </div>
-                  )}
-                  {item.smmOrderId && (
-                    <div className="mt-0.5 text-[11px] text-gray-500">
-                      SMM Order ID: <span className="font-mono text-green-400/90">{item.smmOrderId}</span>
-                    </div>
-                  )}
-                  {item.details && (
-                    <details className="mt-1.5">
-                      <summary className="text-[11px] text-blue-400 cursor-pointer hover:text-blue-300">
-                        Service info &amp; instructions
-                      </summary>
-                      <div className="mt-1.5 p-2.5 bg-black/20 rounded-lg whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed">
-                        {item.details}
-                      </div>
-                    </details>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </Section>
             </div>
-          </Section>
-
-          {/* P2P Trade Details */}
-          {order.items.some((item: any) => (item.productName || item.name || '').includes('P2P Fee')) && (
-            <Section title="P2P Trade Details">
-              <Field label="Token" value={order.p2pToken} />
-              <Field label="Network" value={order.p2pNetwork} />
-              <Field
-                label="Wallet Address"
-                value={order.p2pWalletAddress}
-                copyKey="p2p_wallet_user"
-                mono
-              />
-            </Section>
-          )}
-
-          {/* Captcha API Key */}
-          {order.captchaApiKey && (
-            <Section title="Captcha API Key">
-              <div className="flex items-start justify-between gap-3 py-2">
-                <span className="text-xs text-gray-500 pt-0.5">API Key</span>
-                <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right">
-                  <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
-                    {visibleKeys.has('captcha_api_key')
-                      ? order.captchaApiKey
-                      : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => toggleKeyVisibility('captcha_api_key')}
-                    className="p-1 text-gray-500 hover:text-white transition-colors"
-                    title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
-                  >
-                    {visibleKeys.has('captcha_api_key') ? (
-                      <EyeOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                  {visibleKeys.has('captcha_api_key') && (
-                    <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
-                  )}
-                </span>
-              </div>
-            </Section>
-          )}
-
-          {/* Delivery Note */}
-          {order.deliveryNote && (
-            <Section title="Delivery Note">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                  {order.deliveryNote}
-                </p>
-                <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
-              </div>
-            </Section>
-          )}
+          </div>
         </div>
       </div>
     </div>
