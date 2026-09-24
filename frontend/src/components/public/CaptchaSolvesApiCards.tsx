@@ -176,9 +176,16 @@ function RefillCountdown({ packageType }: { packageType?: string }) {
 export default function CaptchaSolvesApiCards({
   lastAddedProductId,
   addToCart,
+  planCodePrefix,
 }: {
   lastAddedProductId: string | number | null;
   addToCart: (product: any) => void;
+  /**
+   * Restrict the plans shown to those whose code starts with this prefix.
+   * The reseller marks FunCaptcha plans with an `F` code (F1, F2, … F30); the
+   * other series (D/C/P) cover the remaining services.
+   */
+  planCodePrefix?: string;
 }) {
   const { exchangeRate } = useShopContext();
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -187,7 +194,13 @@ export default function CaptchaSolvesApiCards({
   const [error, setError] = useState<string | null>(null);
   const [pricingTab, setPricingTab] = useState<"all" | "daily" | "count">("all");
 
-  const filteredPlans = plans.filter((plan) => {
+  // Prefix filter first, so the tab counts and the empty state both reflect the
+  // series this page is about (e.g. the FunCaptcha page only ever counts F plans).
+  const prefixPlans = planCodePrefix
+    ? plans.filter((plan) => String(plan.code).toUpperCase().startsWith(planCodePrefix.toUpperCase()))
+    : plans;
+
+  const filteredPlans = prefixPlans.filter((plan) => {
     if (pricingTab === "all") return true;
     return plan.type === pricingTab;
   });
@@ -278,7 +291,7 @@ export default function CaptchaSolvesApiCards({
     );
   }
 
-  if (plans.length === 0) {
+  if (prefixPlans.length === 0) {
     return (
       <EmptyState
         icon={<ShoppingCart className="w-8 h-8 text-gray-500" />}
