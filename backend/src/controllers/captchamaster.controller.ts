@@ -140,12 +140,19 @@ export const getCustomerPackages = asyncHandler(async (req, res) => {
 
   let data = Array.from(merged.values());
 
-  // Expired and exhausted packages are dropped entirely. This endpoint backs
-  // "Your Active API Keys", so an expired key must not be listed there — the
-  // vendor keeps reporting `status: "active"` for packages past their endDate.
-  const includeExpired = String(req.query.includeExpired || '').toLowerCase() === 'true' && req.user?.role === 'admin';
-  if (!includeExpired) {
-    data = data.filter((p) => p.status !== 'expired');
+  // Expired/exhausted packages never belong under "Your Active API Keys", but
+  // they are not deleted either — the dashboard shows them behind a History
+  // toggle. Three modes:
+  //  - default                → active packages only
+  //  - `history=true`         → expired/exhausted only (the History panel)
+  //  - `includeExpired=true`  → everything (admin support lookups)
+  const isExpired = (p: any) => p.status === 'expired';
+  const wantsEverything =
+    String(req.query.includeExpired || '').toLowerCase() === 'true' && req.user?.role === 'admin';
+  const wantsHistory = String(req.query.history || '').toLowerCase() === 'true';
+
+  if (!wantsEverything) {
+    data = wantsHistory ? data.filter(isExpired) : data.filter((p) => !isExpired(p));
   }
 
   if (search) {

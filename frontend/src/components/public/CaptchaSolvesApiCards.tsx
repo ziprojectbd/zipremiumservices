@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer } from "lucide-react";
+import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer, History, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useShopContext } from "../../store/ShopContext";
 import api from "../../lib/axios";
@@ -199,14 +199,16 @@ export default function CaptchaSolvesApiCards({
     return plan.type === pricingTab;
   });
   const [activePackages, setActivePackages] = useState<ActivePackage[]>([]);
+  const [historyPackages, setHistoryPackages] = useState<ActivePackage[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean; exchangeRate: number }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
 
   // Only live packages belong under "Your Active API Keys". The backend already
-  // filters expired/exhausted ones, but re-checking here means a stale response
-  // or an unfiltered reseller payload can never surface a dead key.
+  // splits expired ones out, but re-checking here means a stale response or an
+  // unfiltered reseller payload can never surface a dead key as active.
   const livePackages = activePackages.filter((pkg) => {
     if (pkg.status === 'expired' || pkg.status === 'suspended') return false;
     if (typeof pkg.creditsRemaining === 'number' && pkg.creditsRemaining <= 0) return false;
@@ -216,6 +218,21 @@ export default function CaptchaSolvesApiCards({
     }
     return true;
   });
+
+  // Everything the user ever bought, minus the still-live ones — i.e. what the
+  // History panel shows. Derived from both lists so an entry can never appear in
+  // both places at once, even if the two fetches return slightly different data.
+  const liveIds = new Set(livePackages.map((p) => p.id));
+  const historyList = [
+    ...historyPackages,
+    ...activePackages.filter((p) => p.status !== 'suspended' && !liveIds.has(p.id)),
+  ].filter((pkg, index, arr) => arr.findIndex((x) => x.id === pkg.id) === index);
+
+  /** Dev tools / support: open the history panel straight away. */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('history') === '1') setShowHistory(true);
+  }, []);
 
   useEffect(() => {
     // Fetch pricing from OUR backend, which proxies the CaptchaMaster
@@ -241,18 +258,30 @@ export default function CaptchaSolvesApiCards({
       })
       .catch(() => {});
 
-    // Fetch logged-in user's active captcha packages
+    // Fetch the logged-in user's packages: the active list plus the expired
+    // ones behind the History toggle. Both are requested together so the
+    // toggle never triggers a second round trip.
     if (isAuthenticated) {
       setPackagesLoading(true);
-      api.get("/customer/captchamaster/packages?limit=50")
-        .then((res) => res.data)
-        .then((data) => {
-          if (data.success && Array.isArray(data.data)) {
-            setActivePackages(data.data);
+      Promise.all([
+        api.get("/customer/captchamaster/packages?limit=50"),
+        api.get("/customer/captchamaster/packages?limit=50&history=true"),
+      ])
+        .then(([activeRes, historyRes]) => {
+          const active = activeRes.data;
+          if (active?.success && Array.isArray(active.data)) {
+            setActivePackages(active.data);
+          } else {
+            setActivePackages([]);
           }
+          const history = historyRes.data;
+          setHistoryPackages(history?.success && Array.isArray(history.data) ? history.data : []);
         })
         .catch(() => {})
         .finally(() => setPackagesLoading(false));
+    } else {
+      setActivePackages([]);
+      setHistoryPackages([]);
     }
   }, [isAuthenticated]);
 
@@ -304,13 +333,29 @@ export default function CaptchaSolvesApiCards({
         Loading your packages...
       </div>
     )}
-    {isAuthenticated && !packagesLoading && livePackages.length === 0 && (
+    {isAuthenticated && !packagesLoading && livePackages.length === 0 && historyList.length === 0 && (
       <div className="mt-0 mb-8 p-8 bg-white/[0.03] rounded-xl border border-white/10 text-center">
         <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
         <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active API Keys</h3>
         <p className="text-gray-500 text-sm max-w-md mx-auto">
           You haven't purchased any captcha packages yet. Buy a plan above to get your API key.
         </p>
+      </div>
+    )}
+    {isAuthenticated && !packagesLoading && livePackages.length === 0 && historyList.length > 0 && (
+      <div className="mt-0 mb-8 p-8 bg-white/[0.03] rounded-xl border border-white/10 text-center">
+        <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active API Keys</h3>
+        <p className="text-gray-500 text-sm max-w-md mx-auto mb-5">
+          Your packages have all expired. Open History to see them.
+        </p>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white text-sm font-semibold transition-all"
+        >
+          <History className="w-4 h-4" />
+          View History ({historyList.length})
+        </button>
       </div>
     )}
     {isAuthenticated && !packagesLoading && livePackages.length > 0 && (
@@ -325,6 +370,27 @@ export default function CaptchaSolvesApiCards({
           <span className="px-2.5 py-0.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full">
             {livePackages.length} package{livePackages.length > 1 ? 's' : ''}
           </span>
+
+          {/* History toggle — expired keys live behind this */}
+          {historyList.length > 0 && (
+            <button
+              onClick={() => setShowHistory((prev) => !prev)}
+              aria-expanded={showHistory}
+              title={showHistory ? 'Hide expired keys' : 'Show expired keys'}
+              className={`ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                showHistory
+                  ? 'bg-white/15 text-white border border-white/25'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              History
+              <span className="rounded-full bg-black/30 px-1.5 py-0.5 text-[10px] leading-none font-bold">
+                {historyList.length}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
 
         <div className="grid gap-4">
@@ -400,6 +466,71 @@ export default function CaptchaSolvesApiCards({
             </div>
           ))}
         </div>
+
+        {/* History — expired/exhausted keys, hidden until the toggle is used */}
+        {showHistory && historyList.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <div className="flex flex-wrap items-center gap-2.5 mb-4">
+              <History className="w-4 h-4 text-gray-500" />
+              <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">
+                History
+              </h3>
+              <span className="px-2 py-0.5 bg-white/5 text-gray-500 text-[10px] font-semibold rounded-full">
+                {historyList.length} expired
+              </span>
+            </div>
+
+            <div className="grid gap-3">
+              {historyList.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="bg-white/[0.02] rounded-xl border border-white/5 p-4 opacity-70 hover:opacity-100 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+                        <Package className="w-3.5 h-3.5 text-gray-500" />
+                        <h4 className="text-sm font-semibold text-gray-300">{pkg.planName}</h4>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/15 text-red-400/90">
+                          expired
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <span>
+                          Credits: {pkg.creditsRemaining.toLocaleString()} / {pkg.credits.toLocaleString()}
+                        </span>
+                        <ExpiryCountdown expiresAt={pkg.expiresAt} />
+                      </div>
+
+                      {pkg.captchaApiKey && (
+                        <div className="mt-2 flex items-center gap-2 min-w-0">
+                          <Key className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                          <code className="text-[11px] font-mono text-gray-600 truncate">
+                            {visibleKeys.has(pkg.id)
+                              ? pkg.captchaApiKey
+                              : `${pkg.captchaApiKey.slice(0, 12)}${".".repeat(16)}`}
+                          </code>
+                          <button
+                            onClick={() => toggleKeyVisibility(pkg.id)}
+                            className="p-1 text-gray-600 hover:text-gray-300 transition-colors rounded"
+                            title={visibleKeys.has(pkg.id) ? 'Hide API Key' : 'Show API Key'}
+                          >
+                            {visibleKeys.has(pkg.id) ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )}
 
