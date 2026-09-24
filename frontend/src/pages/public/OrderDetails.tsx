@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useShopContext } from '../../store/ShopContext';
-import { History, Zap, Clock, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { History, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import api from '../../lib/axios';
 import type { Order } from '../../types';
 import { formatPrice } from '../../utils/formatPrice';
@@ -148,10 +148,55 @@ export default function OrderDetails() {
     <button
       type="button"
       onClick={() => copyText(fieldKey, value)}
-      className="ml-2 px-2 py-0.5 rounded-md border border-blue-400/30 text-[10px] text-blue-300 hover:bg-blue-500/10"
+      className="ml-2 px-1.5 py-0.5 rounded border border-white/15 text-[10px] text-gray-400 hover:text-white hover:border-white/30 transition-colors"
     >
       {copiedField === fieldKey ? 'Copied' : 'Copy'}
     </button>
+  );
+
+  /** One label/value row. Keeps every section visually identical. */
+  const Field = ({
+    label,
+    value,
+    copyKey,
+    mono = false,
+  }: {
+    label: string;
+    value?: string | number | null;
+    copyKey?: string;
+    mono?: boolean;
+  }) => {
+    const text = value === 0 ? '0' : String(value ?? '').trim();
+    if (!text) return null;
+    return (
+      <div className="flex items-start justify-between gap-4 py-2 border-b border-white/5 last:border-0">
+        <span className="text-xs text-gray-500 shrink-0 pt-0.5">{label}</span>
+        <span
+          className={`text-xs sm:text-sm text-gray-100 text-right break-all inline-flex items-center justify-end flex-wrap ${
+            mono ? 'font-mono' : ''
+          }`}
+        >
+          {text}
+          {copyKey && <CopyBtn fieldKey={copyKey} value={text} />}
+        </span>
+      </div>
+    );
+  };
+
+  /** Section wrapper — one surface, one border, no per-section gradients. */
+  const Section = ({
+    title,
+    children,
+  }: {
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <section className="mt-4 border border-white/10 rounded-xl bg-white/[0.02] px-3 sm:px-4 py-3">
+      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
+        {title}
+      </h4>
+      {children}
+    </section>
   );
 
   const toggleKeyVisibility = (key: string) => {
@@ -201,218 +246,132 @@ export default function OrderDetails() {
           &larr; Back to Order History
         </button>
 
-        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950 border border-white/15 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-5">
+        <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl">
+          <div className="flex items-start justify-between gap-3 mb-4">
             <div>
-              <h3 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent">
-                Order Details
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">Full payment and item breakdown</p>
+              <h3 className="text-lg sm:text-xl font-bold text-white">Order Details</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {order.orderNumber ? `Order #${order.orderNumber}` : `Order #${order.id}`}
+                {' · '}
+                {new Date(order.date).toLocaleString()}
+              </p>
             </div>
+            <span
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize shrink-0 ${
+                order.status === 'completed'
+                  ? 'bg-green-500/15 text-green-400'
+                  : order.status === 'processing'
+                    ? 'bg-blue-500/15 text-blue-400'
+                    : order.status === 'cancelled'
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-yellow-500/15 text-yellow-400'
+              }`}
+            >
+              {order.status}
+            </span>
           </div>
 
-          {/* Order Progress Stepper */}
-          <div className="mb-6 px-2 sm:px-4">
-            <div className="relative flex justify-between items-center w-full">
-              <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 -z-10" />
-              <div
-                className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 -translate-y-1/2 -z-10 transition-all duration-500"
-                style={{
-                  width:
-                    order.status === 'pending'
-                      ? '0%'
-                      : order.status === 'processing'
-                        ? '50%'
-                        : order.status === 'completed'
-                          ? '100%'
-                          : '0%',
-                }}
+          {/* Delivery link (e.g. install a browser extension) */}
+          <DeliveryLinkCard
+            link={order.deliveryLink}
+            label={order.deliveryLinkLabel}
+            message={order.deliveryMessage}
+          />
+
+          {order.status === 'cancelled' && (
+            <div className="mt-4 flex items-center gap-2 text-red-400 bg-red-500/10 py-2.5 px-3 rounded-lg border border-red-500/20">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="text-xs font-medium">This order has been cancelled</span>
+            </div>
+          )}
+
+          {/* Summary */}
+          <Section title="Summary">
+            <Field label="Order ID" value={order.orderNumber || order.id} copyKey="order_id" />
+            <Field label="Email" value={order.email} copyKey="email" />
+            <Field label="Amount" value={formatOrderPrice(order.total, order.currency)} />
+            <Field label="Status" value={order.status} />
+            <Field label="Payment Method" value={order.paymentMethod} />
+            <Field label="Payment Status" value={order.paymentStatus} />
+          </Section>
+
+          {/* Payment details — mobile wallet vs crypto */}
+          {!isCrypto(order) ? (
+            <Section title="Payment Details">
+              <Field
+                label="Payment Number"
+                value={order.paymentNumber || order.payerNumber}
+                copyKey="payment_number"
+                mono
               />
+              <Field
+                label="Transaction ID"
+                value={order.transactionId || order.trxId}
+                copyKey="transaction_id"
+                mono
+              />
+            </Section>
+          ) : (
+            <Section title="Payment Details">
+              <Field label="Currency" value={order.cryptoCurrency || 'USDT'} />
+              <Field label="Paid Via" value={order.paidVia} />
+              <Field
+                label={isNetwork(order) ? 'Selected Network' : 'Selected Platform'}
+                value={isNetwork(order) ? order.selectedNetwork : order.selectedPlatform}
+              />
+              {isNetwork(order) ? (
+                <>
+                  <Field label="Wallet Address" value={order.walletAddress} copyKey="wallet_address" mono />
+                  <Field label="Transaction Hash" value={order.txHash} copyKey="tx_hash" mono />
+                </>
+              ) : (
+                <Field label="Sender UID" value={order.senderUid} copyKey="sender_uid" mono />
+              )}
+            </Section>
+          )}
 
-              {[
-                { label: 'Pending', status: 'pending', icon: Clock },
-                { label: 'Processing', status: 'processing', icon: Zap },
-                { label: 'Completed', status: 'completed', icon: Check },
-              ].map((step, index) => {
-                const Icon = step.icon;
-                const isActive = order.status === step.status;
-                const isCompleted =
-                  (order.status === 'processing' && step.status === 'pending') ||
-                  (order.status === 'completed' && (step.status === 'pending' || step.status === 'processing')) ||
-                  order.status === step.status;
-
-                return (
-                  <div key={index} className="flex flex-col items-center">
-                    <div
-                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-300 border-2 ${
-                        isActive
-                          ? 'bg-slate-900 border-purple-500 text-purple-500 shadow-lg shadow-purple-500/20 scale-110'
-                          : isCompleted
-                            ? 'bg-blue-500 border-blue-500 text-white'
-                            : 'bg-slate-900 border-white/10 text-gray-400'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </div>
-                    <span
-                      className={`text-[10px] sm:text-xs mt-2 font-medium ${
-                        isActive ? 'text-purple-500' : isCompleted ? 'text-blue-500' : 'text-gray-400'
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {order.status === 'cancelled' && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-red-500 bg-red-500/10 py-2 rounded-lg border border-red-500/20">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">This order has been cancelled</span>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Order ID:</span>
-              <span className="font-medium text-white inline-flex items-center flex-wrap text-xs sm:text-sm">
-                {order.orderNumber || order.id}
-                <CopyBtn fieldKey="order_id" value={order.orderNumber || order.id} />
-              </span>
-            </div>
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Email:</span>
-              <span className="font-medium text-white inline-flex items-center flex-wrap text-xs sm:text-sm break-all">
-                {order.email || '-'}
-                <CopyBtn fieldKey="email" value={order.email || '-'} />
-              </span>
-            </div>
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Amount:</span>
-              <span className="font-semibold text-white text-xs sm:text-sm">{formatOrderPrice(order.total, order.currency)}</span>
-            </div>
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Status:</span>
-              <span className="font-semibold capitalize text-white text-xs sm:text-sm">{order.status}</span>
-            </div>
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Payment Method:</span>
-              <span className="font-medium text-white text-xs sm:text-sm">{order.paymentMethod || '-'}</span>
-            </div>
-            <div className="p-2 sm:p-3 rounded-xl bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/20">
-              <span className="text-gray-500 block text-xs mb-1">Payment Status:</span>
-              <span className="font-medium text-white text-xs sm:text-sm">{order.paymentStatus || '-'}</span>
-            </div>
-          </div>
-
-          <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-indigo-500/10">
-            <h4 className="font-semibold text-white mb-2 text-sm sm:text-base">Payment Details</h4>
-            {!isCrypto(order) ? (
-              <div className="space-y-2 text-xs sm:text-sm">
-                <p className="text-gray-200">
-                  <span className="text-gray-500 block mb-1">Payment Number:</span>
-                  <span className="inline-flex items-center flex-wrap break-all">
-                    {order.paymentNumber || order.payerNumber || '-'}
-                    <CopyBtn fieldKey="payment_number" value={order.paymentNumber || order.payerNumber || '-'} />
-                  </span>
-                </p>
-                <p className="text-gray-200">
-                  <span className="text-gray-500 block mb-1">Transaction ID:</span>
-                  <span className="inline-flex items-center flex-wrap break-all">
-                    {order.transactionId || order.trxId || '-'}
-                    <CopyBtn fieldKey="transaction_id" value={order.transactionId || order.trxId || '-'} />
-                  </span>
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 text-xs sm:text-sm">
-                <p className="text-gray-200">
-                  <span className="text-gray-500">Currency:</span> {order.cryptoCurrency || 'USDT'}
-                </p>
-                <p className="text-gray-200">
-                  <span className="text-gray-500">Paid Via:</span> {order.paidVia || '-'}
-                </p>
-                <p className="text-gray-200">
-                  <span className="text-gray-500 block mb-1">{isNetwork(order) ? 'Selected Network' : 'Selected Platform'}:</span>
-                  <span className="break-all">{isNetwork(order) ? order.selectedNetwork || '-' : order.selectedPlatform || '-'}</span>
-                </p>
-                {isNetwork(order) ? (
-                  <>
-                    <p className="text-gray-200">
-                      <span className="text-gray-500 block mb-1">Wallet Address:</span>
-                      <span className="inline-flex items-center flex-wrap break-all">
-                        {order.walletAddress || '-'}
-                        <CopyBtn fieldKey="wallet_address" value={order.walletAddress || '-'} />
-                      </span>
-                    </p>
-                    <p className="text-gray-200">
-                      <span className="text-gray-500 block mb-1">Transaction Hash:</span>
-                      <span className="inline-flex items-center flex-wrap break-all">
-                        {order.txHash || '-'}
-                        <CopyBtn fieldKey="tx_hash" value={order.txHash || '-'} />
-                      </span>
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-gray-200">
-                    <span className="text-gray-500 block mb-1">Sender UID:</span>
-                    <span className="inline-flex items-center flex-wrap break-all">
-                      {order.senderUid || '-'}
-                      <CopyBtn fieldKey="sender_uid" value={order.senderUid || '-'} />
-                    </span>
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
-            <h4 className="font-semibold text-white mb-2 text-sm sm:text-base">Items</h4>
-            <div className="space-y-2">
+          {/* Items */}
+          <Section title={`Items (${order.items.length})`}>
+            <div className="divide-y divide-white/5">
               {order.items.map((item: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="flex flex-col text-xs sm:text-sm text-gray-200 bg-white/5 rounded-lg px-3 py-2 border border-white/10"
-                >
-                  <div className="flex flex-col sm:flex-row sm:justify-between">
-                    <span className="mb-1 sm:mb-0">
-                      {item.productName || item.name} x{item.quantity}
+                <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-xs sm:text-sm text-gray-100 min-w-0">
+                      {item.productName || item.name}
+                      <span className="text-gray-500"> ×{item.quantity}</span>
                     </span>
-                    <div className="flex flex-col sm:flex-row sm:gap-2 text-right">
-                      <span className="font-medium">৳{formatPrice(item.price * item.quantity, 2)}</span>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs sm:text-sm font-medium text-gray-100">
+                        ৳{formatPrice(item.price * item.quantity, 2)}
+                      </div>
                       {isCrypto(order) && item.usdtAmount && (
-                        <span className="text-gray-500 text-xs sm:text-sm">
+                        <div className="text-[11px] text-gray-500">
                           ${formatPrice(item.usdtAmount * item.quantity, 2)}
-                        </span>
+                        </div>
                       )}
                     </div>
                   </div>
                   {item.link && (
-                    <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-500 mt-1 pt-1 border-t border-white/10">
-                      <span className="mb-0.5 sm:mb-0">Target Link:</span>
-                      <span className="text-cyan-300 break-all text-right font-mono">{item.link}</span>
+                    <div className="mt-1 text-[11px] text-gray-500">
+                      Link: <span className="font-mono text-cyan-400/90 break-all">{item.link}</span>
                     </div>
                   )}
                   {item.smmServiceId && (
-                    <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-500 mt-0.5">
-                      <span className="mb-0.5 sm:mb-0">Service ID:</span>
-                      <span className="text-orange-300 font-mono">{item.smmServiceId}</span>
+                    <div className="mt-0.5 text-[11px] text-gray-500">
+                      Service ID: <span className="font-mono text-orange-400/90">{item.smmServiceId}</span>
                     </div>
                   )}
                   {item.smmOrderId && (
-                    <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-500 mt-0.5">
-                      <span className="mb-0.5 sm:mb-0">SMM Order ID:</span>
-                      <span className="text-green-300 font-mono">{item.smmOrderId}</span>
+                    <div className="mt-0.5 text-[11px] text-gray-500">
+                      SMM Order ID: <span className="font-mono text-green-400/90">{item.smmOrderId}</span>
                     </div>
                   )}
                   {item.details && (
-                    <details className="text-xs mt-1 pt-1 border-t border-white/10">
-                      <summary className="text-blue-500 cursor-pointer hover:text-blue-400 font-medium">
-                        Service info & instructions
+                    <details className="mt-1.5">
+                      <summary className="text-[11px] text-blue-400 cursor-pointer hover:text-blue-300">
+                        Service info &amp; instructions
                       </summary>
-                      <div className="mt-1 p-2 bg-gray-800/50 rounded-lg whitespace-pre-wrap text-gray-300 leading-relaxed">
+                      <div className="mt-1.5 p-2.5 bg-black/20 rounded-lg whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed">
                         {item.details}
                       </div>
                     </details>
@@ -420,81 +379,64 @@ export default function OrderDetails() {
                 </div>
               ))}
             </div>
-          </div>
+          </Section>
 
           {/* P2P Trade Details */}
-          {Array.isArray(order.items) &&
-            order.items.some(
-              (item: any) => (item.productName || item.name || '').includes('P2P Fee')
-            ) && (
-              <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 to-blue-500/10">
-                <h4 className="font-semibold text-white mb-2 text-sm sm:text-base">P2P Trade Details</h4>
-                <div className="space-y-2 text-xs sm:text-sm">
-                  {order.p2pToken && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Token:</span>
-                      <span className="text-white break-all text-right">{order.p2pToken}</span>
-                    </div>
-                  )}
-                  {order.p2pNetwork && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Network:</span>
-                      <span className="text-white break-all text-right">{order.p2pNetwork}</span>
-                    </div>
-                  )}
-                  {order.p2pWalletAddress && (
-                    <div className="flex flex-col sm:flex-row sm:justify-between">
-                      <span className="text-gray-300 mb-1 sm:mb-0">Wallet Address:</span>
-                      <span className="text-white break-all text-right inline-flex items-center flex-wrap justify-end">
-                        {order.p2pWalletAddress}
-                        <CopyBtn fieldKey="p2p_wallet_user" value={order.p2pWalletAddress} />
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+          {order.items.some((item: any) => (item.productName || item.name || '').includes('P2P Fee')) && (
+            <Section title="P2P Trade Details">
+              <Field label="Token" value={order.p2pToken} />
+              <Field label="Network" value={order.p2pNetwork} />
+              <Field
+                label="Wallet Address"
+                value={order.p2pWalletAddress}
+                copyKey="p2p_wallet_user"
+                mono
+              />
+            </Section>
+          )}
 
+          {/* Captcha API Key */}
           {order.captchaApiKey && (
-            <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-green-500/10">
-              <h4 className="font-semibold text-white mb-2 text-sm sm:text-base">Captcha API Key</h4>
-              <div className="flex flex-col sm:flex-row sm:justify-between text-xs sm:text-sm">
-                <span className="text-gray-300 mb-1 sm:mb-0">API Key:</span>
-                <span className="text-white break-all text-right inline-flex items-center flex-wrap justify-end font-mono">
-                  {visibleKeys.has('captcha_api_key')
-                    ? order.captchaApiKey
-                    : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
+            <Section title="Captcha API Key">
+              <div className="flex items-start justify-between gap-3 py-2">
+                <span className="text-xs text-gray-500 pt-0.5">API Key</span>
+                <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right">
+                  <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
+                    {visibleKeys.has('captcha_api_key')
+                      ? order.captchaApiKey
+                      : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
+                  </code>
                   <button
                     type="button"
                     onClick={() => toggleKeyVisibility('captcha_api_key')}
-                    className="ml-2 inline-flex items-center justify-center w-6 h-6 rounded-md border border-white/20 text-gray-300 hover:bg-white/10"
+                    className="p-1 text-gray-500 hover:text-white transition-colors"
                     title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
                   >
-                    {visibleKeys.has('captcha_api_key') ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {visibleKeys.has('captcha_api_key') ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
                   </button>
-                  {visibleKeys.has('captcha_api_key') && <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />}
+                  {visibleKeys.has('captcha_api_key') && (
+                    <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
+                  )}
                 </span>
               </div>
-            </div>
+            </Section>
           )}
 
+          {/* Delivery Note */}
           {order.deliveryNote && (
-            <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl border border-green-500/20 bg-gradient-to-r from-green-500/10 to-teal-500/10">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-white text-sm sm:text-base">Delivery Note</h4>
+            <Section title="Delivery Note">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                  {order.deliveryNote}
+                </p>
                 <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
               </div>
-              <p className="text-gray-200 text-xs sm:text-sm whitespace-pre-wrap">{order.deliveryNote}</p>
-            </div>
+            </Section>
           )}
-
-          {/* Delivery link (e.g. install a browser extension) */}
-          <DeliveryLinkCard
-            link={order.deliveryLink}
-            label={order.deliveryLinkLabel}
-            message={order.deliveryMessage}
-            className="mt-3 sm:mt-4"
-          />
         </div>
       </div>
     </div>
