@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api, { decodeJWT, isTokenExpired, refreshAccessToken, setOnTokenRefreshed } from '../lib/axios';
+import api, {
+  setOnTokenRefreshed,
+  bootstrapSession,
+  resetSessionBootstrap,
+  clearStoredAuth,
+} from '../lib/axios';
 
 interface User {
   id?: string;
@@ -21,7 +26,7 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   googleLogin: (credential: string) => Promise<{ success: boolean; error?: string; user?: User }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setAuthFromToken: (token: string) => Promise<User | null>;
 }
@@ -33,27 +38,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize auth on mount: restore from localStorage, refresh if needed
+  // Initialize auth on mount.
+  //
+  // The access token is restored from localStorage when it is still valid; when
+  // it is missing or expired the HttpOnly refresh cookie restores the session.
+  // That cookie is what makes the session survive a browser restart, and it is
+  // not readable by scripts, so this is also the XSS-safe path.
   useEffect(() => {
     let cancelled = false;
 
     async function initAuth() {
-      // Check for token from URL (Google OAuth callback, etc.)
+      // 1. A token handed back as a URL fragment (Google OAuth fallback).
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get('token');
       // Only treat a URL `token` as an auth token when it is a real JWT
-      // (header.payload.signature — 3 dot-separated segments). The payment
-      // flow also carries a query param named `token` (a random hex payment
-      // result token on /payment/process); treating that as a session token
-      // would wipe the session and eventually force a redirect to /sign-in.
+      // (header.payload.signature — 3 dot-separated segments). The payment flow
+      // also carries a query param named `token` (a random hex payment result
+      // token on /payment/process); treating that as a session token would wipe
+      // the session and eventually force a redirect to /sign-in.
       if (urlToken && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(urlToken)) {
         window.history.replaceState({}, '', window.location.pathname);
         localStorage.setItem('token', urlToken);
         if (!cancelled) setToken(urlToken);
+
+        // Older builds passed the refresh token here too. Replay it once so the
+        // backend can store it as an HttpOnly cookie, then forget it locally.
         const urlRefreshToken = params.get('refreshToken');
         if (urlRefreshToken) {
-          localStorage.setItem('refreshToken', urlRefreshToken);
+          try {
+            await api.post('/auth/refresh', { refreshToken: urlRefreshToken });
+            localStorage.removeItem('refreshToken');
+          } catch {
+            /* the access token above is already usable */
+          }
         }
+        localStorage.removeItem('refreshToken');
+
         // Fetch user info in background. A failure here (network / 5xx) must
         // NOT invalidate the just-issued token — the user stays signed in and
         // the profile is fetched again on the next API call.
@@ -67,69 +87,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      const storedRefreshToken = localStorage.getItem('refreshToken');
-
-      if (storedToken && storedToken !== 'undefined' && decodeJWT(storedToken)) {
-        // We have a token — check if it's expired
-        if (isTokenExpired(storedToken)) {
-          // Token expired — try to refresh silently. If the refresh fails due to
-          // a transient problem (network / 5xx / server restart), keep the
-          // stored session intact and leave the user signed in — the next
-          // request will retry the refresh. Only a definitive server rejection
-          // (refresh token invalid/expired/reused, or the refresh endpoint
-          // explicitly refusing it) terminates the session.
-          const newToken = await refreshAccessToken();
-          if (newToken && !cancelled) {
-            setToken(newToken);
-            if (storedUser) {
-              try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-            }
-            setLoading(false);
-            return;
-          }
-          // Distinguish "server rejected the token" (definitive → clear) from
-          // "refresh request failed to reach the server" (transient → keep).
-          let definitive = false;
-          try {
-            const probe = await api.get('/auth/user');
-            if (!probe.data?.success) definitive = true;
-          } catch (probeErr) {
-            const probeStatus = (probeErr as { response?: { status?: number } })?.response?.status;
-            definitive = probeStatus === 401 || probeStatus === 403;
-          }
-          if (definitive && !cancelled) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
-            setToken(null);
-            setUser(null);
-          } else if (!cancelled) {
-            // Transient failure — keep the persisted session. The probe request
-            // above may itself have triggered a successful interceptor refresh,
-            // so read the token freshly from localStorage rather than restoring
-            // the original (expired) one into state.
-            const freshToken = localStorage.getItem('token') || storedToken;
-            setToken(freshToken);
-            if (storedUser) {
-              try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-            }
-          }
-        } else {
-          // Token is still valid
-          if (!cancelled) setToken(storedToken);
-          if (storedUser && !cancelled) {
-            try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
-          }
+      // 2. Came back from the Google OAuth redirect. The tokens were delivered
+      //    as an HttpOnly cookie; the access token still needs fetching.
+      if (params.get('auth') === 'success') {
+        params.delete('auth');
+        const qs = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+        resetSessionBootstrap();
+        const restored = await bootstrapSession();
+        if (!cancelled) {
+          setToken(restored.accessToken);
+          setUser((restored.user as User) || null);
+          setLoading(false);
         }
-      } else if (storedToken) {
-        // Stored token is invalid — clean up
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        return;
       }
-      if (!cancelled) setLoading(false);
+
+      // 3. Normal startup: verify and restore the existing session.
+      const restored = await bootstrapSession();
+      if (cancelled) return;
+      setToken(restored.accessToken);
+      if (restored.user) setUser(restored.user as User);
+      setLoading(false);
     }
 
     initAuth();
@@ -164,16 +143,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.post('/auth/login', { email, password });
       if (res.data.success) {
-        const { accessToken, refreshToken, user: userData } = res.data.data;
+        const { accessToken, user: userData } = res.data.data;
         setToken(accessToken);
         setUser(userData);
         localStorage.setItem('token', accessToken);
-        if (refreshToken) {
-          localStorage.setItem('refreshToken', refreshToken);
-        } else {
-          localStorage.removeItem('refreshToken');
-        }
         localStorage.setItem('user', JSON.stringify(userData));
+        // The refresh token is delivered as an HttpOnly cookie by the server and
+        // is deliberately not stored here; drop anything an older build left.
+        localStorage.removeItem('refreshToken');
+        resetSessionBootstrap();
         return { success: true, user: userData };
       }
       return { success: false, error: res.data.error || 'Login failed' };
@@ -186,16 +164,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await api.post('/auth/google', { credential });
       if (res.data.success) {
-        const { accessToken, refreshToken, user: userData } = res.data.data;
+        const { accessToken, user: userData } = res.data.data;
         setToken(accessToken);
         setUser(userData);
         localStorage.setItem('token', accessToken);
-        if (refreshToken) {
-          localStorage.setItem('refreshToken', refreshToken);
-        } else {
-          localStorage.removeItem('refreshToken');
-        }
         localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.removeItem('refreshToken');
+        resetSessionBootstrap();
         return { success: true, user: userData };
       }
       return { success: false, error: res.data.error || 'Google sign-in failed' };
@@ -204,24 +179,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    // Revoke the refresh token server-side (Bearer access token is sent by the
-    // shared axios instance; the refresh token travels in the body). If the
-    // server is unreachable or rejects the request, local state is still wiped
-    // so the user is fully signed out from the browser's perspective — the
-    // un-revoked token simply expires on its own (7d) server-side.
-    const storedRefreshToken = localStorage.getItem('refreshToken');
-    const currentToken = localStorage.getItem('token');
-    if (storedRefreshToken && currentToken) {
-      api.post('/auth/logout', { refreshToken: storedRefreshToken }, {
-        headers: { Authorization: `Bearer ${currentToken}` },
-      }).catch(() => { /* non-blocking: local logout already proceeds */ });
+  const logout = useCallback(async () => {
+    // Ask the backend to revoke the session first. It authenticates from the
+    // HttpOnly refresh cookie, so this works even after the access token
+    // expired. Local state is cleared regardless of the outcome — the user must
+    // always end up signed out in the UI.
+    try {
+      await api.post('/auth/logout', {});
+    } catch {
+      /* server unreachable — clear locally anyway */
     }
+
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    clearStoredAuth();
+    resetSessionBootstrap();
   }, []);
 
   const setAuthFromToken = useCallback(async (newToken: string) => {
