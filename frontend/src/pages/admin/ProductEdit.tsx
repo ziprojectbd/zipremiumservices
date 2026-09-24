@@ -29,6 +29,9 @@ interface Product {
   showImageSlider?: boolean;
   productType?: 'standard' | 'smm' | 'captchamaster';
   captchamasterPlanId?: string;
+  deliveryLink?: string;
+  deliveryLinkLabel?: string;
+  deliveryMessage?: string;
 }
 
 interface Category {
@@ -91,6 +94,9 @@ export default function AdminProductEdit() {
     showImageSlider: true,
     productType: 'standard',
     captchamasterPlanId: '',
+    deliveryLink: '',
+    deliveryLinkLabel: '',
+    deliveryMessage: '',
   });
 
   const [exchangeRate, setExchangeRate] = useState(110);
@@ -126,6 +132,9 @@ export default function AdminProductEdit() {
           showImageSlider: res.data.data.showImageSlider !== false,
           productType: res.data.data.productType || 'standard',
           captchamasterPlanId: res.data.data.captchamasterPlanId || '',
+          deliveryLink: res.data.data.deliveryLink || '',
+          deliveryLinkLabel: res.data.data.deliveryLinkLabel || '',
+          deliveryMessage: res.data.data.deliveryMessage || '',
         });
         const featureLines = (res.data.data.description || '')
           .split('\n')
@@ -673,6 +682,57 @@ export default function AdminProductEdit() {
                 />
               </div>
             )}
+          </div>
+
+          {/* Delivery Instructions */}
+          <div className="border border-white/10 rounded-xl p-4 bg-white/[0.02]">
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-300 mb-1">Delivery Instructions</label>
+              <p className="text-xs text-gray-500">
+                Shown to the customer after the order is delivered. Use this when fulfilment is a
+                download or install step instead of an API key. Leave the link empty to skip it.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Delivery Link</label>
+                <input
+                  type="url"
+                  name="deliveryLink"
+                  value={formData.deliveryLink || ''}
+                  onChange={handleInputChange}
+                  placeholder="https://chromewebstore.google.com/detail/..."
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Link Button Text</label>
+                <input
+                  type="text"
+                  name="deliveryLinkLabel"
+                  value={formData.deliveryLinkLabel || ''}
+                  onChange={handleInputChange}
+                  placeholder="Add to Chrome"
+                  maxLength={40}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">Defaults to "Add to Chrome" when left empty.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Delivery Message</label>
+                <textarea
+                  name="deliveryMessage"
+                  value={formData.deliveryMessage || ''}
+                  onChange={handleInputChange}
+                  rows={3}
+                  placeholder="Optional guidance shown above the button, e.g. 'Install the extension, then open its options and paste your API key.'"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Product Images */}

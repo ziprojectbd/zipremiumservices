@@ -5,6 +5,7 @@ import { History, Zap, Clock, Check, AlertCircle, Eye, EyeOff } from 'lucide-rea
 import api from '../../lib/axios';
 import type { Order } from '../../types';
 import { formatPrice } from '../../utils/formatPrice';
+import DeliveryLinkCard from '../../components/public/DeliveryLinkCard';
 
 /** Normalize a raw DB status to our frontend Order status */
 function normalizeStatus(raw: string): Order['status'] {
@@ -69,6 +70,9 @@ function mapOrder(raw: any): Order {
     cryptoCurrency: raw.cryptoCurrency || raw.crypto_currency || '',
     currency: raw.currency || 'BDT',
     deliveryNote: raw.deliveryNote || '',
+    deliveryLink: raw.deliveryLink || '',
+    deliveryLinkLabel: raw.deliveryLinkLabel || '',
+    deliveryMessage: raw.deliveryMessage || '',
     captchaApiKey: raw.captchaApiKey || null,
     p2pToken: raw.p2pToken || '',
     p2pNetwork: raw.p2pNetwork || '',
@@ -483,6 +487,14 @@ export default function OrderDetails() {
               <p className="text-gray-200 text-xs sm:text-sm whitespace-pre-wrap">{order.deliveryNote}</p>
             </div>
           )}
+
+          {/* Delivery link (e.g. install a browser extension) */}
+          <DeliveryLinkCard
+            link={order.deliveryLink}
+            label={order.deliveryLinkLabel}
+            message={order.deliveryMessage}
+            className="mt-3 sm:mt-4"
+          />
         </div>
       </div>
     </div>

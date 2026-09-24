@@ -229,6 +229,28 @@ const orderSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Delivery instructions copied from the product at delivery time.
+  // Stored on the order (not read live from the product) so the customer always
+  // sees the exact link and wording that applied when their order was fulfilled,
+  // even if the product is edited or deleted afterwards.
+  deliveryLink: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
+  deliveryLinkLabel: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
+  deliveryMessage: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
   captchaApiKey: {
     type: String,
     required: false,

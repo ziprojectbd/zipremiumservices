@@ -122,6 +122,29 @@ const productSchema = new mongoose.Schema({
     default: null,
     trim: true,
   },
+  // ---------------------------------------------------------------------
+  // Delivery instructions shown to the customer after the order is delivered.
+  //
+  // Used by products whose fulfilment is a download/install step rather than an
+  // API key (e.g. a browser extension). `deliveryLink` is the URL the customer
+  // is sent to, `deliveryLinkLabel` is the button text, and `deliveryMessage`
+  // is optional extra guidance rendered above the button.
+  // ---------------------------------------------------------------------
+  deliveryLink: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryLinkLabel: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryMessage: {
+    type: String,
+    default: '',
+    trim: true,
+  },
   orderFields: {
     type: [{
       key: { type: String, required: true },
@@ -251,6 +274,13 @@ if (existingProductModel && !existingProductModel.schema.path('productType')) {
       sparse: true,
     },
     captchamasterPlanId: { type: String, default: null, trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('deliveryLink')) {
+  existingProductModel.schema.add({
+    deliveryLink: { type: String, default: '', trim: true },
+    deliveryLinkLabel: { type: String, default: '', trim: true },
+    deliveryMessage: { type: String, default: '', trim: true },
   });
 }
 if (existingProductModel && !existingProductModel.schema.path('seoTitle')) {

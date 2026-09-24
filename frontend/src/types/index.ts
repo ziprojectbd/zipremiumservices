@@ -127,6 +127,11 @@ export interface Order {
     discountAmount?: number;
     discountType?: string;
     deliveryNote?: string;
+    // Delivery instructions frozen on the order at delivery time (e.g. a
+    // browser-extension install link for products fulfilled by download).
+    deliveryLink?: string;
+    deliveryLinkLabel?: string;
+    deliveryMessage?: string;
     delivery?: {
         provider?: string;
         status?: 'pending' | 'completed' | 'failed' | '';

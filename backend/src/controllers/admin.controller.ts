@@ -351,6 +351,37 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
         }
 
         // ------------------------------------------------------------------
+        // Delivery instructions (download/install link).
+        //
+        // Products that are fulfilled by sending the customer somewhere (a
+        // browser-extension install page, for example) carry deliveryLink /
+        // deliveryLinkLabel / deliveryMessage. They are copied onto the order
+        // here so the value is frozen at fulfilment time — editing or deleting
+        // the product afterwards never changes what the customer already saw.
+        // ------------------------------------------------------------------
+        {
+          const candidateIds = [
+            ...(order.items || []).map((item: any) => item?.product || item?.productId),
+            (order as any).product,
+            (order as any).productId,
+          ]
+            .map((id: unknown) => String(id ?? ''))
+            .filter((id: string) => id.length === 24 && /^[a-f0-9]+$/i.test(id));
+
+          if (candidateIds.length) {
+            const products = await Product.find({ _id: { $in: candidateIds } })
+              .select('deliveryLink deliveryLinkLabel deliveryMessage')
+              .lean();
+            const withLink = products.find((p: any) => String(p.deliveryLink || '').trim());
+            if (withLink) {
+              (order as any).deliveryLink = withLink.deliveryLink || '';
+              (order as any).deliveryLinkLabel = withLink.deliveryLinkLabel || '';
+              (order as any).deliveryMessage = withLink.deliveryMessage || '';
+            }
+          }
+        }
+
+        // ------------------------------------------------------------------
         // Detect a CaptchaMaster line item and resolve its reseller plan id.
         //
         // The plan id can live in several places depending on how the order

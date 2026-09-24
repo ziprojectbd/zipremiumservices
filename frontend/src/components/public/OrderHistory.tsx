@@ -2,6 +2,7 @@ import type { CartItem } from '../../types';
 import { History } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { formatPrice } from '../../utils/formatPrice';
+import DeliveryLinkCard from './DeliveryLinkCard';
 
 export interface Order {
   id: string;
@@ -27,6 +28,10 @@ export interface Order {
   currency?: string;
   captchaApiKey?: string | null;
   deliveryNote?: string;
+  // Frozen at delivery time from the product's delivery instructions.
+  deliveryLink?: string;
+  deliveryLinkLabel?: string;
+  deliveryMessage?: string;
 }
 
 export interface OrderHistoryProps {
@@ -163,6 +168,16 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Delivery instructions (e.g. install a browser extension) */}
+              {order.status === "completed" && (
+                <DeliveryLinkCard
+                  link={order.deliveryLink}
+                  label={order.deliveryLinkLabel}
+                  message={order.deliveryMessage}
+                  className="mb-4"
+                />
+              )}
 
               <div className="flex gap-3">
                 <button

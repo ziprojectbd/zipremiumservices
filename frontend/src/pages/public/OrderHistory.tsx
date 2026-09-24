@@ -106,6 +106,9 @@ export default function OrderHistoryPage() {
                         p2pWalletAddress: order.p2pWalletAddress || "",
                         captchaApiKey: order.captchaApiKey || null,
                         deliveryNote: order.deliveryNote || "",
+                        deliveryLink: order.deliveryLink || "",
+                        deliveryLinkLabel: order.deliveryLinkLabel || "",
+                        deliveryMessage: order.deliveryMessage || "",
                     };
                 });
 
