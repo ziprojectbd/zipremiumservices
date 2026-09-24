@@ -11,12 +11,6 @@ export interface DeliveryLinkCardProps {
   /** Rendered inside the card, above the message (e.g. an API key block). */
   children?: ReactNode;
   className?: string;
-  /**
-   * Surface this card is rendered on. The order history page is dark and the
-   * order details page is light, so the card has to adapt rather than assume
-   * one background.
-   */
-  theme?: 'dark' | 'light';
 }
 
 /** Chrome Web Store install pages get browser-specific wording/icon. */
@@ -41,7 +35,6 @@ export default function DeliveryLinkCard({
   message,
   children,
   className = '',
-  theme = 'dark',
 }: DeliveryLinkCardProps) {
   const url = String(link || '').trim();
   if (!url) return null;
@@ -53,24 +46,19 @@ export default function DeliveryLinkCard({
 
   const Icon = chromeStore ? Chrome : isExtensionFile(url) ? Download : ExternalLink;
 
-  const isLight = theme === 'light';
-  const cardClass = isLight
-    ? 'border-cyan-200 bg-cyan-50'
-    : 'border-cyan-500/25 bg-gradient-to-r from-cyan-500/10 to-blue-500/10';
-  const titleClass = isLight ? 'text-gray-900' : 'text-white';
-  const messageClass = isLight ? 'text-gray-700' : 'text-gray-200';
-
   return (
-    <div className={`rounded-2xl border p-3 sm:p-4 ${cardClass} ${className}`}>
+    <div
+      className={`rounded-2xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 p-3 sm:p-4 ${className}`}
+    >
       <div className="flex items-center gap-2 mb-2.5">
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
           <Icon className="w-3.5 h-3.5 text-white" />
         </div>
-        <h4 className={`font-semibold text-sm sm:text-base ${titleClass}`}>Your Delivery</h4>
+        <h4 className="font-semibold text-white text-sm sm:text-base">Your Delivery</h4>
       </div>
 
       {trimmedMessage && (
-        <p className={`text-xs sm:text-sm whitespace-pre-wrap mb-3 leading-relaxed ${messageClass}`}>
+        <p className="text-gray-200 text-xs sm:text-sm whitespace-pre-wrap mb-3 leading-relaxed">
           {trimmedMessage}
         </p>
       )}

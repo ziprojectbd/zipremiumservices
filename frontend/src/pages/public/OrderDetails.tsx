@@ -148,7 +148,7 @@ export default function OrderDetails() {
     <button
       type="button"
       onClick={() => copyText(fieldKey, value)}
-      className="ml-2 px-1.5 py-0.5 rounded border border-gray-300 text-[10px] font-medium text-gray-600 hover:text-gray-900 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+      className="ml-2 px-1.5 py-0.5 rounded border border-white/15 text-[10px] text-gray-400 hover:text-white hover:border-white/30 transition-colors"
     >
       {copiedField === fieldKey ? 'Copied' : 'Copy'}
     </button>
@@ -169,10 +169,10 @@ export default function OrderDetails() {
     const text = value === 0 ? '0' : String(value ?? '').trim();
     if (!text) return null;
     return (
-      <div className="flex items-start justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
+      <div className="flex items-start justify-between gap-4 py-2 border-b border-white/5 last:border-0">
         <span className="text-xs text-gray-500 shrink-0 pt-0.5">{label}</span>
         <span
-          className={`text-xs sm:text-sm text-gray-900 text-right break-all inline-flex items-center justify-end flex-wrap ${
+          className={`text-xs sm:text-sm text-gray-100 text-right break-all inline-flex items-center justify-end flex-wrap ${
             mono ? 'font-mono' : ''
           }`}
         >
@@ -191,7 +191,7 @@ export default function OrderDetails() {
     title: string;
     children: React.ReactNode;
   }) => (
-    <section className="border border-gray-200 rounded-xl bg-gray-50 px-3 sm:px-4 py-3">
+    <section className="border border-white/10 rounded-xl bg-white/[0.02] px-3 sm:px-4 py-3">
       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-1">
         {title}
       </h4>
@@ -209,10 +209,10 @@ export default function OrderDetails() {
 
   if (pageLoading && !order) {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading order details...</p>
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading order details...</p>
         </div>
       </div>
     );
@@ -220,11 +220,11 @@ export default function OrderDetails() {
 
   if (!order || fetchError) {
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100">
         <div className="flex flex-col items-center justify-center py-20">
-          <History className="w-16 h-16 mb-4 text-gray-300" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Order Not Found</h3>
-          <p className="text-gray-500 mb-6">The order you are looking for does not exist.</p>
+          <History className="w-16 h-16 mb-4 text-gray-500" />
+          <h3 className="text-xl font-semibold text-white mb-2">Order Not Found</h3>
+          <p className="text-gray-400 mb-6">The order you are looking for does not exist.</p>
           <button
             onClick={() => navigate('/order-history')}
             className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
@@ -237,20 +237,20 @@ export default function OrderDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 transition-colors">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100 transition-colors">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <button
           onClick={() => navigate('/order-history')}
-          className="mb-5 text-sm px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors shadow-sm"
+          className="mb-5 text-sm px-4 py-2 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition-colors"
         >
           &larr; Back to Order History
         </button>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
+        <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-4 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-4 border-b border-white/10">
             <div className="min-w-0">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Order Details</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-white">Order Details</h3>
               <p className="text-xs text-gray-500 mt-0.5 break-all">
                 {order.orderNumber ? `Order #${order.orderNumber}` : `Order #${order.id}`}
                 {' · '}
@@ -260,12 +260,12 @@ export default function OrderDetails() {
             <span
               className={`self-start px-3 py-1 rounded-full text-[11px] font-semibold capitalize shrink-0 ${
                 order.status === 'completed'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-green-500/15 text-green-400'
                   : order.status === 'processing'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-blue-500/15 text-blue-400'
                     : order.status === 'cancelled'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-yellow-100 text-yellow-700'
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-yellow-500/15 text-yellow-400'
               }`}
             >
               {order.status}
@@ -275,14 +275,13 @@ export default function OrderDetails() {
           {/* Delivery link (e.g. install a browser extension) */}
           <DeliveryLinkCard
             className="mt-4"
-            theme="light"
             link={order.deliveryLink}
             label={order.deliveryLinkLabel}
             message={order.deliveryMessage}
           />
 
           {order.status === 'cancelled' && (
-            <div className="mt-4 flex items-center gap-2 text-red-700 bg-red-50 py-2.5 px-3 rounded-lg border border-red-200">
+            <div className="mt-4 flex items-center gap-2 text-red-400 bg-red-500/10 py-2.5 px-3 rounded-lg border border-red-500/20">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span className="text-xs font-medium">This order has been cancelled</span>
             </div>
@@ -343,7 +342,7 @@ export default function OrderDetails() {
                 <div className="flex items-start justify-between gap-3 py-2">
                   <span className="text-xs text-gray-500 shrink-0 pt-0.5">API Key</span>
                   <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right min-w-0">
-                    <code className="text-xs sm:text-sm font-mono font-medium text-emerald-700 break-all">
+                    <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
                       {visibleKeys.has('captcha_api_key')
                         ? order.captchaApiKey
                         : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
@@ -351,7 +350,7 @@ export default function OrderDetails() {
                     <button
                       type="button"
                       onClick={() => toggleKeyVisibility('captcha_api_key')}
-                      className="p-1 text-gray-400 hover:text-gray-900 transition-colors shrink-0"
+                      className="p-1 text-gray-500 hover:text-white transition-colors shrink-0"
                       title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
                     >
                       {visibleKeys.has('captcha_api_key') ? (
@@ -386,7 +385,7 @@ export default function OrderDetails() {
             {order.deliveryNote && (
               <Section title="Delivery Note">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs sm:text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
                     {order.deliveryNote}
                   </p>
                   <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
@@ -397,19 +396,19 @@ export default function OrderDetails() {
             {/* Items — full width so long names and links stay readable */}
             <div className="lg:col-span-2">
               <Section title={`Items (${order.items.length})`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y divide-gray-100 md:divide-y-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y divide-white/5 md:divide-y-0">
                   {order.items.map((item: any, idx: number) => (
                     <div
                       key={idx}
-                      className="py-2.5 first:pt-0 last:pb-0 md:border-b md:border-gray-100"
+                      className="py-2.5 first:pt-0 last:pb-0 md:border-b md:border-white/5"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <span className="text-xs sm:text-sm text-gray-900 min-w-0">
+                        <span className="text-xs sm:text-sm text-gray-100 min-w-0">
                           {item.productName || item.name}
                           <span className="text-gray-500"> ×{item.quantity}</span>
                         </span>
                         <div className="text-right shrink-0">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">
+                          <div className="text-xs sm:text-sm font-medium text-gray-100">
                             ৳{formatPrice(item.price * item.quantity, 2)}
                           </div>
                           {isCrypto(order) && item.usdtAmount && (
@@ -421,25 +420,25 @@ export default function OrderDetails() {
                       </div>
                       {item.link && (
                         <div className="mt-1 text-[11px] text-gray-500">
-                          Link: <span className="font-mono text-cyan-700 break-all">{item.link}</span>
+                          Link: <span className="font-mono text-cyan-400/90 break-all">{item.link}</span>
                         </div>
                       )}
                       {item.smmServiceId && (
                         <div className="mt-0.5 text-[11px] text-gray-500">
-                          Service ID: <span className="font-mono text-orange-700">{item.smmServiceId}</span>
+                          Service ID: <span className="font-mono text-orange-400/90">{item.smmServiceId}</span>
                         </div>
                       )}
                       {item.smmOrderId && (
                         <div className="mt-0.5 text-[11px] text-gray-500">
-                          SMM Order ID: <span className="font-mono text-green-700">{item.smmOrderId}</span>
+                          SMM Order ID: <span className="font-mono text-green-400/90">{item.smmOrderId}</span>
                         </div>
                       )}
                       {item.details && (
                         <details className="mt-1.5">
-                          <summary className="text-[11px] text-blue-600 cursor-pointer hover:text-blue-700">
+                          <summary className="text-[11px] text-blue-400 cursor-pointer hover:text-blue-300">
                             Service info &amp; instructions
                           </summary>
-                          <div className="mt-1.5 p-2.5 bg-white border border-gray-200 rounded-lg whitespace-pre-wrap text-[11px] text-gray-700 leading-relaxed">
+                          <div className="mt-1.5 p-2.5 bg-black/20 rounded-lg whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed">
                             {item.details}
                           </div>
                         </details>
