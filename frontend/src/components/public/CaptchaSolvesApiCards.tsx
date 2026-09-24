@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer } from "lucide-react";
+import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer, Puzzle } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useShopContext } from "../../store/ShopContext";
 import api from "../../lib/axios";
@@ -192,7 +192,11 @@ export default function CaptchaSolvesApiCards({
   const [plans, setPlans] = useState<CaptchaPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pricingTab, setPricingTab] = useState<"all" | "daily" | "count">("all");
+  // "funcaptcha" is a service filter rather than a billing type: the reseller
+  // marks FunCaptcha plans with an F code (F1…F30) while the rest of the
+  // catalogue is D/C/P. It sits in the same row as the type tabs because from
+  // the customer's point of view it is just another way to slice the pricing.
+  const [pricingTab, setPricingTab] = useState<"all" | "daily" | "count" | "funcaptcha">("all");
 
   // Prefix filter first, so the tab counts and the empty state both reflect the
   // series this page is about (e.g. the FunCaptcha page only ever counts F plans).
@@ -200,10 +204,16 @@ export default function CaptchaSolvesApiCards({
     ? plans.filter((plan) => String(plan.code).toUpperCase().startsWith(planCodePrefix.toUpperCase()))
     : plans;
 
+  const isFuncaptchaCode = (code: string) => /^F\d+$/i.test(String(code || '').trim());
+
   const filteredPlans = prefixPlans.filter((plan) => {
     if (pricingTab === "all") return true;
+    if (pricingTab === "funcaptcha") return isFuncaptchaCode(plan.code);
     return plan.type === pricingTab;
   });
+
+  // How many plans each tab would show — used to keep the chips honest.
+  const funcaptchaCount = prefixPlans.filter((plan) => isFuncaptchaCode(plan.code)).length;
   const [activePackages, setActivePackages] = useState<ActivePackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
@@ -428,20 +438,50 @@ export default function CaptchaSolvesApiCards({
       </span>
     </div>
     <div className="flex items-center justify-center sm:justify-start mb-6">
-      <div className="flex gap-2">
-        {(["all", "daily", "count"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setPricingTab(tab)}
-            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-              pricingTab === tab
-                ? "bg-[#9CD321] text-black"
-                : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
-            }`}
-          >
-            {tab === "all" ? "ALL" : tab === "daily" ? "DAILY" : "COUNT"}
-          </button>
-        ))}
+      <div className="flex flex-wrap justify-center sm:justify-start gap-2">
+        {(["all", "daily", "count", "funcaptcha"] as const).map((tab) => {
+          const label =
+            tab === "all"
+              ? "ALL"
+              : tab === "daily"
+                ? "DAILY"
+                : tab === "count"
+                  ? "COUNT"
+                  : "FUNCAPTCHA";
+          const isActive = pricingTab === tab;
+          const isFuncaptchaTab = tab === "funcaptcha";
+
+          // The FunCaptcha chip reuses the violet identity from the category bar.
+          const activeClass = isFuncaptchaTab
+            ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30 border border-white/20"
+            : "bg-[#9CD321] text-black";
+          const idleClass = isFuncaptchaTab
+            ? "bg-violet-500/10 text-violet-300 border border-violet-500/40 hover:border-violet-400/70 hover:bg-violet-500/20"
+            : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300";
+
+          return (
+            <button
+              key={tab}
+              onClick={() => setPricingTab(tab)}
+              aria-pressed={isActive}
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                isActive ? activeClass : idleClass
+              }`}
+            >
+              {isFuncaptchaTab && <Puzzle className="w-3.5 h-3.5" />}
+              {label}
+              {isFuncaptchaTab && (
+                <span
+                  className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-bold ${
+                    isActive ? "bg-white/25 text-white" : "bg-violet-500/20 text-violet-200"
+                  }`}
+                >
+                  {funcaptchaCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
 
@@ -451,7 +491,11 @@ export default function CaptchaSolvesApiCards({
           <ShoppingCart className="w-8 h-8 text-gray-500" />
         </div>
         <h3 className="text-xl font-bold text-white mb-2">No Plans Found</h3>
-        <p className="text-gray-400">No {pricingTab} plans available. Try another tab.</p>
+        <p className="text-gray-400">
+          {pricingTab === "funcaptcha"
+            ? "No FunCaptcha plans available right now. Try another tab."
+            : `No ${pricingTab} plans available. Try another tab.`}
+        </p>
       </div>
     ) : (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
