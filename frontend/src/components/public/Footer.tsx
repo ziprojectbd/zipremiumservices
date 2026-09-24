@@ -110,7 +110,7 @@ export default function Footer() {
               <a href="https://www.instagram.com/zikrulislam.juwel" target="_blank" rel="noopener noreferrer" className="text-gray-200 hover:text-white transition-all duration-300 ease-out hover:scale-110" style={{ willChange: 'transform, color' }}>
                 <Instagram size={20} />
               </a>
-              <a href="https://t.me/trustedearningsources" target="_blank" rel="noopener noreferrer" className="text-gray-200 hover:text-white transition-all duration-300 ease-out hover:scale-110" style={{ willChange: 'transform, color' }}>
+              <a href="https://t.me/zipremiumservices_official" target="_blank" rel="noopener noreferrer" className="text-gray-200 hover:text-white transition-all duration-300 ease-out hover:scale-110" style={{ willChange: 'transform, color' }}>
                 <Send size={20} />
               </a>
             </div>
@@ -123,7 +123,7 @@ export default function Footer() {
             <p className="text-sm text-gray-200">
               Crafted by{" "}
               <a
-                href="https://t.me/zikrulislamjuwel"
+                href="https://t.me/zipremiumservices"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-indigo-400 hover:brightness-125 transition-all duration-300 ease-out underline-offset-2 hover:underline hover:scale-105"
