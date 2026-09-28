@@ -1271,21 +1271,25 @@ export default function AdminCaptchaMasterPage() {
                   </p>
                 </div>
 
-                {/* Email greeting name */}
+                {/* Email greeting — optional override */}
                 <div className="mb-6">
-                  <label className="block text-white font-medium text-sm mb-2">Email Greeting Name</label>
+                  <label className="block text-white font-medium text-sm mb-2">
+                    Email Greeting Override{' '}
+                    <span className="text-white/40 font-normal">(optional)</span>
+                  </label>
                   <input
                     type="text"
                     value={emailGreetingName}
                     onChange={(e) => setEmailGreetingName(e.target.value)}
-                    placeholder="Dear Customer"
+                    placeholder="Leave empty to greet each customer by name"
                     maxLength={60}
                     className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50"
                   />
                   <p className="text-white/40 text-xs mt-2">
-                    Sent with every purchase so the CaptchaMaster completion email greets the customer
-                    with this text. Without it the email falls back to your store name. Default:{' '}
-                    <span className="text-white/60">Dear Customer</span>
+                    CaptchaMaster emails greet the customer using the name on their order. Leave this
+                    empty to do that automatically. Set a value only to force a fixed greeting for
+                    every customer (generic text like <span className="text-white/60">Dear Customer</span>{' '}
+                    is ignored). Your store name is never used as the customer's name.
                   </p>
                 </div>
 

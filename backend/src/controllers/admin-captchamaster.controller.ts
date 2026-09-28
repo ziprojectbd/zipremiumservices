@@ -1,4 +1,4 @@
-import CaptchaPackage from '@models/CaptchaPackage';
+﻿import CaptchaPackage from '@models/CaptchaPackage';
 import CaptchaOrder from '@models/CaptchaOrder';
 import CaptchaApiKey from '@models/CaptchaApiKey';
 import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
@@ -13,7 +13,7 @@ import { getCaptchaMasterService, CaptchaMasterError } from '@utils/captchamaste
 
 // Reseller package shape returned to the admin UI. Reseller API uses
 // packageCode/packageName/endDate/key while the UI expects
-// planName/expiresAt/key — normalise here so both sources look identical.
+// planName/expiresAt/key â€” normalise here so both sources look identical.
 function toAdminPackage(p: any) {
   const credits = Number(p.credits ?? 0);
   const creditsUsed = Number(p.creditsUsed ?? 0);
@@ -126,7 +126,7 @@ export const getAdminCaptchaStats = asyncHandler(async (req, res) => {
     totalFailed: 0,
   };
 
-  // Reseller wallet stats — the authoritative source for the admin dashboard.
+  // Reseller wallet stats â€” the authoritative source for the admin dashboard.
   // If the key is missing/invalid we still return local numbers plus a warning
   // instead of failing the whole page.
   try {
@@ -216,7 +216,7 @@ export const deleteAdminCaptchaPackage = asyncHandler(async (req, res) => {
     await service.deletePackage(id);
     resellerDeleted = true;
   } catch (err: any) {
-    // Reseller may not know this id (locally-created package) — fall through
+    // Reseller may not know this id (locally-created package) â€” fall through
     // and still remove the local copy.
     resellerError = err?.message || 'Failed to delete package remotely';
   }
@@ -322,7 +322,7 @@ export const deleteAdminCaptchaApiKey = asyncHandler(async (req, res) => {
   return res.json(success(null, 'API key deleted'));
 });
 
-// Helper — singleton settings getter (creates default doc on first access)
+// Helper â€” singleton settings getter (creates default doc on first access)
 async function getCaptchaGlobalSettings() {
   let doc = await CaptchaMasterSettings.findById('global').lean();
   if (!doc) {
@@ -332,7 +332,7 @@ async function getCaptchaGlobalSettings() {
   return doc;
 }
 
-// GET /api/admin/captchamaster/settings — fetch reseller & pricing settings
+// GET /api/admin/captchamaster/settings â€” fetch reseller & pricing settings
 export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
@@ -344,12 +344,12 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
-      emailGreetingName: settings.emailGreetingName || 'Dear Customer',
+      emailGreetingName: settings.emailGreetingName || '',
     })
   );
 });
 
-// PUT /api/admin/captchamaster/settings — update reseller & pricing settings
+// PUT /api/admin/captchamaster/settings â€” update reseller & pricing settings
 export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
@@ -378,7 +378,10 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
     update.resellerApiKey = String(resellerApiKey || '').trim();
   }
   if (emailGreetingName !== undefined) {
-    update.emailGreetingName = String(emailGreetingName || '').trim() || 'Dear Customer';
+    // Empty means "greet each customer by the name on their order".
+    // resolveCustomerName ignores generic text, so a value like "Dear Customer"
+    // is equivalent to leaving it empty.
+    update.emailGreetingName = String(emailGreetingName || '').trim();
   }
 
   const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, {
@@ -399,12 +402,12 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
       discountEnabled: settings.discountEnabled,
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
-      emailGreetingName: settings.emailGreetingName || 'Dear Customer',
+      emailGreetingName: settings.emailGreetingName || '',
     })
   );
 });
 
-// POST /api/admin/captchamaster/test — verify the reseller API key works.
+// POST /api/admin/captchamaster/test â€” verify the reseller API key works.
 // Accepts an optional `resellerApiKey` in the body so the admin can validate a
 // key BEFORE saving it.
 export const testAdminCaptchaConnection = asyncHandler(async (req, res) => {
@@ -436,7 +439,7 @@ export const testAdminCaptchaConnection = asyncHandler(async (req, res) => {
     const statusCode = err instanceof CaptchaMasterError ? err.statusCode : undefined;
     const message =
       err?.message || 'Failed to connect to CaptchaMaster. Check the API key.';
-    // 401 from reseller = wrong/revoked key → surface as 400 (client error).
+    // 401 from reseller = wrong/revoked key â†’ surface as 400 (client error).
     return res.status(statusCode === 401 ? 400 : 502).json(error(message));
   }
 });

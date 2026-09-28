@@ -25,12 +25,15 @@ const captchaMasterSettingsSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
-  // Name sent to CaptchaMaster with every purchase so the completion email
-  // greets the recipient with this text instead of falling back to the
-  // reseller store name ("ZI PREMIUM SERVICES").
+  // Optional override for the greeting in the CaptchaMaster completion email.
+  //
+  // Empty by default so each customer is greeted by their own name (taken from
+  // the order / their account). Generic greetings such as "Dear Customer" are
+  // ignored by the delivery code, and the reseller store name is never used as
+  // a customer name.
   emailGreetingName: {
     type: String,
-    default: 'Dear Customer',
+    default: '',
     trim: true,
   },
 }, {

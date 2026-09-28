@@ -394,36 +394,50 @@ class CaptchaMasterService {
 
   /**
    * Purchase a package for a customer
-   * POST /reseller/purchase
+   * POST /reseller/purchase/:planId
    *
-   * `customerName` is sent so the CaptchaMaster completion email greets the
-   * recipient with our text instead of falling back to the reseller store name.
-   * The field is additive: if the endpoint ignores unknown body fields the
-   * request still succeeds, and once the vendor honours it the greeting
-   * switches automatically.
+   * Only `customerEmail` is documented by the vendor, but its completion-email
+   * template exposes a `name` placeholder ("Recipient full name") which falls
+   * back to the reseller store name ("ZI PREMIUM SERVICES") when the request
+   * carries no name. We therefore send the real customer name as `customerName`
+   * (plus `customerPhone` when known) so the email addresses the buyer.
+   *
+   * The extra fields are additive: an endpoint that ignores unknown body fields
+   * still succeeds, and once the vendor honours them the greeting switches
+   * automatically. The store name is never sent as a customer name.
    */
   async purchasePackage(
     planId: string,
     customerEmail: string,
-    customerName?: string
+    customerName?: string,
+    options?: { customerPhone?: string }
   ): Promise<CaptchaMasterPurchaseResult> {
     if (!planId) {
       throw new CaptchaMasterError('Plan ID is required');
     }
-    if (!customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+
+    const email = String(customerEmail || '').trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new CaptchaMasterError('A valid customer email is required');
     }
 
     const name = String(customerName || '').trim();
+    const phone = String(options?.customerPhone || '').trim();
 
-    devLog(
-      '[CaptchaMaster] Purchasing package - plan:',
-      planId,
-      'customer:',
-      customerEmail,
-      'name:',
-      name || '(none)'
-    );
+    // Log without PII: the plan id and whether a name/phone accompanied the
+    // request are enough to debug a purchase. The email, the name and the API
+    // key are never written to logs.
+    devLog('[CaptchaMaster] Purchasing package - plan:', planId, {
+      hasCustomerEmail: true,
+      hasCustomerName: Boolean(name),
+      hasCustomerPhone: Boolean(phone),
+    });
+
+    // Build the body explicitly so a stray field can never leak through.
+    const body: Record<string, string> = { customerEmail: email };
+    if (name) body.customerName = name;
+    if (phone) body.customerPhone = phone;
+
     const response = await this.client.post<{
       success: boolean;
       message?: string;
@@ -432,10 +446,7 @@ class CaptchaMasterService {
       key?: string;
       balance?: number;
       error?: string;
-    }>(
-      `/reseller/purchase/${planId}`,
-      name ? { customerEmail, customerName: name } : { customerEmail }
-    );
+    }>(`/reseller/purchase/${planId}`, body);
     const result = response.data;
 
     if (!result.success) {

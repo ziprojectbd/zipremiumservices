@@ -1,5 +1,6 @@
 import Product from '@models/Product';
 import Order from '@models/Order';
+import User from '@models/User';
 import Category from '@models/Category';
 import Coupon from '@models/Coupon';
 import Campaign from '@models/Campaign';
@@ -503,9 +504,16 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
         // Call CaptchaMaster API for captchamaster products
         if (captchaItemDetected && captchamasterPlanId) {
-          const customerEmail = (order as any).email || (order as any).customerEmail || '';
-          if (!customerEmail) {
-            return res.status(400).json(error('Order has no customer email for delivery'));
+          const customerEmail = String((order as any).email || (order as any).customerEmail || '')
+            .trim()
+            .toLowerCase();
+
+          // Validate the required field before spending credits. A missing or
+          // malformed email is a hard stop — the vendor needs it to deliver.
+          if (!customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+            return res
+              .status(400)
+              .json(error('Cannot deliver: this order has no valid customer email address.'));
           }
 
           try {
@@ -513,16 +521,36 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
             const CaptchaMasterSettings = (await import('@models/CaptchaMasterSettings')).default;
             const service = await getCaptchaMasterService();
 
-            // Greeting name for the CaptchaMaster completion email.
-            // Priority: the configured greeting (default "Dear Customer") so the
-            // email never falls back to the reseller store name.
+            // Admin override (the "Email Greeting Name" setting). It ships as
+            // the generic "Dear Customer", which resolveCustomerName treats as
+            // "not configured", so the real purchaser's name wins by default.
             const settings = await CaptchaMasterSettings.findById('global').lean();
-            const greetingName = String(settings?.emailGreetingName || 'Dear Customer').trim();
+            const override = String(settings?.emailGreetingName || '').trim();
+
+            // Recipient name for the vendor's completion email.
+            //
+            // The vendor's `name` template slot falls back to the reseller store
+            // name ("ZI PREMIUM SERVICES") when the request carries no name, so
+            // we always send the real purchaser: the order's name, else the
+            // account name, else the email local part. The store name is never
+            // sent as a customer name.
+            const customerName = await resolveCustomerName(
+              (order as any).username,
+              customerEmail,
+              override
+            );
+
+            // Phone is only available when the customer paid with a mobile
+            // wallet; it is optional for the vendor.
+            const customerPhone = String(
+              (order as any).paymentNumber || (order as any).payerNumber || ''
+            ).trim();
 
             const result = await service.purchasePackage(
               captchamasterPlanId,
               customerEmail,
-              greetingName
+              customerName,
+              { customerPhone }
             );
 
             (order as any).captchaApiKey = result.apiKey || '';
@@ -618,6 +646,80 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 // ---------------------------------------------------------------------------
 // CaptchaMaster plan resolution helpers
 // ---------------------------------------------------------------------------
+
+// Resolve the purchaser's real name for the CaptchaMaster completion email.
+//
+// Priority is most-specific-first so the vendor never receives our own store
+// name in a customer slot:
+//   1. an explicit admin override that is not generic/branding
+//   2. the name captured on the order (set from the signed-in user at checkout)
+//   3. the account name for the order's email (covers orders created before the
+//      name was stored on the order)
+//   4. the local part of the email, which is still a real customer identifier
+//
+// "ZI PREMIUM SERVICES", "Dear Customer" and similar placeholders are rejected
+// at every step — those belong to merchant branding, not to the recipient.
+const BRANDING_NAMES = [
+  /^zi\s*premium/i,
+  /^zi\s*services/i,
+  /^dear\s+customer$/i,
+  /^valued\s+customer$/i,
+  /^customer$/i,
+];
+
+function isBrandingName(value: string): boolean {
+  const v = String(value || '').trim();
+  if (!v) return true;
+  return BRANDING_NAMES.some((re) => re.test(v));
+}
+
+async function resolveCustomerName(
+  rawName: unknown,
+  email: string,
+  override?: string,
+): Promise<string> {
+  // 0. Admin override, when it is a real name rather than a generic greeting.
+  const overrideName = sanitizeCustomerName(override || '');
+  if (overrideName && !isBrandingName(overrideName)) return overrideName;
+
+  // 1. Order-level name.
+  if (typeof rawName === 'string') {
+    const candidate = sanitizeCustomerName(rawName);
+    if (candidate && !isBrandingName(candidate)) return candidate;
+  }
+
+  // 2. Account name for this email.
+  try {
+    if (email) {
+      const user = await User.findOne({ email: email.toLowerCase().trim() })
+        .select('name username')
+        .lean();
+      const fromAccount = sanitizeCustomerName((user as any)?.name || (user as any)?.username || '');
+      if (fromAccount && !isBrandingName(fromAccount)) return fromAccount;
+    }
+  } catch {
+    // Non-fatal: fall through to the email local part.
+  }
+
+  // 3. Email local part — still identifies the buyer.
+  const local = String(email || '').split('@')[0].trim();
+  return sanitizeCustomerName(local);
+}
+
+// Trim, collapse whitespace and strip markup/control characters so an
+// untrusted name cannot inject newlines or HTML into the vendor's email.
+function sanitizeCustomerName(value: string): string {
+  return String(value || '')
+    // Drop whole tags first ("<b>Evil</b>" -> "Evil") rather than leaving the
+    // tag bodies behind.
+    .replace(/<[^>]*>/g, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+}
 
 // Extract the reseller plan code from an order item. Historically the code was
 // embedded in the product id (`cm-D1`) and in the product name
