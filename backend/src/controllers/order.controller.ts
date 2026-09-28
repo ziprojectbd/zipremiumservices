@@ -3,6 +3,7 @@ import Product from '@models/Product';
 import Campaign from '@models/Campaign';
 import Coupon from '@models/Coupon';
 import CaptchaPackage from '@models/CaptchaPackage';
+import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
 import PaymentSettings from '@models/PaymentSettings';
 import connectDB from '@db/connect';
 import { success, error } from '@utils/apiResponse';
@@ -188,6 +189,50 @@ export const createOrder = asyncHandler(async (req, res) => {
   // disagree by a cent and be rejected by the exact-match price guard.
   let rawLineTotalSum = 0;
 
+  // -----------------------------------------------------------------------
+  // CaptchaMaster pricing (authoritative)
+  //
+  // Captcha packages have no Product document — the price comes from the
+  // reseller plan. Trusting the client's numbers made the total depend on which
+  // exchange rate the browser happened to use: the product card converts with
+  // `captchamastersettings.exchangeRate` (e.g. 130) while a crypto order was
+  // checked against `paymentsettings.exchangeRate` (e.g. 125), so a ৳123.5
+  // package was valued at $0.988 instead of $0.95 and every crypto order was
+  // rejected with "Price mismatch detected".
+  //
+  // The server now derives the unit price from the plan itself (with the
+  // configured discount applied), which is the same figure the card shows, and
+  // is immune to both the rate mismatch and any tampering with the body.
+  // -----------------------------------------------------------------------
+  let captchaPricing: { rate: number; discountPercent: number; discountEnabled: boolean; byPlanId: Map<string, number> } | null = null;
+
+  async function loadCaptchaPricing() {
+    if (captchaPricing) return captchaPricing;
+
+    const settings = await CaptchaMasterSettings.findById('global').lean();
+    const rate = Number(settings?.exchangeRate) || 0;
+    const discountPercent = Number(settings?.discountPercent) || 0;
+    const discountEnabled = Boolean(settings?.discountEnabled);
+
+    const byPlanId = new Map<string, number>();
+    try {
+      const { getCaptchaMasterService } = await import('@utils/captchamaster');
+      const service = await getCaptchaMasterService();
+      const plans = await service.getRawPricingPlans();
+      for (const plan of plans as Array<Record<string, unknown>>) {
+        const id = String(plan.id ?? '');
+        const price = Number(plan.priceValue);
+        if (id && Number.isFinite(price)) byPlanId.set(id, price);
+      }
+    } catch {
+      // Reseller unreachable — fall back to the client-supplied figures below
+      // so an order is never blocked by a vendor outage.
+    }
+
+    captchaPricing = { rate, discountPercent, discountEnabled, byPlanId };
+    return captchaPricing;
+  }
+
   for (const item of items) {
     // Accept both 'product' and 'productId' field names for compatibility
     const productId = item.product || item.productId;
@@ -208,12 +253,43 @@ export const createOrder = asyncHandler(async (req, res) => {
       const qty = quantity || 1;
       const clientUsdt = Number(item.usdtAmount) || 0;
       const bdtUnit = Number(price) || 0;
-      const unitPx = isCrypto
-        ? (clientUsdt > 0
-            ? clientUsdt
-            : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit))
-        : bdtUnit;
       const effectiveQty = isSmmItem ? qty / 1000 : qty;
+
+      // Captcha packages are priced from the reseller plan, not from the body.
+      let unitPx: number;
+      const planId = String(item.captchamasterPlanId || item.customData?.captchamasterPlanId || '');
+      const isCaptchaItem = item.productType === 'captchamaster' || String(productId).startsWith('cm-') || Boolean(planId);
+
+      if (isCaptchaItem) {
+        const pricing = await loadCaptchaPricing();
+        const listPriceUsd = pricing.byPlanId.get(planId);
+
+        if (typeof listPriceUsd === 'number') {
+          // Mirror the card exactly: discount on the USD price, rounded to cents.
+          const netUsd = pricing.discountEnabled && pricing.discountPercent > 0
+            ? Math.round(listPriceUsd * (1 - pricing.discountPercent / 100) * 100) / 100
+            : listPriceUsd;
+
+          // The card converts with the captcha rate; fall back to the client
+          // when that rate is not configured.
+          const rate = pricing.rate > 0 ? pricing.rate : exchangeRate;
+          const netBdt = rate > 0 ? Math.round(netUsd * rate * 100) / 100 : bdtUnit;
+
+          unitPx = isCrypto ? netUsd : netBdt;
+        } else {
+          // Plan unknown (rotated away, or the reseller is unreachable): fall
+          // back to the client value rather than blocking the order.
+          unitPx = isCrypto
+            ? (clientUsdt > 0 ? clientUsdt : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit))
+            : bdtUnit;
+        }
+      } else {
+        unitPx = isCrypto
+          ? (clientUsdt > 0
+              ? clientUsdt
+              : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit))
+          : bdtUnit;
+      }
 
       // Server-side required field validation for orderFields
       const customData = item.customData || {};
