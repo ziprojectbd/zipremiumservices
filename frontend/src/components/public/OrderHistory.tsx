@@ -169,12 +169,15 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
                 </div>
               </div>
 
-              {/* Delivery instructions (e.g. install a browser extension) */}
+              {/* Delivery instructions — file deliveries auto-start and can be
+                  re-downloaded from the button. */}
               {order.status === "completed" && (
                 <DeliveryLinkCard
                   link={order.deliveryLink}
                   label={order.deliveryLinkLabel}
                   message={order.deliveryMessage}
+                  orderId={order.id}
+                  autoDownload
                   className="mb-4"
                 />
               )}

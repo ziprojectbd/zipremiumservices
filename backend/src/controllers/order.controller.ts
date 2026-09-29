@@ -5,6 +5,7 @@ import Coupon from '@models/Coupon';
 import CaptchaPackage from '@models/CaptchaPackage';
 import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
 import PaymentSettings from '@models/PaymentSettings';
+import { Readable } from 'stream';
 import connectDB from '@db/connect';
 import { success, error } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
@@ -13,6 +14,8 @@ import axios from 'axios';
 import { getClientIP, getGeoFromIP, countryCodeToFlag } from '@utils/geo';
 import { mapOrderToProvider, getProviderEndpoint } from '@utils/providerMapper';
 import { roundCurrency } from '@utils/currency';
+import { extractGoogleDriveFileId, fetchDriveFile, attachmentHeader } from '@utils/driveDownload';
+import logger from '@config/logger';
 
 // ---------------------------------------------------------------------------
 // GET /orders  — Order history (public, by email or wallet)
@@ -90,6 +93,114 @@ export const getOrderById = asyncHandler(async (req, res) => {
   }
 
   return res.json(success(order));
+});
+
+// ---------------------------------------------------------------------------
+// GET /orders/:id/delivery-download — Stream this order's delivery file
+//
+// Deliberately proxied through our own origin instead of linking straight to
+// Google Drive:
+//   - a Drive "view" link opens a preview page, it does not download anything
+//   - Drive's `uc?export=download` shows a virus-scan interstitial for large
+//     files, and a cross-origin download cannot be named by the browser
+//   - streaming from our origin means the response carries
+//     `Content-Disposition: attachment`, so the file saves without the customer
+//     leaving the site
+//
+// Access is limited to the buyer (email on the order) or an admin, and only
+// after the order has actually been delivered. Nothing about the upstream URL
+// is logged.
+// ---------------------------------------------------------------------------
+export const downloadDeliveryFile = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const id = String(req.params.id || '').trim();
+  if (!id) {
+    return res.status(400).json(error('Order ID is required'));
+  }
+
+  let order: Record<string, any> | null = null;
+  if (id.length === 24 && /^[a-f0-9]+$/i.test(id)) {
+    order = await Order.findById(id).lean() as Record<string, any> | null;
+  }
+  if (!order) {
+    order = await Order.findOne({ orderNumber: id }).lean() as Record<string, any> | null;
+  }
+  if (!order) {
+    return res.status(404).json(error('Order not found'));
+  }
+
+  // Only delivered orders are downloadable.
+  const status = String(order.status || '').toLowerCase();
+  if (!['delivered', 'completed', 'approved'].includes(status)) {
+    return res.status(403).json(error('This order has not been delivered yet.'));
+  }
+
+  // The buyer, or an admin for support.
+  const ownerEmail = String(order.email || order.customerEmail || '').toLowerCase().trim();
+  const viewerEmail = String(req.user?.email || '').toLowerCase().trim();
+  const isAdmin = req.user?.role === 'admin';
+  if (!isAdmin && (!ownerEmail || ownerEmail !== viewerEmail)) {
+    return res.status(403).json(error('You do not have access to this file.'));
+  }
+
+  const link = String(order.deliveryLink || '').trim();
+  if (!link) {
+    return res.status(404).json(error('This order has no downloadable file.'));
+  }
+
+  const driveId = extractGoogleDriveFileId(link);
+  if (!driveId) {
+    return res.status(400).json(error('This order is not delivered as a file download.'));
+  }
+
+  const fallbackName = String(
+    order.items?.[0]?.productName || order.productName || 'download',
+  )
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim()
+    .slice(0, 80) || 'download';
+
+  try {
+    const file = await fetchDriveFile(driveId, fallbackName);
+
+    // Drive answers with HTML when the file is private, missing, or when it
+    // still wants a confirmation. Distinguish the private case so the customer
+    // gets an actionable message rather than an HTML page saved as a file.
+    if (file.isHtml) {
+      if (file.needsAccess) {
+        logger.warn('Delivery file is not publicly shared', { orderId: id });
+        return res
+          .status(502)
+          .json(error('The download file is not publicly available. Please contact support.'));
+      }
+      return res
+        .status(502)
+        .json(error('Could not fetch the download file. Please try again or contact support.'));
+    }
+
+    if (!file.ok || !file.stream) {
+      logger.warn('Delivery file fetch failed', { orderId: id, upstreamStatus: file.status });
+      return res.status(502).json(error('Could not download the file. Please try again.'));
+    }
+
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', attachmentHeader(file.filename));
+    if (file.contentLength) res.setHeader('Content-Length', file.contentLength);
+    // Purchased files are private to the buyer — never cached by proxies.
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    // Stream straight through so a large file never has to be buffered.
+    Readable.fromWeb(file.stream as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+    return undefined;
+  } catch (err) {
+    logger.error('Delivery file download failed', {
+      orderId: id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return res.status(502).json(error('Could not download the file. Please try again.'));
+  }
 });
 
 // ---------------------------------------------------------------------------

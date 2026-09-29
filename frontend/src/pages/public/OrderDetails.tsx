@@ -272,12 +272,14 @@ export default function OrderDetails() {
             </span>
           </div>
 
-          {/* Delivery link (e.g. install a browser extension) */}
+          {/* Delivery instructions — file deliveries auto-start and can be
+              re-downloaded from the button. */}
           <DeliveryLinkCard
             className="mt-4"
             link={order.deliveryLink}
             label={order.deliveryLinkLabel}
             message={order.deliveryMessage}
+            orderId={order.id || order.orderNumber}
           />
 
           {order.status === 'cancelled' && (
