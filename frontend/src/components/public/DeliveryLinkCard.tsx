@@ -31,8 +31,9 @@ function isChromeStoreLink(url: string): boolean {
   return /chromewebstore\.google\.com|chrome\.google\.com\/webstore/i.test(url);
 }
 
-function isExtensionFile(url: string): boolean {
-  return /\.(crx|zip)(\?|#|$)/i.test(url);
+/** Installers and archives are delivered as downloads rather than opened. */
+function isDownloadableFile(url: string): boolean {
+  return /\.(exe|msi|dmg|pkg|apk|crx|zip|rar|7z|tar|gz|pdf)(\?|#|$)/i.test(url);
 }
 
 /** Google Drive links (a view page or a direct link) are delivered by download. */
@@ -94,7 +95,7 @@ export default function DeliveryLinkCard({
   // Nothing to deliver — render nothing.
   if (!url) return null;
 
-  const isFileDelivery = canProxyDownload || isExtensionFile(url);
+  const isFileDelivery = canProxyDownload || isDownloadableFile(url);
   const chromeStore = isChromeStoreLink(url) && !canProxyDownload;
   const defaultLabel = chromeStore
     ? 'Add to Chrome'

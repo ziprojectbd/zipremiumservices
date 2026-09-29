@@ -70,9 +70,20 @@ app.use(cors({
 app.use(morgan('combined', { stream: morganStream }));
 
 // 5. Compression
+//
+// File downloads are excluded: they are already-compressed binaries, so gzip
+// only burns CPU, and compression replaces Content-Length with chunked
+// encoding, which removes the browser's download progress bar.
 app.use(compression({
   level: env.COMPRESSION_LEVEL,
   threshold: 1024, // minimum size in bytes to compress
+  filter: (req, res) => {
+    if (/\/delivery-download(\?|$)/.test(req.path) || /\/delivery-download(\?|$)/.test(req.originalUrl || '')) {
+      return false;
+    }
+    // Fall back to compression's own content-type check.
+    return compression.filter(req, res);
+  },
 }));
 
 // 6. Cookie parser
