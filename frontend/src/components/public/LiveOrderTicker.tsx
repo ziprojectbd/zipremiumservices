@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 
 interface LiveOrder {
   flag?: string;
+  /** Resolved country name, e.g. "Bangladesh". Empty when unknown. */
+  country?: string;
+  countryCode?: string;
   user?: string;
   service?: string;
   time?: string;
@@ -49,9 +52,21 @@ export default function LiveOrderTicker({ orders, height = 48, interval = 4000 }
         }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs flex-shrink-0">{order.flag}</span>
+          {/* Country flag resolved from the order's IP address. */}
+          <span
+            className="text-sm leading-none flex-shrink-0"
+            title={order.country || order.countryCode || 'Unknown location'}
+            aria-label={order.country || 'Unknown location'}
+          >
+            {order.flag || '🌐'}
+          </span>
           <div className="min-w-0">
-            <span className="text-white/70 text-[11px] font-semibold truncate block leading-tight">{order.user}</span>
+            <span className="text-white/70 text-[11px] font-semibold truncate block leading-tight">
+              {order.user}
+              {order.country ? (
+                <span className="text-white/35 font-normal"> · {order.country}</span>
+              ) : null}
+            </span>
             <span className="text-purple-300/60 text-[10px] truncate block leading-tight">{order.service}</span>
           </div>
         </div>

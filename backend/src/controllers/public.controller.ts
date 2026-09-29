@@ -9,6 +9,27 @@ import PaymentSettings from '@models/PaymentSettings';
 import Order from '@models/Order';
 import { success, error } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
+import { getGeoFromIP, countryCodeToFlag } from '@utils/geo';
+
+/** Shown when an order has no resolvable country. */
+const GLOBE_FLAG = '\u{1F310}';
+
+/** Loopback / private addresses have no country. */
+function isLocalIp(ip: string): boolean {
+  const v = String(ip || '').trim();
+  if (!v) return true;
+  return (
+    v === '127.0.0.1' ||
+    v === '::1' ||
+    v === 'localhost' ||
+    v === '::ffff:127.0.0.1' ||
+    v.startsWith('192.168.') ||
+    v.startsWith('10.') ||
+    v.startsWith('172.16.') ||
+    v.startsWith('::ffff:127.') ||
+    v.includes('127.0.0.1')
+  );
+}
 
 // GET /public/promo-offers
 export const getPromoOffers = asyncHandler(async (req, res) => {
@@ -42,9 +63,27 @@ export const getRecentOrders = asyncHandler(async (req, res) => {
       .limit(limit)
       .lean();
 
-    const flags = ['\u{1F1E7}\u{1F1E9}', '\u{1F1FA}\u{1F1F8}', '\u{1F1EC}\u{1F1E7}', '\u{1F1E6}\u{1F1EA}', '\u{1F1F8}\u{1F1E6}', '\u{1F1EE}\u{1F1F3}', '\u{1F1F5}\u{1F1F0}', '\u{1F1F2}\u{1F1FE}', '\u{1F1F8}\u{1F1EC}', '\u{1F1E8}\u{1F1E6}'];
+    // Country is taken from the IP captured when the order was created, so the
+    // flag reflects where the customer actually ordered from. IPs that have no
+    // stored country yet are resolved on demand (cached) rather than faking a
+    // flag, and everything else falls back to the globe emoji.
+    const missingGeo = orders.filter(
+      (o: any) => !o.countryCode && o.ipAddress && !isLocalIp(o.ipAddress),
+    );
 
-    const activities = orders.map((order, index) => {
+    const resolved = new Map<string, string>();
+    await Promise.all(
+      missingGeo.slice(0, 10).map(async (o: any) => {
+        try {
+          const geo = await getGeoFromIP(o.ipAddress);
+          if (geo.countryCode) resolved.set(o.ipAddress, geo.countryCode);
+        } catch {
+          // Non-fatal: the order still renders with the fallback flag.
+        }
+      }),
+    );
+
+    const activities = orders.map((order: any) => {
       const rawName = order.username || order.email || 'Anonymous';
       const truncatedUsername =
         rawName.length > 4 ? rawName.substring(0, 4) + '...' : rawName;
@@ -60,10 +99,16 @@ export const getRecentOrders = asyncHandler(async (req, res) => {
         else timeAgo = '';
       }
 
+      const code =
+        order.countryCode || (order.ipAddress ? resolved.get(order.ipAddress) : '') || '';
+      const flag = order.countryFlag || countryCodeToFlag(code) || GLOBE_FLAG;
+
       return {
-        flag: flags[index % flags.length],
+        flag,
+        country: order.country || '',
+        countryCode: code,
         user: truncatedUsername,
-        service: order.productName || 'Service',
+        service: order.productName || order.items?.[0]?.productName || 'Service',
         time: timeAgo,
       };
     });
