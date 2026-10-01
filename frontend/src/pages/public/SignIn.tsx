@@ -172,7 +172,7 @@ export default function UserSignInPage() {
                 </div>
               ))}
               <div className="w-10 h-10 rounded-full border-2 border-[#0F0F1A] bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <span className="text-xs font-bold text-white">+2k</span>
+                <span className="text-[10px] font-bold text-white">+100k</span>
               </div>
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function UserSignInPage() {
                 {[
                   { icon: Shield, label: 'No password', sub: 'Ever stored' },
                   { icon: Zap, label: '1 tap', sub: 'Instant access' },
-                  { icon: Users, label: 'Trusted', sub: '2k+ users' },
+                  { icon: Users, label: 'Trusted', sub: '100k+ users' },
                 ].map(({ icon: Icon, label, sub }) => (
                   <div
                     key={label}

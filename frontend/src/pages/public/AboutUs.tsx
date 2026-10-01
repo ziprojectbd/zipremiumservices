@@ -179,7 +179,7 @@ export default function AboutUs() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 flex-shrink-0" />
-                  <span className="text-sm sm:text-base text-gray-300">Trusted by 5000+ Customers</span>
+                  <span className="text-sm sm:text-base text-gray-300">Trusted by 100k+ Customers</span>
                 </div>
               </div>
             </div>

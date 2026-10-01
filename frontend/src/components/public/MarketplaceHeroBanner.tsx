@@ -103,7 +103,7 @@ export default function MarketplaceHeroBanner() {
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm">
               <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span className="text-white font-bold">5K+</span>
+              <span className="text-white font-bold">100K+</span>
               <span className="text-slate-400 text-sm">Happy Customers</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm">

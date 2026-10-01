@@ -185,7 +185,7 @@ export default function Marketplace() {
                   <CheckCircle2 className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="text-left">
-                  <div className="text-2xl font-bold text-white">5K+</div>
+                  <div className="text-2xl font-bold text-white">100K+</div>
                   <div className="text-xs text-slate-400">Happy Customers</div>
                 </div>
               </div>

@@ -486,7 +486,7 @@ export default function HeroSection({ heroRef, sideSliderSettings, liveOrders }:
                                 <div className="group relative rounded-xl sm:rounded-2xl border border-pink-500/30 overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(236,72,153,0.4)]">
                                     <div className="relative bg-black/60 p-2 sm:p-4 flex flex-col items-center text-center h-full">
                                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
-                                        <div className="text-lg sm:text-3xl font-black bg-gradient-to-r from-pink-200 via-fuchsia-200 to-purple-200 bg-clip-text text-transparent leading-none mb-1">1k+</div>
+                                        <div className="text-lg sm:text-3xl font-black bg-gradient-to-r from-pink-200 via-fuchsia-200 to-purple-200 bg-clip-text text-transparent leading-none mb-1">100k+</div>
                                         <div className="text-[7px] sm:text-xs font-bold tracking-wider text-pink-100/80 uppercase">Customers</div>
                                     </div>
                                 </div>
