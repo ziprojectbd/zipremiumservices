@@ -8,6 +8,112 @@ import { useEffect, useRef, type ReactNode } from 'react';
  * are the storefront's original chip, moved out of CategoryFilterBar unchanged.
  */
 
+// ---------------------------------------------------------------------------
+// Horizontal panning
+//
+// Extracted from the component so the interaction can be exercised without a
+// browser: `attachRowScroll` takes a scroll element and an event bus (the window
+// in production, a stub in tests) and returns a cleanup function.
+// ---------------------------------------------------------------------------
+
+/** A pointer move is treated as a drag past this many pixels. */
+export const DRAG_THRESHOLD = 4;
+
+/** The subset of an element's surface this needs. */
+export interface RowScrollHost {
+  scrollWidth: number;
+  clientWidth: number;
+  scrollLeft: number;
+  style: { cursor: string; userSelect: string };
+  addEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
+  removeEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
+}
+
+/** The event bus the drag listeners are attached to (the window). */
+export interface RowEventBus {
+  addEventListener: (type: string, listener: (event: any) => void) => void;
+  removeEventListener: (type: string, listener: (event: any) => void) => void;
+}
+
+/**
+ * Makes a chip row pan horizontally and returns a cleanup function.
+ *
+ * - a vertical mouse wheel pans the row, and is released at either end so the
+ *   page still scrolls normally
+ * - mouse drag pans the row, and the click that ends a drag is swallowed so a
+ *   chip is not selected by accident
+ * - touch is ignored here and left to the browser's native scrolling
+ */
+export function attachRowScroll(el: RowScrollHost, bus: RowEventBus = window): () => void {
+  const canScroll = () => el.scrollWidth > el.clientWidth;
+
+  const onWheel = (event: WheelEvent) => {
+    if (!canScroll()) return;
+    // Trackpad horizontal gesture — let the browser handle it.
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    if (event.deltaY === 0) return;
+
+    const atStart = el.scrollLeft <= 0;
+    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+    if ((atStart && event.deltaY < 0) || (atEnd && event.deltaY > 0)) return;
+
+    event.preventDefault();
+    el.scrollLeft += event.deltaY;
+  };
+
+  let dragging = false;
+  let startX = 0;
+  let startScroll = 0;
+  let moved = false;
+
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.pointerType !== 'mouse') return;
+    if (!canScroll()) return;
+    dragging = true;
+    moved = false;
+    startX = event.clientX;
+    startScroll = el.scrollLeft;
+    el.style.cursor = 'grabbing';
+    el.style.userSelect = 'none';
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (!dragging) return;
+    const delta = event.clientX - startX;
+    if (Math.abs(delta) > DRAG_THRESHOLD) moved = true;
+    el.scrollLeft = startScroll - delta;
+  };
+
+  const stopDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.style.cursor = '';
+    el.style.userSelect = '';
+  };
+
+  // Capture phase: swallow the click that terminates a drag.
+  const onClickCapture = (event: { stopPropagation: () => void; preventDefault: () => void }) => {
+    if (!moved) return;
+    event.stopPropagation();
+    event.preventDefault();
+    moved = false;
+  };
+
+  el.addEventListener('wheel', onWheel, { passive: false });
+  el.addEventListener('pointerdown', onPointerDown);
+  bus.addEventListener('pointermove', onPointerMove);
+  bus.addEventListener('pointerup', stopDrag);
+  el.addEventListener('click', onClickCapture, true);
+
+  return () => {
+    el.removeEventListener('wheel', onWheel);
+    el.removeEventListener('pointerdown', onPointerDown);
+    bus.removeEventListener('pointermove', onPointerMove);
+    bus.removeEventListener('pointerup', stopDrag);
+    el.removeEventListener('click', onClickCapture, true);
+  };
+}
+
 /** The chip's Tailwind classes. `gradient` is a Tailwind pair like "from-cyan-500 to-blue-500". */
 export function categoryChipClass(active: boolean, gradient?: string): string {
   return [
@@ -148,26 +254,11 @@ export function CategoryChipRow({
 }: CategoryChipRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Wheel panning + click-and-drag panning. See attachRowScroll for the details.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth) return;
-      // Trackpad horizontal gesture — let the browser handle it.
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      if (e.deltaY === 0) return;
-
-      const atStart = el.scrollLeft <= 0;
-      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-      if ((atStart && e.deltaY < 0) || (atEnd && e.deltaY > 0)) return;
-
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
-    };
-
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return attachRowScroll(el);
   }, []);
 
   // Keep the selected chip in view when the selection changes.
@@ -181,7 +272,11 @@ export function CategoryChipRow({
   }, [centerOn]);
 
   return (
-    <div className={`relative ${className}`}>
+    // `min-w-0 w-full` keeps the row at its parent's width even when the parent is
+    // a flex/grid container; without it a flex item's min-content width would let
+    // the row grow to fit every chip, so `overflow-x-auto` would never engage and
+    // the row simply could not scroll.
+    <div className={`relative w-full min-w-0 ${className}`}>
       <div
         className={`pointer-events-none absolute left-0 top-0 bottom-0 w-8 sm:w-12 bg-gradient-to-r ${fadeFrom} to-transparent z-10 rounded-l-2xl`}
       />
@@ -190,8 +285,14 @@ export function CategoryChipRow({
       />
       <div
         ref={scrollRef}
-        className="flex flex-nowrap gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1.5 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+        className="flex flex-nowrap gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1.5 snap-x cursor-grab"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+          // Reaching an edge must not chain the scroll to the page.
+          overscrollBehaviorX: 'contain',
+        }}
       >
         {children}
       </div>
