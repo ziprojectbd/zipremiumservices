@@ -1,66 +1,64 @@
 import connectDB from '@db/connect';
-import { success, error, paginated } from '@utils/apiResponse';
+import { success } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
 import Category from '@models/Category';
 import Product from '@models/Product';
-import SmmSettings from '@models/SmmSettings';
+import { getEnabledSmmCategories, isProductVisible } from '@utils/productVisibility';
 
 // GET /categories - List categories
-export const getCategories = asyncHandler(async (req, res) => {
+//
+// The chip list is derived from the products a customer can actually browse, so
+// a chip can never advertise a count the product list cannot deliver. Counts
+// come from the same set (previously they counted every product, including SMM
+// products hidden by the storefront filter, which made a chip disagree with its
+// own listing).
+export const getCategories = asyncHandler(async (_req, res) => {
   await connectDB();
 
-  // Fetch SmmSettings for enabled SMM categories
-  const smmSettings = await SmmSettings.findOne().lean();
-  const enabledCategories = (smmSettings?.enabledCategories as string[]) || [];
+  const enabledCategories = await getEnabledSmmCategories();
 
-  // Fetch active categories sorted
   const dbCategories = await Category.find({ isActive: true })
     .sort({ sortOrder: 1, name: 1 })
     .lean();
 
-  // Fetch ALL products (only the category field to minimise data transfer)
-  const allProducts = await Product.find({}, { category: 1 }).lean();
+  // Only the fields needed to decide visibility and count.
+  const allProducts = await Product.find({}, { category: 1, smmProvider: 1 }).lean();
 
-  // Build count map: category name -> product count
+  // Count only the products the storefront lists.
   const countMap: Record<string, number> = {};
-  for (const product of allProducts) {
-    const catName = product.category as string;
+  const visible = allProducts.filter((p) => isProductVisible(p, enabledCategories));
+  for (const product of visible) {
+    const catName = String(product.category || '').trim();
+    if (!catName) continue;
     countMap[catName] = (countMap[catName] || 0) + 1;
   }
 
-  const totalCount = allProducts.length;
+  const totalCount = visible.length;
 
-  // Build set of category names already covered by the Category collection
-  const dbCatNames = new Set(dbCategories.map((c) => c.name.toLowerCase()));
+  // Category documents that have at least one visible product.
+  const docChips = dbCategories.filter((cat) => (countMap[String(cat.name)] || 0) > 0);
 
-  // Inject virtual category entries for enabled SMM platforms that don't have a Category doc
-  for (const platform of enabledCategories) {
-    if (!dbCatNames.has(platform.toLowerCase())) {
-      (dbCategories as Record<string, unknown>[]).push({
-        name: platform,
-        slug: platform.toLowerCase().replace(/\s+/g, '-'),
-        icon: '\u{1F4F1}',
-        gradient: 'from-purple-500 to-indigo-500',
-        isActive: true,
-        sortOrder: 99,
-        _virtual: true,
-      });
-    }
-  }
+  // Enabled SMM platforms get a virtual chip when they have visible products and
+  // no Category document already covers them.
+  const covered = new Set(docChips.map((c) => String(c.name).toLowerCase()));
+  const virtualChips = enabledCategories
+    .filter((platform) => !covered.has(String(platform).toLowerCase()))
+    .filter((platform) => (countMap[platform] || 0) > 0)
+    .map((platform) => ({
+      name: platform,
+      slug: String(platform).toLowerCase().replace(/\s+/g, '-'),
+      icon: '\u{1F4F1}',
+      gradient: 'from-purple-500 to-indigo-500',
+      isActive: true,
+      sortOrder: 99,
+      _virtual: true,
+    }));
 
-  // Filter out categories with zero products
-  const filteredCategories = dbCategories.filter((cat: Record<string, unknown>) => {
-    const count = countMap[cat.name as string] || 0;
-    return count > 0;
-  });
-
-  // Attach product counts
-  const categoriesWithCount = filteredCategories.map((cat: Record<string, unknown>) => ({
+  const categoriesWithCount = [...docChips, ...virtualChips].map((cat) => ({
     ...cat,
-    count: countMap[cat.name as string] || 0,
+    count: countMap[String(cat.name)] || 0,
   }));
 
-  // Prepend "All" category
   const allCategory = {
     name: 'All',
     slug: 'all',

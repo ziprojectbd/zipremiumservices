@@ -86,7 +86,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [categoryFilters, setCategoryFilters] = useState<{ name: string; icon: any }[]>([{ name: 'All', icon: null }]);
+  const [categoryFilters, setCategoryFilters] = useState<
+    { name: string; icon: any; hidden?: number; total?: number }[]
+  >([{ name: 'All', icon: null }]);
 
   // Stats state
   const [stats, setStats] = useState<ProductStats | null>(null);
@@ -138,18 +140,26 @@ export default function ProductsPage() {
     }
   };
 
-  // Fetch categories for filter buttons
+  // Fetch categories for filter buttons.
+  //
+  // Uses the admin list, which is built from EVERY product (not just the ones
+  // the storefront lists), so a product hidden by the SMM visibility rule can
+  // still be filtered to. Each entry reports how many of its products are
+  // hidden, which is surfaced on the chip.
   useEffect(() => {
-    api.get('/categories')
+    api.get('/admin/product-categories')
       .then(res => {
         const json = res.data;
-        if (json.success && json.data) {
-          const filters: { name: string; icon: any }[] = [{ name: 'All', icon: null }];
-          for (const cat of json.data) {
-            if (cat.name === 'All') continue;
+        if (json.success && json.data?.categories) {
+          const filters: { name: string; icon: any; hidden?: number; total?: number }[] = [
+            { name: 'All', icon: null },
+          ];
+          for (const cat of json.data.categories) {
             filters.push({
               name: cat.name,
               icon: DEFAULT_CATEGORY_ICONS[cat.name] || Sparkles,
+              hidden: cat.hidden,
+              total: cat.total,
             });
           }
           setCategoryFilters(filters);
@@ -319,14 +329,36 @@ export default function ProductsPage() {
             <button
               key={cat.name}
               onClick={() => setSelectedCategory(cat.name)}
-              className={`flex items-center px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 ${
+              title={
+                cat.hidden
+                  ? `${cat.hidden} of ${cat.total} products in this category are hidden from the storefront (enable the SMM platform to show them)`
+                  : undefined
+              }
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 ${
                 selectedCategory === cat.name
                   ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-white/10 text-gray-300 hover:bg-white/20'
               }`}
             >
-              {cat.icon && <cat.icon className="w-4 h-4 mr-2" />}
+              {cat.icon && <cat.icon className="w-4 h-4" />}
               {cat.name}
+              {typeof cat.total === 'number' && cat.total > 0 && (
+                <span
+                  className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
+                    selectedCategory === cat.name ? 'bg-white/25 text-white' : 'bg-black/30 text-gray-400'
+                  }`}
+                >
+                  {cat.total}
+                </span>
+              )}
+              {Boolean(cat.hidden) && (
+                <span
+                  className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-amber-500/20 text-amber-300"
+                  title="Hidden from the storefront"
+                >
+                  hidden
+                </span>
+              )}
             </button>
           ))}
         </div>

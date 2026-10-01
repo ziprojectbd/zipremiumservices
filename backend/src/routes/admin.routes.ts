@@ -4,6 +4,7 @@ import { adminOnly } from '@middlewares/adminOnly';
 import {
   getAdminProducts,
   getAdminProductStats,
+  getAdminProductCategories,
   getAdminProductById,
   createAdminProduct,
   updateAdminProduct,
@@ -57,6 +58,9 @@ router.use(authenticate, adminOnly);
 
 // Products
 router.get('/products/stats', getAdminProductStats);
+// Must be declared before `/products/:id`, otherwise "product-categories" would
+// be captured as an id.
+router.get('/product-categories', getAdminProductCategories);
 router.get('/products/:id', getAdminProductById);
 router.get('/products', getAdminProducts);
 router.post('/products', createAdminProduct);

@@ -17,6 +17,7 @@ import PromoOffer from '@models/PromoOffer';
 import connectDB from '@db/connect';
 import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
+import { getEnabledSmmCategories, isProductVisible } from '@utils/productVisibility';
 import { bustMaintenanceCache } from '@middlewares/maintenance';
 import { emitMaintenanceUpdate } from '@socket/index.js';
 
@@ -76,6 +77,44 @@ export const getAdminProducts = asyncHandler(async (req, res) => {
   ]);
 
   return res.json(paginated(data, total, page, limit));
+});
+
+// GET /api/admin/product-categories
+//
+// The category list the admin panel filters its product table by.
+//
+// It is built from EVERY product, not just the ones the storefront lists, so the
+// admin can reach products the SMM visibility rule hides from customers. Each
+// entry reports how many of its products are hidden, which is what makes an
+// admin/homepage difference understandable instead of mysterious.
+export const getAdminProductCategories = asyncHandler(async (_req, res) => {
+  await connectDB();
+
+  const enabledCategories = await getEnabledSmmCategories();
+
+  const products = await Product.find({}, { category: 1, smmProvider: 1, available: 1 }).lean();
+
+  const map = new Map<string, { name: string; total: number; visible: number; hidden: number }>();
+  for (const product of products) {
+    const name = String(product.category || '').trim();
+    if (!name) continue;
+    const entry = map.get(name) || { name, total: 0, visible: 0, hidden: 0 };
+    entry.total += 1;
+    if (isProductVisible(product, enabledCategories)) entry.visible += 1;
+    else entry.hidden += 1;
+    map.set(name, entry);
+  }
+
+  const categories = [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+
+  return res.json(
+    success({
+      categories,
+      totalProducts: products.length,
+      visibleProducts: categories.reduce((sum, c) => sum + c.visible, 0),
+      enabledSmmCategories: enabledCategories,
+    }),
+  );
 });
 
 // GET /api/admin/products/:id

@@ -5,6 +5,7 @@ import { asyncHandler } from '@utils/asyncHandler';
 import Product from '@models/Product';
 import Category from '@models/Category';
 import SmmSettings from '@models/SmmSettings';
+import { getEnabledSmmCategories, smmVisibilityFilter } from '@utils/productVisibility';
 
 // GET /products - List products
 export const getProducts = asyncHandler(async (req, res) => {
@@ -16,9 +17,8 @@ export const getProducts = asyncHandler(async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(limitParam as string, 10) || 50));
   const skip = (page - 1) * limit;
 
-  // Fetch SmmSettings to know which SMM categories are enabled
-  const smmSettings = await SmmSettings.findOne().lean();
-  const enabledCategories = (smmSettings?.enabledCategories as string[]) || [];
+  // Which SMM categories are enabled for the storefront.
+  const enabledCategories = await getEnabledSmmCategories();
 
   // Check whether custom categories exist in the DB
   await Category.countDocuments();
@@ -30,12 +30,9 @@ export const getProducts = asyncHandler(async (req, res) => {
     filter.category = category;
   }
 
-  // Always restrict oneservicebd SMM products to enabled platforms only.
-  // Non-SMM products and products from other providers are unaffected.
-  filter.$or = [
-    { smmProvider: { $ne: 'oneservicebd' } },
-    { smmProvider: 'oneservicebd', category: { $in: enabledCategories } },
-  ];
+  // Restrict oneservicebd SMM products to enabled platforms only. Shared with
+  // /categories so the chip list and this list always agree.
+  Object.assign(filter, smmVisibilityFilter(enabledCategories));
 
   if (featured === 'true') {
     filter.featured = true;
