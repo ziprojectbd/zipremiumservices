@@ -119,29 +119,54 @@ export default function ProductsPage() {
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
 
   // ---- Data fetching ----
-  const fetchProducts = useCallback(async (page: number = 1, append: boolean = false) => {
-    try {
-      if (append) setLoadingMore(true);
-      else setLoading(true);
+  //
+  // The category filter is applied by the server, not by filtering the loaded
+  // page in the browser. The list is paginated, so a client-side filter could
+  // only ever search the products already fetched — a category whose products
+  // sit on a later page looked empty, and "All" showed one page while the header
+  // claimed the full count.
+  const requestIdRef = useRef(0);
 
-      const res = await api.get('/admin/products', { params: { page, limit: PAGE_SIZE } });
-      const json = res.data;
-      if (json.success && json.data) {
-        const fetched = json.data;
-        setProducts(prev => (append ? [...prev, ...fetched] : fetched));
-        setCurrentPage(page);
-        if (json.pagination) {
-          setTotalProducts(json.pagination.total);
-          setHasMore(page < json.pagination.pages);
+  const fetchProducts = useCallback(
+    async (page: number = 1, append: boolean = false, category: string = 'All') => {
+      const requestId = ++requestIdRef.current;
+      try {
+        if (append) setLoadingMore(true);
+        else setLoading(true);
+
+        const params: Record<string, unknown> = { page, limit: PAGE_SIZE };
+        if (category && category !== 'All') params.category = category;
+
+        const res = await api.get('/admin/products', { params });
+        // A newer request has started — drop this response.
+        if (requestId !== requestIdRef.current) return;
+
+        const json = res.data;
+        if (json.success && json.data) {
+          const fetched = json.data;
+          setProducts((prev) => (append ? [...prev, ...fetched] : fetched));
+          setCurrentPage(page);
+          if (json.pagination) {
+            setTotalProducts(json.pagination.total);
+            setHasMore(page < json.pagination.pages);
+          }
+        }
+      } catch {
+        // Only clear when this is still the latest request.
+        if (requestId === requestIdRef.current) {
+          setProducts([]);
+          setTotalProducts(0);
+          setHasMore(false);
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
         }
       }
-    } catch (err) {
-      // ignore
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const fetchStats = async () => {
     setStatsLoading(true);
@@ -193,20 +218,30 @@ export default function ProductsPage() {
     }
   }, []);
 
+  // Load a category whenever it changes (and on mount).
+  //
+  // The list is cleared up front, and `loading` is set, so selecting a chip shows
+  // skeletons immediately instead of leaving the previous category's products on
+  // screen. Without that, the old items stay visible for the whole round trip and
+  // the click looks like it did nothing.
   useEffect(() => {
-    fetchProducts(1);
-  }, [fetchProducts]);
+    setProducts([]);
+    setTotalProducts(0);
+    setHasMore(false);
+    setCurrentPage(1);
+    fetchProducts(1, false, selectedCategory);
+  }, [fetchProducts, selectedCategory]);
 
   // ---- Handlers ----
   const handleProductChanged = () => {
     setEditingProduct(null);
-    fetchProducts(1);
+    fetchProducts(1, false, selectedCategory);
     fetchStats();
   };
 
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
-      fetchProducts(currentPage + 1, true);
+      fetchProducts(currentPage + 1, true, selectedCategory);
     }
   };
 
@@ -223,7 +258,7 @@ export default function ProductsPage() {
       const res = await api.delete(`/admin/products/${product._id || product.id}`);
       const json = res.data;
       if (json.success) {
-        fetchProducts(1);
+        fetchProducts(1, false, selectedCategory);
         fetchStats();
       } else {
         setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: `Failed to delete: ${json.error || 'Unknown error'}` });
@@ -234,9 +269,11 @@ export default function ProductsPage() {
   };
 
   // ---- Derived data ----
-  const filteredProducts = selectedCategory === 'All'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
+  //
+  // The category filter runs on the server (see fetchProducts), so the loaded
+  // page is already the filtered set. Kept as a named value because the render
+  // below reads it in several places.
+  const filteredProducts = products;
 
   const formatPrice = (product: Product) => {
     const parts: string[] = [];
@@ -261,7 +298,14 @@ export default function ProductsPage() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-white">Products Management</h2>
           <p className="text-gray-400 text-sm mt-1">
-            {totalProducts || products.length} product{(totalProducts || products.length) !== 1 ? 's' : ''} in database
+            {loading ? (
+              <span className="text-blue-400">Loading products…</span>
+            ) : (
+              <>
+                {totalProducts} product{totalProducts !== 1 ? 's' : ''}
+                {selectedCategory === 'All' ? ' in database' : ` in "${selectedCategory}"`}
+              </>
+            )}
             {loadingMore && <span className="text-blue-400 ml-2">(loading more...)</span>}
           </p>
         </div>
@@ -340,8 +384,11 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      {/* Category Filter Buttons — same chip component the storefront uses */}
-      {products.length > 0 && (
+      {/* Category Filter Buttons — same chip component the storefront uses.
+          Shown whenever there is more than one chip, NOT only when products are
+          loaded: selecting a category with no products used to hide the whole row
+          and left no way back to "All". */}
+      {categoryFilters.length > 1 && (
         <CategoryChipRow fadeFrom="from-slate-950" centerOn={selectedCategory}>
           {categoryFilters.map((cat) => {
             const isActive = selectedCategory === cat.name;
@@ -398,12 +445,16 @@ export default function ProductsPage() {
             <Package className="w-10 h-10 text-gray-500" />
           </div>
           <p className="text-gray-400 text-lg font-medium">
-            {products.length === 0 ? 'No products yet' : `No products in "${selectedCategory}"`}
+            {selectedCategory === 'All'
+              ? 'No products yet'
+              : `No products in "${selectedCategory}"`}
           </p>
           <p className="text-gray-500 text-sm mt-1">
-            {products.length === 0 ? 'Click "Add New Product" to create your first product' : 'Add a product to this category or select a different one'}
+            {selectedCategory === 'All'
+              ? 'Click "Add New Product" to create your first product'
+              : 'Add a product to this category or select a different one'}
           </p>
-          {products.length === 0 && (
+          {selectedCategory === 'All' && (
             <button
               onClick={() => setShowProductModal(true)}
               className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
