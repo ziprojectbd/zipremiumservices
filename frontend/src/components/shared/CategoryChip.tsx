@@ -55,6 +55,31 @@ export function CategoryChipShine({ active }: { active: boolean }) {
   );
 }
 
+/** Product count shown next to a chip's label. */
+export function CategoryChipCount({ value, active }: { value: number; active: boolean }) {
+  return (
+    <span
+      className={`relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
+        active ? 'bg-white/25 text-white' : 'bg-black/30 text-gray-400'
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+/** Amber note marking a category whose products are hidden from the storefront. */
+export function CategoryChipHiddenBadge({ value }: { value: number }) {
+  return (
+    <span
+      className="relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-amber-500/25 text-amber-200"
+      title={`${value} product(s) hidden from the storefront`}
+    >
+      hidden
+    </span>
+  );
+}
+
 export interface CategoryChipProps {
   label: string;
   icon: ReactNode;
@@ -101,6 +126,11 @@ export interface CategoryChipRowProps {
    */
   fadeFrom?: string;
   className?: string;
+  /**
+   * Label of the chip to keep centred. Scrolls horizontally only — the page
+   * itself never moves.
+   */
+  centerOn?: string;
 }
 
 /**
@@ -110,7 +140,12 @@ export interface CategoryChipRowProps {
  * overflow-x container otherwise does nothing on Windows/Linux), and the wheel
  * is released at either end so the page still scrolls.
  */
-export function CategoryChipRow({ children, fadeFrom = 'from-slate-950', className = '' }: CategoryChipRowProps) {
+export function CategoryChipRow({
+  children,
+  fadeFrom = 'from-slate-950',
+  className = '',
+  centerOn,
+}: CategoryChipRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,6 +170,16 @@ export function CategoryChipRow({ children, fadeFrom = 'from-slate-950', classNa
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Keep the selected chip in view when the selection changes.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !centerOn) return;
+    const active = el.querySelector<HTMLElement>('[data-active="true"]');
+    if (!active) return;
+    const target = active.offsetLeft - (el.clientWidth - active.clientWidth) / 2;
+    el.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  }, [centerOn]);
+
   return (
     <div className={`relative ${className}`}>
       <div
@@ -145,7 +190,7 @@ export function CategoryChipRow({ children, fadeFrom = 'from-slate-950', classNa
       />
       <div
         ref={scrollRef}
-        className="flex flex-nowrap gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1 snap-x"
+        className="flex flex-nowrap gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-1.5 snap-x"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {children}

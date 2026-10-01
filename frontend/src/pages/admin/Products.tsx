@@ -8,7 +8,11 @@ import api from '../../lib/axios';
 import { formatPrice } from '../../utils/formatPrice';
 import EnhancedAlert from '../../components/public/EnhancedAlert';
 import type { AlertConfig } from '../../components/public/EnhancedAlert';
-import CategoryChip, { CategoryChipRow } from '../../components/shared/CategoryChip';
+import CategoryChip, {
+  CategoryChipRow,
+  CategoryChipCount,
+  CategoryChipHiddenBadge,
+} from '../../components/shared/CategoryChip';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -338,40 +342,30 @@ export default function ProductsPage() {
 
       {/* Category Filter Buttons — same chip component the storefront uses */}
       {products.length > 0 && (
-        <CategoryChipRow fadeFrom="from-slate-950">
-          {categoryFilters.map((cat) => (
-            <CategoryChip
-              key={cat.name}
-              label={cat.name}
-              icon={cat.icon || '📦'}
-              gradient={cat.gradient}
-              active={selectedCategory === cat.name}
-              onClick={() => setSelectedCategory(cat.name)}
-              title={
-                cat.hidden
-                  ? `${cat.hidden} of ${cat.total} products in this category are hidden from the storefront (enable the SMM platform to show them)`
-                  : undefined
-              }
-            >
-              {typeof cat.total === 'number' && cat.total > 0 && (
-                <span
-                  className={`relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
-                    selectedCategory === cat.name ? 'bg-white/25 text-white' : 'bg-black/30 text-gray-400'
-                  }`}
-                >
-                  {cat.total}
-                </span>
-              )}
-              {Boolean(cat.hidden) && (
-                <span
-                  className="relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-amber-500/25 text-amber-200"
-                  title="Hidden from the storefront"
-                >
-                  hidden
-                </span>
-              )}
-            </CategoryChip>
-          ))}
+        <CategoryChipRow fadeFrom="from-slate-950" centerOn={selectedCategory}>
+          {categoryFilters.map((cat) => {
+            const isActive = selectedCategory === cat.name;
+            return (
+              <CategoryChip
+                key={cat.name}
+                label={cat.name}
+                icon={cat.icon || '📦'}
+                gradient={cat.gradient}
+                active={isActive}
+                onClick={() => setSelectedCategory(cat.name)}
+                title={
+                  cat.hidden
+                    ? `${cat.hidden} of ${cat.total} products in this category are hidden from the storefront (enable the SMM platform to show them)`
+                    : undefined
+                }
+              >
+                {typeof cat.total === 'number' && cat.total > 0 && (
+                  <CategoryChipCount value={cat.total} active={isActive} />
+                )}
+                {Boolean(cat.hidden) && <CategoryChipHiddenBadge value={cat.hidden as number} />}
+              </CategoryChip>
+            );
+          })}
         </CategoryChipRow>
       )}
 
