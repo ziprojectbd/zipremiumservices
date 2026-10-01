@@ -145,6 +145,20 @@ const productSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Optional second delivery action, rendered next to `deliveryLink` as a
+  // sibling button. Used when a product ships as both a downloadable tool and
+  // a browser extension, so the customer sees two horizontal actions instead of
+  // one link that only covers half the setup.
+  deliveryLink2: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryLink2Label: {
+    type: String,
+    default: '',
+    trim: true,
+  },
   orderFields: {
     type: [{
       key: { type: String, required: true },
@@ -281,6 +295,12 @@ if (existingProductModel && !existingProductModel.schema.path('deliveryLink')) {
     deliveryLink: { type: String, default: '', trim: true },
     deliveryLinkLabel: { type: String, default: '', trim: true },
     deliveryMessage: { type: String, default: '', trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('deliveryLink2')) {
+  existingProductModel.schema.add({
+    deliveryLink2: { type: String, default: '', trim: true },
+    deliveryLink2Label: { type: String, default: '', trim: true },
   });
 }
 if (existingProductModel && !existingProductModel.schema.path('seoTitle')) {

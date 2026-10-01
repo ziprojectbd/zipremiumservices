@@ -131,6 +131,9 @@ export interface Order {
     // browser-extension install link for products fulfilled by download).
     deliveryLink?: string;
     deliveryLinkLabel?: string;
+    // Optional second delivery action (e.g. the companion Chrome extension).
+    deliveryLink2?: string;
+    deliveryLink2Label?: string;
     deliveryMessage?: string;
     delivery?: {
         provider?: string;

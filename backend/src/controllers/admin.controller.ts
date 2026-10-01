@@ -371,13 +371,19 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
 
           if (candidateIds.length) {
             const products = await Product.find({ _id: { $in: candidateIds } })
-              .select('deliveryLink deliveryLinkLabel deliveryMessage')
+              .select('deliveryLink deliveryLinkLabel deliveryMessage deliveryLink2 deliveryLink2Label')
               .lean();
-            const withLink = products.find((p: any) => String(p.deliveryLink || '').trim());
+            // A product qualifies as a delivery source when it carries either
+            // link, so a product with only the second action still delivers.
+            const withLink = products.find((p: any) =>
+              String(p.deliveryLink || '').trim() || String(p.deliveryLink2 || '').trim(),
+            );
             if (withLink) {
               (order as any).deliveryLink = withLink.deliveryLink || '';
               (order as any).deliveryLinkLabel = withLink.deliveryLinkLabel || '';
               (order as any).deliveryMessage = withLink.deliveryMessage || '';
+              (order as any).deliveryLink2 = withLink.deliveryLink2 || '';
+              (order as any).deliveryLink2Label = withLink.deliveryLink2Label || '';
             }
           }
         }

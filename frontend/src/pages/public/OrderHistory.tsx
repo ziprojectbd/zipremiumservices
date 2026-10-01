@@ -108,6 +108,8 @@ export default function OrderHistoryPage() {
                         deliveryNote: order.deliveryNote || "",
                         deliveryLink: order.deliveryLink || "",
                         deliveryLinkLabel: order.deliveryLinkLabel || "",
+                        deliveryLink2: order.deliveryLink2 || "",
+                        deliveryLink2Label: order.deliveryLink2Label || "",
                         deliveryMessage: order.deliveryMessage || "",
                     };
                 });

@@ -251,6 +251,20 @@ const orderSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Optional second delivery action (e.g. the Chrome extension that pairs with a
+  // downloadable tool). Copied from the product alongside the first link.
+  deliveryLink2: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
+  deliveryLink2Label: {
+    type: String,
+    required: false,
+    default: '',
+    trim: true,
+  },
   captchaApiKey: {
     type: String,
     required: false,

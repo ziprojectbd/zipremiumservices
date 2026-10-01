@@ -1,13 +1,16 @@
 import { Chrome, Download, ExternalLink, FileDown } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
-import type { ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode, type ReactElement } from 'react';
 
 export interface DeliveryLinkCardProps {
-  /** Destination the customer should open. Empty renders nothing. */
+  /** Primary destination, e.g. the downloadable tool. Empty renders nothing. */
   link?: string | null;
-  /** Button text. Falls back to "Add to Chrome" for extension links. */
+  /** Button text for the primary action. */
   label?: string | null;
-  /** Optional guidance shown above the button. */
+  /** Optional second action, e.g. the Chrome extension. */
+  link2?: string | null;
+  /** Button text for the second action. */
+  label2?: string | null;
+  /** Optional guidance shown above the buttons. */
   message?: string | null;
   /** Rendered inside the card, above the message (e.g. an API key block). */
   children?: ReactNode;
@@ -19,8 +22,8 @@ export interface DeliveryLinkCardProps {
    */
   orderId?: string | null;
   /**
-   * Start the download as soon as the card appears. Browsers only allow this
-   * once per user gesture, so the button stays as the reliable path and the
+   * Start the file download as soon as the card appears. Browsers only allow
+   * this once per user gesture, so the buttons stay as the reliable path and the
    * attempt is remembered per order to avoid looping on refresh.
    */
   autoDownload?: boolean;
@@ -41,36 +44,83 @@ export function isGoogleDriveLink(url: string): boolean {
   return /drive\.google\.com|drive\.usercontent\.google\.com/i.test(url);
 }
 
+interface Action {
+  href: string;
+  label: string;
+  icon: typeof Chrome;
+  /** Same-origin proxied download — the browser names and saves the file. */
+  isProxyDownload: boolean;
+  isChromeStore: boolean;
+  isFile: boolean;
+}
+
 /**
- * Delivery instructions shown to a customer after their order is fulfilled.
+ * Delivery actions shown to a customer after their order is fulfilled.
  *
- * Used for products whose delivery is a download/install step (a browser
- * extension or a downloadable tool) rather than an API key. File downloads go
- * through our own origin so the browser saves them with a proper filename; all
- * other links open in a new tab with `noopener noreferrer`.
+ * Products fulfilled by a download/install step (a downloadable tool, a browser
+ * extension) rather than an API key. A product may expose two actions — the tool
+ * and its companion extension — which are rendered as one horizontal row on
+ * desktop and stacked on small screens so nothing overflows.
+ *
+ * File downloads are streamed through our own origin so the browser saves them
+ * with a real filename; every other link opens in a new tab with
+ * `noopener noreferrer`.
  */
 export default function DeliveryLinkCard({
   link,
   label,
+  link2,
+  label2,
   message,
   children,
   className = '',
   orderId,
   autoDownload = false,
 }: DeliveryLinkCardProps): ReactElement | null {
-  const url = String(link || '').trim();
   const attempted = useRef(false);
 
-  const isDrive = isGoogleDriveLink(url);
-  const canProxyDownload = isDrive && Boolean(orderId);
+  const buildAction = (
+    rawUrl: string | null | undefined,
+    rawLabel: string | null | undefined,
+    allowAutoDownload: boolean,
+  ): Action | null => {
+    const url = String(rawUrl || '').trim();
+    if (!url) return null;
 
-  // Same-origin streaming endpoint; Content-Disposition names the file.
-  const downloadUrl = canProxyDownload
-    ? `/api/orders/${encodeURIComponent(String(orderId))}/delivery-download`
-    : url;
+    const chromeStore = isChromeStoreLink(url);
+    // Only the Drive-backed first action is proxied for a named download.
+    const proxy = allowAutoDownload && isGoogleDriveLink(url) && Boolean(orderId);
+    const file = proxy || isDownloadableFile(url);
+
+    const defaultLabel = chromeStore ? 'Add to Chrome' : file ? 'Download Now' : 'Open Link';
+    const text = String(rawLabel || '').trim() || defaultLabel;
+
+    const href = proxy ? `/api/orders/${encodeURIComponent(String(orderId))}/delivery-download` : url;
+
+    return {
+      href,
+      label: text,
+      icon: chromeStore ? Chrome : file ? FileDown : ExternalLink,
+      isProxyDownload: proxy,
+      isChromeStore: chromeStore,
+      isFile: file,
+    };
+  };
+
+  const actions = useMemo(() => {
+    const list: Action[] = [];
+    const first = buildAction(link, label, true);
+    if (first) list.push(first);
+    const second = buildAction(link2, label2, false);
+    if (second) list.push(second);
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [link, label, link2, label2, orderId]);
+
+  const primaryProxyDownload = actions[0]?.isProxyDownload ?? false;
 
   useEffect(() => {
-    if (!autoDownload || !canProxyDownload || attempted.current) return;
+    if (!autoDownload || !primaryProxyDownload || !actions[0] || attempted.current) return;
 
     // One attempt per order, so a refresh does not start it again.
     const key = `zi-delivery-downloaded:${orderId}`;
@@ -87,25 +137,16 @@ export default function DeliveryLinkCard({
     // the page. Browsers may still require the button, which is always shown.
     const frame = document.createElement('iframe');
     frame.style.display = 'none';
-    frame.src = downloadUrl;
+    frame.src = actions[0].href;
     document.body.appendChild(frame);
     window.setTimeout(() => frame.remove(), 60_000);
-  }, [autoDownload, canProxyDownload, downloadUrl, orderId]);
+  }, [autoDownload, primaryProxyDownload, actions, orderId]);
 
   // Nothing to deliver — render nothing.
-  if (!url) return null;
+  if (actions.length === 0) return null;
 
-  const isFileDelivery = canProxyDownload || isDownloadableFile(url);
-  const chromeStore = isChromeStoreLink(url) && !canProxyDownload;
-  const defaultLabel = chromeStore
-    ? 'Add to Chrome'
-    : isFileDelivery
-      ? 'Download Now'
-      : 'Open Link';
-  const buttonLabel = String(label || '').trim() || defaultLabel;
+  const Icon = actions[0].icon;
   const trimmedMessage = String(message || '').trim();
-
-  const Icon = chromeStore ? Chrome : isFileDelivery ? FileDown : ExternalLink;
 
   return (
     <div
@@ -126,25 +167,41 @@ export default function DeliveryLinkCard({
 
       {children}
 
-      <a
-        href={downloadUrl}
-        // A proxied download is same-origin, so the browser honours the
-        // `download` attribute; external links open in a new tab instead.
-        {...(canProxyDownload
-          ? { download: '' }
-          : { target: '_blank', rel: 'noopener noreferrer' })}
-        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/35 transition-all active:scale-[0.98]"
-      >
-        <Icon className="w-4 h-4" />
-        {buttonLabel}
-        {isFileDelivery ? (
-          <Download className="w-3.5 h-3.5 opacity-70" />
-        ) : (
-          <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-        )}
-      </a>
+      {/* Actions: one horizontal row on desktop, stacked on mobile. `flex-wrap`
+          keeps two long labels from overflowing a narrow screen. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+        {actions.map((action, index) => {
+          const ActionIcon = action.icon;
+          const isPrimary = index === 0;
 
-      {canProxyDownload && (
+          return (
+            <a
+              key={`${action.href}-${index}`}
+              href={action.href}
+              // A proxied download is same-origin, so the browser honours the
+              // `download` attribute; external links open in a new tab instead.
+              {...(action.isProxyDownload
+                ? { download: '' }
+                : { target: '_blank', rel: 'noopener noreferrer' })}
+              className={`inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] ${
+                isPrimary
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/20 hover:shadow-cyan-500/35'
+                  : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 shadow-emerald-500/20 hover:shadow-emerald-500/35'
+              }`}
+            >
+              <ActionIcon className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{action.label}</span>
+              {action.isFile ? (
+                <Download className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+              ) : (
+                <ExternalLink className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+              )}
+            </a>
+          );
+        })}
+      </div>
+
+      {primaryProxyDownload && (
         <p className="mt-2 text-[11px] text-gray-400">
           Your download should start automatically. If it doesn&apos;t, tap the button above.
         </p>

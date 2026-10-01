@@ -72,6 +72,8 @@ function mapOrder(raw: any): Order {
     deliveryNote: raw.deliveryNote || '',
     deliveryLink: raw.deliveryLink || '',
     deliveryLinkLabel: raw.deliveryLinkLabel || '',
+    deliveryLink2: raw.deliveryLink2 || '',
+    deliveryLink2Label: raw.deliveryLink2Label || '',
     deliveryMessage: raw.deliveryMessage || '',
     captchaApiKey: raw.captchaApiKey || null,
     p2pToken: raw.p2pToken || '',
@@ -278,6 +280,8 @@ export default function OrderDetails() {
             className="mt-4"
             link={order.deliveryLink}
             label={order.deliveryLinkLabel}
+            link2={order.deliveryLink2}
+            label2={order.deliveryLink2Label}
             message={order.deliveryMessage}
             orderId={order.id || order.orderNumber}
           />

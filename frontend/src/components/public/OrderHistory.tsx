@@ -31,6 +31,9 @@ export interface Order {
   // Frozen at delivery time from the product's delivery instructions.
   deliveryLink?: string;
   deliveryLinkLabel?: string;
+  // Optional second delivery action (e.g. the companion Chrome extension).
+  deliveryLink2?: string;
+  deliveryLink2Label?: string;
   deliveryMessage?: string;
 }
 
@@ -170,11 +173,14 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
               </div>
 
               {/* Delivery instructions — file deliveries auto-start and can be
-                  re-downloaded from the button. */}
+                  re-downloaded from the button. A product may expose two
+                  actions (tool + Chrome extension) rendered as one row. */}
               {order.status === "completed" && (
                 <DeliveryLinkCard
                   link={order.deliveryLink}
                   label={order.deliveryLinkLabel}
+                  link2={order.deliveryLink2}
+                  label2={order.deliveryLink2Label}
                   message={order.deliveryMessage}
                   orderId={order.id}
                   autoDownload
