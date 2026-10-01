@@ -36,6 +36,16 @@ const captchaMasterSettingsSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Product image shown on every Captcha Solver Api plan card.
+  //
+  // The plans are generated from the reseller's pricing list, which carries no
+  // artwork of its own, so one image is configured here and applied to all of
+  // them. Empty falls back to the bundled default in the UI.
+  productImageUrl: {
+    type: String,
+    default: '',
+    trim: true,
+  },
 }, {
   timestamps: true,
 });

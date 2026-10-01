@@ -345,6 +345,7 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
       emailGreetingName: settings.emailGreetingName || '',
+      productImageUrl: settings.productImageUrl || '',
     })
   );
 });
@@ -353,8 +354,14 @@ export const getAdminCaptchaSettings = asyncHandler(async (req, res) => {
 export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const { discountPercent, discountEnabled, exchangeRate, resellerApiKey, emailGreetingName } =
-    req.body;
+  const {
+    discountPercent,
+    discountEnabled,
+    exchangeRate,
+    resellerApiKey,
+    emailGreetingName,
+    productImageUrl,
+  } = req.body;
 
   const update: Record<string, unknown> = {};
   if (discountPercent !== undefined) {
@@ -383,6 +390,17 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
     // is equivalent to leaving it empty.
     update.emailGreetingName = String(emailGreetingName || '').trim();
   }
+  if (productImageUrl !== undefined) {
+    const url = String(productImageUrl || '').trim();
+    // Only http(s) or site-relative paths — this value is injected into an
+    // <img src> on every plan card, so a javascript:/data: URL must be rejected.
+    if (url && !/^(https?:\/\/|\/)/i.test(url)) {
+      return res
+        .status(400)
+        .json(error('productImageUrl must be an http(s) URL or a site-relative path'));
+    }
+    update.productImageUrl = url;
+  }
 
   const settings = await CaptchaMasterSettings.findByIdAndUpdate('global', update, {
     new: true,
@@ -403,6 +421,7 @@ export const updateAdminCaptchaSettings = asyncHandler(async (req, res) => {
       exchangeRate: settings.exchangeRate,
       resellerApiKey: settings.resellerApiKey || '',
       emailGreetingName: settings.emailGreetingName || '',
+      productImageUrl: settings.productImageUrl || '',
     })
   );
 });

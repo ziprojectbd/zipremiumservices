@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   BarChart3,
   Settings,
+  Image as ImageIcon,
 } from 'lucide-react';
 import api from '../../lib/axios';
 
@@ -378,6 +379,8 @@ export default function AdminCaptchaMasterPage() {
   // Greeting name sent with each CaptchaMaster purchase so the customer's
   // completion email does not fall back to the reseller store name.
   const [emailGreetingName, setEmailGreetingName] = useState('Dear Customer');
+  // Product image applied to every Captcha Solver Api plan card.
+  const [productImageUrl, setProductImageUrl] = useState('');
   const [discountLoading, setDiscountLoading] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<
@@ -438,6 +441,7 @@ export default function AdminCaptchaMasterPage() {
         setExchangeRate(res.data.data.exchangeRate ?? 110);
         setResellerApiKey(res.data.data.resellerApiKey ?? '');
         setEmailGreetingName(res.data.data.emailGreetingName ?? 'Dear Customer');
+        setProductImageUrl(res.data.data.productImageUrl ?? '');
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to load discount settings', 'error');
@@ -455,6 +459,7 @@ export default function AdminCaptchaMasterPage() {
         exchangeRate,
         resellerApiKey,
         emailGreetingName,
+        productImageUrl,
       });
       if (res.data.success) {
         showToast('Settings saved successfully', 'success');
@@ -463,13 +468,14 @@ export default function AdminCaptchaMasterPage() {
         setExchangeRate(res.data.data.exchangeRate ?? exchangeRate);
         setResellerApiKey(res.data.data.resellerApiKey ?? resellerApiKey);
         setEmailGreetingName(res.data.data.emailGreetingName ?? emailGreetingName);
+        setProductImageUrl(res.data.data.productImageUrl ?? productImageUrl);
       } else throw new Error(res.data.error);
     } catch (err: any) {
       showToast(err.message || 'Failed to save settings', 'error');
     } finally {
       setDiscountSaving(false);
     }
-  }, [discountPercent, discountEnabled, exchangeRate, resellerApiKey, emailGreetingName, showToast]);
+  }, [discountPercent, discountEnabled, exchangeRate, resellerApiKey, emailGreetingName, productImageUrl, showToast]);
 
   useEffect(() => {
     const load = async () => {
@@ -1269,6 +1275,48 @@ export default function AdminCaptchaMasterPage() {
                   <p className="text-white/40 text-xs mt-2">
                     CaptchaMaster reseller API key for automatic delivery. Found in your CaptchaMaster reseller dashboard.
                   </p>
+                </div>
+
+                {/* Product image — applied to every Captcha Solver Api plan card */}
+                <div className="mb-6">
+                  <label className="block text-white font-medium text-sm mb-2">
+                    Product Image{' '}
+                    <span className="text-white/40 font-normal">(optional)</span>
+                  </label>
+                  <div className="flex items-start gap-3">
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-white/10 bg-white/5 flex-shrink-0">
+                      {productImageUrl.trim() ? (
+                        <img
+                          src={productImageUrl.trim()}
+                          alt="Product image preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          onLoad={(e) => {
+                            e.currentTarget.style.display = '';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/30">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="url"
+                        value={productImageUrl}
+                        onChange={(e) => setProductImageUrl(e.target.value)}
+                        placeholder="https://.../captcha-banner.webp"
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50"
+                      />
+                      <p className="text-white/40 text-xs mt-2">
+                        Shown on every Captcha Solver Api plan card. One image covers the whole list.
+                        Leave empty to use the default artwork.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Email greeting — optional override */}

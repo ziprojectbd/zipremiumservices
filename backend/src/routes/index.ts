@@ -84,9 +84,21 @@ router.get('/captcha-settings', async (_req, res) => {
       const created = await CaptchaMasterSettings.create({ _id: 'global' });
       settings = created.toObject();
     }
-    res.json({ success: true, data: { discountPercent: settings.discountPercent, discountEnabled: settings.discountEnabled, exchangeRate: settings.exchangeRate || 110 } });
+    res.json({
+      success: true,
+      data: {
+        discountPercent: settings.discountPercent,
+        discountEnabled: settings.discountEnabled,
+        exchangeRate: settings.exchangeRate || 110,
+        // Product image applied to every Captcha Solver Api plan card.
+        productImageUrl: settings.productImageUrl || '',
+      },
+    });
   } catch {
-    res.json({ success: true, data: { discountPercent: 20, discountEnabled: true, exchangeRate: 110 } });
+    res.json({
+      success: true,
+      data: { discountPercent: 20, discountEnabled: true, exchangeRate: 110, productImageUrl: '' },
+    });
   }
 });
 

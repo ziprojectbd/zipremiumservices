@@ -25,6 +25,16 @@ const typeLabels: Record<string, string> = {
   minute: "Rate Plan",
 };
 
+/**
+ * Fallback artwork for the plan cards.
+ *
+ * The reseller's pricing list carries no images, so one picture is configured in
+ * the admin CaptchaMaster settings and applied to every plan. This is only used
+ * until one is set, or if the configured URL fails to load.
+ */
+const DEFAULT_PRODUCT_IMAGE =
+  "https://res.cloudinary.com/dxilo3mlg/image/upload/f_auto,q_auto/v1778159344/trader-id-cards/zk3fxn23qji5irzwka80.webp";
+
 function SkeletonGrid() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -204,7 +214,13 @@ export default function CaptchaSolvesApiCards({
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [captchaDiscount, setCaptchaDiscount] = useState<{ discountPercent: number; discountEnabled: boolean; exchangeRate: number }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
+  const [captchaDiscount, setCaptchaDiscount] = useState<{
+    discountPercent: number;
+    discountEnabled: boolean;
+    exchangeRate: number;
+    /** Configured in the admin CaptchaMaster settings; applies to every card. */
+    productImageUrl?: string;
+  }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
 
   // Only live packages belong under "Your Active API Keys". The backend already
   // splits expired ones out, but re-checking here means a stale response or an
@@ -638,8 +654,16 @@ export default function CaptchaSolvesApiCards({
             {/* Header area with image */}
             <div className="relative w-full h-[180px] sm:h-[240px] overflow-hidden">
               <img
-                src="https://res.cloudinary.com/dxilo3mlg/image/upload/f_auto,q_auto/v1778159344/trader-id-cards/zk3fxn23qji5irzwka80.webp"
-                alt=""
+                // Admin-configured image applies to every plan; the bundled
+                // default is used until one is set.
+                src={captchaDiscount.productImageUrl?.trim() || DEFAULT_PRODUCT_IMAGE}
+                alt={plan.code ? `${plan.code} plan` : 'Captcha plan'}
+                loading="lazy"
+                onError={(e) => {
+                  // A broken link must not leave an empty tile.
+                  const img = e.currentTarget;
+                  if (img.src !== DEFAULT_PRODUCT_IMAGE) img.src = DEFAULT_PRODUCT_IMAGE;
+                }}
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-black/20" />
