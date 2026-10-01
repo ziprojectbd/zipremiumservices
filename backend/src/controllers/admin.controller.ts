@@ -18,6 +18,7 @@ import connectDB from '@db/connect';
 import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
 import { buildCategoryChips } from '@utils/productVisibility';
+import { roundCurrency } from '@utils/currency';
 import { bustMaintenanceCache } from '@middlewares/maintenance';
 import { emitMaintenanceUpdate } from '@socket/index.js';
 
@@ -27,34 +28,131 @@ import { emitMaintenanceUpdate } from '@socket/index.js';
 
 // GET /api/admin/products
 // GET /api/admin/products/stats
-export const getAdminProductStats = asyncHandler(async (req, res) => {
+// A stock-tracked product at or below this many units is "low stock".
+const LOW_STOCK_THRESHOLD = 5;
+
+// How far back the "top product" tile looks.
+const TOP_PRODUCT_WINDOW_DAYS = 30;
+
+/**
+ * GET /api/admin/products/stats
+ *
+ * Every number here is computed from live documents — no placeholders.
+ *
+ * - revenue and volume come from ORDERS with `paymentStatus: 'verified'` (the
+ *   same source the dashboard uses), split by currency. Reading the
+ *   denormalized `Product.revenue` field instead gave a single unsplit number, so
+ *   both revenue tiles rendered as 0.
+ * - "categories" is the number of categories products actually use, not the
+ *   number of Category documents (there are 2 documents but 14 categories in
+ *   use, which made the tile read 2).
+ * - the top product is the real 30-day bestseller from order items, not the
+ *   all-time `Product.sales` counter.
+ */
+export const getAdminProductStats = asyncHandler(async (_req, res) => {
   await connectDB();
 
-  const [totalProducts, totalCategories, featuredCount, lowStockCount, totalSales, totalRevenue] =
-    await Promise.all([
-      Product.countDocuments(),
-      Category.countDocuments(),
-      Product.countDocuments({ featured: true }),
-      Product.countDocuments({ stock: { $lte: 5, $gte: 1 } }),
-      Product.aggregate([{ $group: { _id: null, total: { $sum: '$sales' } } }]),
-      Product.aggregate([{ $group: { _id: null, total: { $sum: '$revenue' } } }]),
-    ]);
+  const since = new Date(Date.now() - TOP_PRODUCT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-  // Top product by sales
-  const topProduct = await Product.findOne().sort({ sales: -1 }).select('name sales revenue').lean();
+  const [
+    totalProducts,
+    featuredProducts,
+    lowStockProducts,
+    productCategories,
+    revenueByCurrency,
+    verifiedSummary,
+    topProduct30d,
+  ] = await Promise.all([
+    Product.countDocuments(),
+    Product.countDocuments({ featured: true }),
+    // Only stock-tracked products can be low on stock; a catalog item with
+    // `showStock: false` has no meaningful stock level.
+    Product.countDocuments({ showStock: true, stock: { $lte: LOW_STOCK_THRESHOLD } }),
+    // Categories the catalogue actually uses.
+    Product.distinct('category'),
+    // Revenue by currency from paid orders.
+    Order.aggregate([
+      { $match: { paymentStatus: 'verified' } },
+      { $group: { _id: '$currency', total: { $sum: '$amount' }, orders: { $sum: 1 } } },
+    ]),
+    // All-time units sold, from the same order items.
+    Order.aggregate([
+      { $match: { paymentStatus: 'verified' } },
+      { $unwind: '$items' },
+      { $group: { _id: null, units: { $sum: { $ifNull: ['$items.quantity', 1] } } } },
+    ]),
+    // Best seller over the window, grouped by the product name recorded on the
+    // order (items are not guaranteed to carry a product id).
+    Order.aggregate([
+      { $match: { paymentStatus: 'verified', createdAt: { $gte: since } } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: { $ifNull: ['$items.productName', '$items.name'] },
+          units: { $sum: { $ifNull: ['$items.quantity', 1] } },
+          orders: { $sum: 1 },
+          revenue: { $sum: { $ifNull: ['$items.price', 0] } },
+        },
+      },
+      { $match: { _id: { $nin: [null, ''] } } },
+      { $sort: { units: -1, orders: -1, revenue: -1 } },
+      { $limit: 1 },
+    ]),
+  ]);
+
+  const revenueMap: Record<string, number> = {};
+  const orderCountMap: Record<string, number> = {};
+  for (const row of revenueByCurrency) {
+    revenueMap[row._id as string] = roundCurrency(row.total, 2);
+    orderCountMap[row._id as string] = row.orders;
+  }
+
+  const top = topProduct30d[0] as
+    | { _id: string; units: number; orders: number; revenue: number }
+    | undefined;
+
+  // Per-category product counts, for the categories panel.
+  const categoryCounts = await Product.aggregate([
+    { $match: { category: { $nin: [null, ''] } } },
+    { $group: { _id: '$category', count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+  ]);
+
+  const totalRevenue = roundCurrency(
+    Object.values(revenueMap).reduce((sum, value) => sum + value, 0),
+    2,
+  );
 
   return res.json(
     success({
       totalProducts,
-      totalCategories,
-      featuredCount,
-      lowStockCount,
-      totalSales: (totalSales[0] as { total?: number } | undefined)?.total || 0,
-      totalRevenue: (totalRevenue[0] as { total?: number } | undefined)?.total || 0,
-      topProduct: topProduct
-        ? { name: topProduct.name, sales: topProduct.sales, revenue: topProduct.revenue }
+      // Distinct categories in use. `productCategories` may contain an empty
+      // string on legacy rows, which is not a category.
+      totalCategories: productCategories.filter((c) => String(c || '').trim()).length,
+      featuredProducts,
+      lowStockProducts,
+      revenueUSDT: revenueMap.USDT || 0,
+      revenueBDT: revenueMap.BDT || 0,
+      totalOrders: (orderCountMap.USDT || 0) + (orderCountMap.BDT || 0),
+      totalSales: verifiedSummary[0]?.units || 0,
+      topProduct: top
+        ? {
+            name: top._id,
+            // Units sold in the window (the app's own definition of "sales"):
+            // an SMM order of 1500 members is 1500 units in one order.
+            sales: top.units,
+            units: top.units,
+            orders: top.orders,
+            revenue: roundCurrency(top.revenue, 2),
+          }
         : null,
-    })
+      topProductWindowDays: TOP_PRODUCT_WINDOW_DAYS,
+      categories: categoryCounts.map((c) => ({ name: c._id as string, count: c.count })),
+      // Kept so an older client reading these names still works.
+      featuredCount: featuredProducts,
+      lowStockCount: lowStockProducts,
+      totalRevenue,
+    }),
   );
 });
 

@@ -57,12 +57,27 @@ interface Product {
 
 interface ProductStats {
   totalProducts: number;
+  /** Categories products actually use. */
   totalCategories: number;
   featuredProducts: number;
+  /** Stock-tracked products at or below the low-stock threshold. */
   lowStockProducts: number;
+  /** Revenue from paid orders, split by the order's own currency. */
   revenueUSDT: number;
   revenueBDT: number;
-  topProduct: { name: string; sales: number } | null;
+  /** Paid orders and units sold, from the same order items. */
+  totalOrders: number;
+  totalSales: number;
+  topProduct: {
+    name: string;
+    /** Units sold in the window. */
+    sales: number;
+    units: number;
+    orders: number;
+    revenue: number;
+  } | null;
+  /** Days the top-product tile covers. */
+  topProductWindowDays?: number;
   categories: { name: string; count: number }[];
 }
 
@@ -362,25 +377,45 @@ export default function ProductsPage() {
               <DollarSign className="w-4 h-4 text-emerald-400" />
               <span className="text-emerald-400 text-xs font-medium">Revenue USDT</span>
             </div>
-            <p className="text-white text-xl sm:text-2xl font-bold">${(stats.revenueUSDT || 0).toLocaleString()}</p>
+            <p className="text-white text-xl sm:text-2xl font-bold">
+              ${stats.revenueUSDT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
           <div className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/10 rounded-xl border border-cyan-500/20 p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wallet className="w-4 h-4 text-cyan-400" />
               <span className="text-cyan-400 text-xs font-medium">Revenue BDT</span>
             </div>
-            <p className="text-white text-xl sm:text-2xl font-bold">৳{(stats.revenueBDT || 0).toLocaleString()}</p>
+            <p className="text-white text-xl sm:text-2xl font-bold">
+              ৳{stats.revenueBDT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
-          {stats.topProduct && (
-            <div className="bg-gradient-to-br from-green-500/10 to-green-600/10 rounded-xl border border-green-500/20 p-4 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 text-xs font-medium truncate">Top (30d)</span>
-              </div>
-              <p className="text-white text-sm font-bold truncate" title={stats.topProduct.name}>{stats.topProduct.name}</p>
-              <p className="text-green-400 text-xs">{stats.topProduct.sales} sales</p>
+          {/* Always rendered so the grid does not reflow when there are no
+              orders in the window. */}
+          <div className="bg-gradient-to-br from-green-500/10 to-green-600/10 rounded-xl border border-green-500/20 p-4 lg:col-span-2">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 text-xs font-medium truncate">
+                Top ({stats.topProductWindowDays ?? 30}d)
+              </span>
             </div>
-          )}
+            {stats.topProduct ? (
+              <>
+                <p className="text-white text-sm font-bold truncate" title={stats.topProduct.name}>
+                  {stats.topProduct.name}
+                </p>
+                <p className="text-green-400 text-xs">
+                  {stats.topProduct.units.toLocaleString()} sold
+                  <span className="text-gray-500">
+                    {' · '}
+                    {stats.topProduct.orders.toLocaleString()} order{stats.topProduct.orders !== 1 ? 's' : ''}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <p className="text-gray-500 text-xs">No paid orders in this period</p>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -541,10 +576,13 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
-                  {/* Stats Row */}
+                  {/* Stats Row.
+                      `sales` accumulates the ordered quantity, so an SMM order
+                      of 1500 members is 1500 units — labelled "Sold" rather than
+                      "Sales" so the number is not read as an order count. */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg p-1.5 text-center border border-white/5 bg-gradient-to-b from-violet-500/[0.06] to-transparent">
-                      <div className="text-[9px] text-violet-300/70 uppercase tracking-wider font-semibold mb-0.5">Sales</div>
+                      <div className="text-[9px] text-violet-300/70 uppercase tracking-wider font-semibold mb-0.5">Sold</div>
                       <div className="text-xs font-extrabold bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent">{formatNumber(product.sales)}</div>
                     </div>
                     <div className="rounded-lg p-1.5 text-center border border-white/5 bg-gradient-to-b from-cyan-500/[0.06] to-transparent">
