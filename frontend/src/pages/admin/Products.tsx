@@ -8,10 +8,22 @@ import api from '../../lib/axios';
 import { formatPrice } from '../../utils/formatPrice';
 import EnhancedAlert from '../../components/public/EnhancedAlert';
 import type { AlertConfig } from '../../components/public/EnhancedAlert';
+import CategoryChip, { CategoryChipRow } from '../../components/shared/CategoryChip';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+/** A category chip in the filter row. Mirrors the storefront chip's shape. */
+interface CategoryFilter {
+  name: string;
+  /** Emoji, as the storefront renders it. */
+  icon?: string;
+  /** Tailwind pair, e.g. "from-cyan-500 to-blue-500". */
+  gradient?: string;
+  total?: number;
+  hidden?: number;
+}
+
 interface Product {
   _id?: string;
   id?: string;
@@ -86,9 +98,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [categoryFilters, setCategoryFilters] = useState<
-    { name: string; icon: any; hidden?: number; total?: number }[]
-  >([{ name: 'All', icon: null }]);
+  const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([
+    { name: 'All' },
+  ]);
 
   // Stats state
   const [stats, setStats] = useState<ProductStats | null>(null);
@@ -143,21 +155,23 @@ export default function ProductsPage() {
   // Fetch categories for filter buttons.
   //
   // Uses the admin list, which is built from EVERY product (not just the ones
-  // the storefront lists), so a product hidden by the SMM visibility rule can
-  // still be filtered to. Each entry reports how many of its products are
-  // hidden, which is surfaced on the chip.
+  // the storefront lists) and returns the same icon/gradient the storefront chip
+  // bar uses, so both render identically. Each entry reports how many of its
+  // products are hidden, which is surfaced on the chip.
   useEffect(() => {
     api.get('/admin/product-categories')
       .then(res => {
         const json = res.data;
-        if (json.success && json.data?.categories) {
-          const filters: { name: string; icon: any; hidden?: number; total?: number }[] = [
-            { name: 'All', icon: null },
+        if (json.success && json.data) {
+          const all = json.data.all;
+          const filters: CategoryFilter[] = [
+            { name: 'All', icon: all?.icon, gradient: all?.gradient, total: all?.total },
           ];
-          for (const cat of json.data.categories) {
+          for (const cat of json.data.categories || []) {
             filters.push({
               name: cat.name,
-              icon: DEFAULT_CATEGORY_ICONS[cat.name] || Sparkles,
+              icon: cat.icon,
+              gradient: cat.gradient,
               hidden: cat.hidden,
               total: cat.total,
             });
@@ -322,29 +336,26 @@ export default function ProductsPage() {
         </div>
       ) : null}
 
-      {/* Category Filter Buttons */}
+      {/* Category Filter Buttons — same chip component the storefront uses */}
       {products.length > 0 && (
-        <div className="flex space-x-3 overflow-x-auto pb-2 no-scrollbar">
+        <CategoryChipRow fadeFrom="from-slate-950">
           {categoryFilters.map((cat) => (
-            <button
+            <CategoryChip
               key={cat.name}
+              label={cat.name}
+              icon={cat.icon || '📦'}
+              gradient={cat.gradient}
+              active={selectedCategory === cat.name}
               onClick={() => setSelectedCategory(cat.name)}
               title={
                 cat.hidden
                   ? `${cat.hidden} of ${cat.total} products in this category are hidden from the storefront (enable the SMM platform to show them)`
                   : undefined
               }
-              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all whitespace-nowrap shrink-0 ${
-                selectedCategory === cat.name
-                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
-                  : 'bg-white/10 text-gray-300 hover:bg-white/20'
-              }`}
             >
-              {cat.icon && <cat.icon className="w-4 h-4" />}
-              {cat.name}
               {typeof cat.total === 'number' && cat.total > 0 && (
                 <span
-                  className={`text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
+                  className={`relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
                     selectedCategory === cat.name ? 'bg-white/25 text-white' : 'bg-black/30 text-gray-400'
                   }`}
                 >
@@ -353,15 +364,15 @@ export default function ProductsPage() {
               )}
               {Boolean(cat.hidden) && (
                 <span
-                  className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-amber-500/20 text-amber-300"
+                  className="relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 bg-amber-500/25 text-amber-200"
                   title="Hidden from the storefront"
                 >
                   hidden
                 </span>
               )}
-            </button>
+            </CategoryChip>
           ))}
-        </div>
+        </CategoryChipRow>
       )}
 
       {/* Loading Skeleton */}
