@@ -52,6 +52,9 @@ export interface Order {
   countryCode?: string;
   ipAddress?: string;
   captchaApiKey?: string;
+  // Kolotibablo Auto Login (+30%) add-on purchased with the order's
+  // CaptchaMaster line; set server-side from the stored add-on selection.
+  kbl?: boolean;
   delivery?: {
     provider?: string;
     status?: 'pending' | 'completed' | 'failed' | '';

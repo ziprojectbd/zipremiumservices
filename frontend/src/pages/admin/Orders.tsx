@@ -149,6 +149,16 @@ export default function OrdersPage() {
   const [deliverOrderId, setDeliverOrderId] = useState<string | null>(null);
   const [deliverNote, setDeliverNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  // The exact { customerName, customerEmail, kbl } payload the server will
+  // send for a CaptchaMaster order, fetched when the delivery modal opens so
+  // the admin can verify the values before confirming.
+  const [deliveryPreview, setDeliveryPreview] = useState<{
+    isCaptchaMaster: boolean;
+    customerName: string;
+    customerEmail: string;
+    kbl: boolean;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const actionBusyRef = useRef(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -202,6 +212,32 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load the CaptchaMaster delivery preview when the delivery modal opens —
+  // the server computes it from the stored order (customer name/email plus
+  // the kbl add-on flag), never from client input.
+  useEffect(() => {
+    if (!showDeliverModal || !deliverOrderId) return;
+    let cancelled = false;
+    setDeliveryPreview(null);
+    setPreviewLoading(true);
+    api
+      .get(`/admin/orders/${deliverOrderId}/delivery-preview`)
+      .then((res) => {
+        if (!cancelled && res.data?.success && res.data.data) {
+          setDeliveryPreview(res.data.data);
+        }
+      })
+      .catch(() => {
+        // Non-blocking: the delivery still works without the preview.
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeliverModal, deliverOrderId]);
 
   const handleStatusChange = (status: string) => {
     setStatusFilter(status);
@@ -491,6 +527,45 @@ export default function OrdersPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 sm:p-6 max-w-md w-full">
             <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Confirm Delivery</h3>
+            {previewLoading && (
+              <p className="text-gray-500 text-xs mb-3">Loading delivery preview…</p>
+            )}
+            {!previewLoading && deliveryPreview?.isCaptchaMaster && (
+              <div className="mb-4 rounded-lg border border-purple-400/30 bg-purple-500/10 p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                  <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider">
+                    CaptchaMaster Delivery
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-gray-300">
+                  <div>
+                    <span className="text-gray-500">Customer Name: </span>
+                    <span className="text-white">{deliveryPreview.customerName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Customer Email: </span>
+                    <span className="text-white">{deliveryPreview.customerEmail}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Kolotibablo Auto Login: </span>
+                    <span className={deliveryPreview.kbl ? 'text-green-400' : 'text-gray-400'}>
+                      {deliveryPreview.kbl ? 'Yes' : 'No'}
+                    </span>
+                    <span className="text-gray-500 ml-1.5">
+                      (kbl: {String(deliveryPreview.kbl)})
+                    </span>
+                  </div>
+                  <div className="pt-1.5 border-t border-purple-400/20 font-mono text-[11px] text-purple-200 break-all">
+                    {JSON.stringify({
+                      customerName: deliveryPreview.customerName,
+                      customerEmail: deliveryPreview.customerEmail,
+                      kbl: deliveryPreview.kbl,
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
             <p className="text-gray-400 text-sm mb-4">Add a note for the customer (optional):</p>
             <textarea
               value={deliverNote}

@@ -12,6 +12,7 @@ import {
   getAdminOrders,
   getAdminOrderStats,
   getAdminOrderById,
+  getAdminOrderDeliveryPreview,
   createAdminOrder,
   updateAdminOrder,
   deleteAdminOrder,
@@ -69,6 +70,9 @@ router.delete('/products/:id', deleteAdminProduct);
 
 // Orders
 router.get('/orders/stats', getAdminOrderStats);
+// The CaptchaMaster delivery payload preview — declared before `/orders/:id`
+// so "delivery-preview" is never treated as an order id.
+router.get('/orders/:id/delivery-preview', getAdminOrderDeliveryPreview);
 router.get('/orders/:id', getAdminOrderById);
 router.get('/orders', getAdminOrders);
 router.post('/orders', createAdminOrder);

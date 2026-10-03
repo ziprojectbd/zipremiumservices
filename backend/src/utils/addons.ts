@@ -67,3 +67,94 @@ export const CAPTCHA_KOLOTIBABLO_ADDON: ProductAddon = {
 export function captchamasterAddons(): ProductAddon[] {
   return [CAPTCHA_KOLOTIBABLO_ADDON];
 }
+
+// ---------------------------------------------------------------------------
+// Kolotibablo Auto Login ("kbl") flag for delivery
+//
+// The delivery payload must carry `kbl: true` exactly when the customer
+// bought the +30% add-on. The flag is derived ONLY from the stored order
+// lines — never from a request body — so neither the storefront nor the
+// admin request can flip it.
+// ---------------------------------------------------------------------------
+
+/** Minimal shape of an order line this module inspects. */
+export interface OrderLineShape {
+  productType?: unknown;
+  category?: unknown;
+  productCategory?: unknown;
+  product?: unknown;
+  productId?: unknown;
+  captchamasterPlanId?: unknown;
+  customData?: Record<string, unknown> | null;
+}
+
+/**
+ * True when a line looks like a CaptchaMaster API product — the same
+ * predicate family the order controller and the admin delivery flow use,
+ * so the kbl flag can never leak onto another product type.
+ */
+export function isCaptchaMasterLine(
+  item: OrderLineShape | null | undefined,
+): boolean {
+  if (!item) return false;
+  const productId = String(item.productId ?? item.product ?? '');
+  const planId = String(
+    item.captchamasterPlanId || item.customData?.captchamasterPlanId || '',
+  );
+  const category = String(item.category || item.productCategory || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (
+    item.productType === 'captchamaster' ||
+    (item.customData?.productType === 'captchamaster') ||
+    category === 'captcha solver api' ||
+    productId.startsWith('cm-') ||
+    Boolean(planId)
+  );
+}
+
+/**
+ * True when the Kolotibablo Auto Login add-on was bought on this line.
+ *
+ * `customData.appliedAddons` (frozen by the server at purchase time, with the
+ * real percentage) is authoritative when present; the raw `customData.addons`
+ * selection is only the fallback for lines the server has not re-derived yet.
+ */
+export function itemHasKblAutoLogin(
+  item: OrderLineShape | null | undefined,
+): boolean {
+  if (!item) return false;
+  const applied = item.customData?.appliedAddons;
+  if (Array.isArray(applied) && applied.length > 0) {
+    return applied.some(
+      (a) =>
+        String((a as { key?: unknown } | null)?.key || '') ===
+        CAPTCHA_KOLOTIBABLO_ADDON.key,
+    );
+  }
+  const selected = item.customData?.addons;
+  if (Array.isArray(selected)) {
+    return selected.some(
+      (k) => String(k || '').trim() === CAPTCHA_KOLOTIBABLO_ADDON.key,
+    );
+  }
+  return (
+    typeof selected === 'string' &&
+    selected.trim() === CAPTCHA_KOLOTIBABLO_ADDON.key
+  );
+}
+
+/**
+ * The order-level `kbl` flag: true when ANY CaptchaMaster line on the order
+ * carried the Kolotibablo Auto Login add-on. Non-captcha lines are ignored so
+ * the flag can only ever be produced from CaptchaMaster API products.
+ */
+export function orderKblSelected(
+  items: Array<OrderLineShape | null | undefined> | null | undefined,
+): boolean {
+  if (!Array.isArray(items)) return false;
+  return items.some(
+    (item) => isCaptchaMasterLine(item) && itemHasKblAutoLogin(item),
+  );
+}

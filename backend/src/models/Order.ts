@@ -271,6 +271,15 @@ const orderSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Kolotibablo Auto Login (+30%) add-on flag for the order's CaptchaMaster
+  // line. The server sets it from the stored item add-on selection (the order
+  // record is the source of truth) — never from a request body — and it is
+  // what the admin delivery preview and the vendor payload read.
+  kbl: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
   delivery: {
     type: {
       provider: { type: String, default: '' },

@@ -14,7 +14,7 @@ import axios from 'axios';
 import { getClientIP, getGeoFromIP, countryCodeToFlag } from '@utils/geo';
 import { mapOrderToProvider, getProviderEndpoint } from '@utils/providerMapper';
 import { roundCurrency } from '@utils/currency';
-import { captchamasterAddons } from '@utils/addons';
+import { captchamasterAddons, orderKblSelected, type OrderLineShape } from '@utils/addons';
 import { extractGoogleDriveFileId, fetchDriveFile, attachmentHeader } from '@utils/driveDownload';
 import logger from '@config/logger';
 
@@ -719,11 +719,20 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
   }
 
+  // Freeze the Kolotibablo Auto Login flag on the order record at purchase
+  // time. Derived from the validated items only (a CaptchaMaster line's
+  // stored add-on selection) — it is what the admin delivery preview and the
+  // vendor payload later read, and no request field can override it.
+  const kbl = orderKblSelected(
+    validatedItems as unknown as Array<OrderLineShape>,
+  );
+
   const orderData: Record<string, unknown> = {
     email,
     customerEmail: email,
     username: username || email?.split('@')[0] || '',
     items: validatedItems,
+    kbl,
     productName: (validatedItems[0]?.productName as string) || '',
     productCategory: (validatedItems[0]?.category as string) || '',
     amount: finalTotal,

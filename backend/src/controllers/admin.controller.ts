@@ -5,6 +5,7 @@ import Category from '@models/Category';
 import Coupon from '@models/Coupon';
 import Campaign from '@models/Campaign';
 import CaptchaPackage from '@models/CaptchaPackage';
+import CaptchaMasterSettings from '@models/CaptchaMasterSettings';
 import KYC from '@models/KYC';
 import Footer from '@models/Footer';
 import PaymentSettings from '@models/PaymentSettings';
@@ -19,6 +20,7 @@ import { success, error, paginated } from '@utils/apiResponse';
 import { asyncHandler } from '@utils/asyncHandler';
 import { buildCategoryChips } from '@utils/productVisibility';
 import { roundCurrency } from '@utils/currency';
+import { orderKblSelected, isCaptchaMasterLine, type OrderLineShape } from '@utils/addons';
 import { bustMaintenanceCache } from '@middlewares/maintenance';
 import { emitMaintenanceUpdate } from '@socket/index.js';
 
@@ -441,6 +443,80 @@ export const getAdminOrderById = asyncHandler(async (req, res) => {
   return res.json(success(order));
 });
 
+// GET /api/admin/orders/:id/delivery-preview
+//
+// The exact `{ customerName, customerEmail, kbl }` payload the delivery will
+// send for a CaptchaMaster API order, computed from the STORED order record
+// (never from the request) and shown to the admin in the delivery modal so
+// the values can be verified BEFORE the package is purchased.
+//
+// Non-captcha orders return `isCaptchaMaster: false` and no payload, because
+// the kbl payload is generated only for CaptchaMaster API products.
+export const getAdminOrderDeliveryPreview = asyncHandler(async (req, res) => {
+  await connectDB();
+
+  const id = req.params.id as string;
+  if (!id) {
+    return res.status(400).json(error('Order ID is required'));
+  }
+
+  let order: any = null;
+
+  if (id.length === 24 && /^[a-f0-9]+$/i.test(id)) {
+    order = await Order.findById(id).lean();
+  }
+  if (!order) {
+    order = await Order.findOne({ orderNumber: id }).lean();
+  }
+  if (!order) {
+    return res.status(404).json(error('Order not found'));
+  }
+
+  const items: Array<OrderLineShape> = Array.isArray(order.items)
+    ? (order.items as Array<OrderLineShape>)
+    : [];
+  const isCaptchaMaster = items.some((item) => isCaptchaMasterLine(item));
+
+  if (!isCaptchaMaster) {
+    return res.json(
+      success({
+        isCaptchaMaster: false,
+        customerName: '',
+        customerEmail: '',
+        kbl: false,
+        payload: null,
+      }),
+    );
+  }
+
+  // Same customer resolution the delivery itself uses, so the preview shows
+  // exactly what will be sent: real customer name (order/account/email local
+  // part — never the store name) and the customer's order email.
+  const customerEmail = String(order.email || order.customerEmail || '')
+    .trim()
+    .toLowerCase();
+  const settings = await CaptchaMasterSettings.findById('global').lean();
+  const customerName = await resolveCustomerName(
+    order.username,
+    customerEmail,
+    String(settings?.emailGreetingName || '').trim(),
+  );
+
+  // Source of truth: the add-on selection / applied add-ons stored on the
+  // order's CaptchaMaster lines. No request body field is read here.
+  const kbl = orderKblSelected(items);
+
+  return res.json(
+    success({
+      isCaptchaMaster: true,
+      customerName,
+      customerEmail,
+      kbl,
+      payload: { customerName, customerEmail, kbl },
+    }),
+  );
+});
+
 // POST /api/admin/orders
 export const createAdminOrder = asyncHandler(async (req, res) => {
   await connectDB();
@@ -721,13 +797,28 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
               (order as any).paymentNumber || (order as any).payerNumber || ''
             ).trim();
 
+            // Kolotibablo Auto Login (+30%) flag for the vendor payload.
+            //
+            // Derived from the STORED order lines only (the item's add-on
+            // selection / the server-applied add-ons frozen at purchase
+            // time). The delivery request body never sets it, so the
+            // customer or a frontend cannot flip the flag.
+            const kbl = orderKblSelected(
+              Array.isArray(order.items)
+                ? (order.items as unknown as Array<OrderLineShape>)
+                : []
+            );
+
             const result = await service.purchasePackage(
               captchamasterPlanId,
               customerEmail,
               customerName,
-              { customerPhone }
+              { customerPhone, kbl }
             );
 
+            // Freeze the flag on the order record so the admin panel and any
+            // later inspection show exactly what was sent.
+            (order as any).kbl = kbl;
             (order as any).captchaApiKey = result.apiKey || '';
             (order as any).delivery = {
               provider: 'captchamaster',

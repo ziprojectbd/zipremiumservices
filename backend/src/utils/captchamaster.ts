@@ -410,7 +410,7 @@ class CaptchaMasterService {
     planId: string,
     customerEmail: string,
     customerName?: string,
-    options?: { customerPhone?: string }
+    options?: { customerPhone?: string; kbl?: boolean }
   ): Promise<CaptchaMasterPurchaseResult> {
     if (!planId) {
       throw new CaptchaMasterError('Plan ID is required');
@@ -423,20 +423,28 @@ class CaptchaMasterService {
 
     const name = String(customerName || '').trim();
     const phone = String(options?.customerPhone || '').trim();
+    const kbl =
+      typeof options?.kbl === 'boolean' ? options.kbl : undefined;
 
-    // Log without PII: the plan id and whether a name/phone accompanied the
+    // Log without PII: the plan id and which customer flags accompanied the
     // request are enough to debug a purchase. The email, the name and the API
     // key are never written to logs.
     devLog('[CaptchaMaster] Purchasing package - plan:', planId, {
       hasCustomerEmail: true,
       hasCustomerName: Boolean(name),
       hasCustomerPhone: Boolean(phone),
+      hasKblFlag: kbl !== undefined,
+      kbl: kbl === true,
     });
 
     // Build the body explicitly so a stray field can never leak through.
-    const body: Record<string, string> = { customerEmail: email };
+    // `kbl` (Kolotibablo Auto Login, +30%) is a delivery flag the vendor
+    // uses to auto-login the customer's Kolotibablo account; it is derived
+    // from the stored order on the server and is never client-controlled.
+    const body: Record<string, string | boolean> = { customerEmail: email };
     if (name) body.customerName = name;
     if (phone) body.customerPhone = phone;
+    if (kbl !== undefined) body.kbl = kbl;
 
     const response = await this.client.post<{
       success: boolean;
