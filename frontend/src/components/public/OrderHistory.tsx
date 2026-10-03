@@ -42,6 +42,29 @@ export interface OrderHistoryProps {
   onReorder: (order: Order) => void;
 }
 
+const statusStyles = {
+  pending: {
+    dot: 'bg-amber-400',
+    pill: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+    label: 'Pending',
+  },
+  processing: {
+    dot: 'bg-sky-400 animate-pulse',
+    pill: 'border-sky-400/20 bg-sky-400/10 text-sky-300',
+    label: 'Processing',
+  },
+  completed: {
+    dot: 'bg-emerald-400',
+    pill: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
+    label: 'Completed',
+  },
+  cancelled: {
+    dot: 'bg-rose-400',
+    pill: 'border-rose-400/20 bg-rose-400/10 text-rose-300',
+    label: 'Cancelled',
+  },
+} as const;
+
 export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
   const navigate = useNavigate();
 
@@ -50,203 +73,138 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
     navigate(`/order-history/details/${encodeURIComponent(cleanOrderNumber || order.id)}`);
   };
 
-  const isCrypto = (order: Order) => String(order.paymentMethod || '').toLowerCase() === 'paycrypto';
-
   const getCurrencySymbol = (currency?: string) => {
     return currency === 'USDT' ? '$' : '৳';
   };
 
   const formatOrderPrice = (price: number, currency?: string) => {
-    const symbol = getCurrencySymbol(currency);
-    return `${symbol}${formatPrice(price, 2)}`;
+    // BDT is whole numbers only — no decimals; USDT keeps 2.
+    const decimals = currency === 'USDT' ? 2 : 0;
+    return `${getCurrencySymbol(currency)}${formatPrice(price, decimals)}`;
   };
 
+  const methodLabel = (method: string) =>
+    method === 'metamask_usdt_bsc' ? 'USDT (BSC)' : method;
+
   return (
-    <section className="bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 py-10 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
+    <section className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 py-10 sm:py-14">
+      <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-bold text-white">
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
               Order History
             </h2>
-            <p className="text-gray-400">
-              View all your past orders
+            <p className="mt-1 text-sm text-gray-500">
+              All of your past orders, in one place.
             </p>
           </div>
+          <span className="hidden sm:inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-400">
+            {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+          </span>
         </div>
 
-        <div className="space-y-6">
-          {orders.map((order) => (
-            <div
-              key={order.id}
-              className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-white/10 p-6 hover:border-white/20 transition-all"
+        {orders.length === 0 ? (
+          <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-white/10 py-20 text-center">
+            <History className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+            <h3 className="text-lg font-medium text-white mb-1">
+              No Order History
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              You haven't placed any orders yet.
+            </p>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-gray-950 transition-colors hover:bg-gray-200"
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-white">
-                    {order.orderNumber ? `Order #${order.orderNumber}` : `Order #${order.id}`}
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    Placed on {new Date(order.date).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 mt-2 md:mt-0">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${order.status === "pending"
-                      ? "bg-yellow-500/20 text-yellow-400"
-                      : order.status === "processing"
-                        ? "bg-blue-500/20 text-blue-400"
-                        : order.status === "completed"
-                          ? "bg-green-500/20 text-green-400"
-                          : "bg-red-500/20 text-red-400"
-                      }`}
-                  >
-                    {order.status.charAt(0).toUpperCase() +
-                      order.status.slice(1)}
-                  </span>
-                  <span className="text-lg font-bold text-white">
-                    {formatOrderPrice(order.total, order.currency)}
-                  </span>
-                </div>
-              </div>
+              Start Shopping
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {orders.map((order) => {
+              const s = statusStyles[order.status];
+              return (
+                <article
+                  key={order.id}
+                  className="group rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800/80 to-slate-900/80 p-5 sm:p-7 transition-all hover:border-white/20"
+                >
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${s.pill}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                      {s.label}
+                    </span>
+                    <span className="font-mono text-xs text-gray-500">
+                      #{order.orderNumber || order.id}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(order.date).toLocaleDateString()}
+                    </span>
+                    <div className="ml-auto">
+                      <span className="text-lg sm:text-xl font-semibold tracking-tight text-white">
+                        {formatOrderPrice(order.total, order.currency)}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <h4 className="font-medium text-white mb-2">
-                    Items:
-                  </h4>
-                  <div className="space-y-1">
+                  <div className="mt-5 space-y-2.5">
                     {order.items.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex justify-between text-sm"
-                      >
-                        <span className="text-gray-300">
-                          {(item as any).productName || item.name} x{item.quantity}
-                          {/* Optional paid add-ons bought with this line. The
-                              server records the label + percentage at purchase
-                              time, so this stays accurate even if the product's
-                              add-ons change later. */}
-                          {Array.isArray((item as any).customData?.appliedAddons) &&
-                            (item as any).customData.appliedAddons.length > 0 && (
-                              <span className="block mt-0.5 space-x-1">
-                                {(item as any).customData.appliedAddons.map(
-                                  (a: { key?: string; label?: string; pricePercent?: number }) => (
-                                    <span
-                                      key={a.key}
-                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200 align-middle"
-                                    >
-                                      {a.label || a.key}
-                                      {Number(a.pricePercent) > 0 ? ` +${a.pricePercent}%` : ''}
-                                    </span>
-                                  ),
-                                )}
-                              </span>
-                            )}
+                      <div key={index} className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate text-sm text-gray-300">
+                          {(item as any).productName || item.name}
                         </span>
-                        <div className="flex flex-col items-end">
-                          <span className="text-white">৳{formatPrice(item.price * item.quantity, 2)}</span>
-                          {isCrypto(order) && (item as any).usdtAmount && (
-                            <span className="text-gray-400 text-xs">${formatPrice((item as any).usdtAmount * item.quantity, 2)}</span>
-                          )}
-                        </div>
+                        <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-gray-400">
+                          ×{item.quantity}
+                        </span>
                       </div>
                     ))}
                   </div>
-                </div>
-                <div>
-                  <h4 className="font-medium text-white mb-2">
-                    Payment Details:
-                  </h4>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">
-                        Method:
-                      </span>
-                      <span className="text-white">
-                        {order.paymentMethod === "metamask_usdt_bsc"
-                          ? "USDT (BSC)"
-                          : order.paymentMethod}
-                      </span>
+
+                  {order.status === 'completed' && (
+                    <div className="mt-5">
+                      <DeliveryLinkCard
+                        link={order.deliveryLink}
+                        label={order.deliveryLinkLabel}
+                        link2={order.deliveryLink2}
+                        label2={order.deliveryLink2Label}
+                        message={order.deliveryMessage}
+                        orderId={order.id}
+                        autoDownload
+                      />
                     </div>
-                    {order.txHash ? (
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">
-                          TxHash:
-                        </span>
-                        <span className="text-white font-mono text-xs truncate max-w-[200px]">
-                          {order.txHash.slice(0, 10)}...{order.txHash.slice(-6)}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">
-                          TrxID:
-                        </span>
-                        <span className="text-white font-mono">
-                          {order.trxId}
-                        </span>
-                      </div>
-                    )}
+                  )}
+
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-4">
+                    <span className="text-xs text-gray-500">
+                      Paid via{' '}
+                      <span className="font-medium text-gray-300">
+                        {methodLabel(order.paymentMethod)}
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {order.status === 'completed' && (
+                        <button
+                          onClick={() => onReorder(order)}
+                          className="rounded-full border border-white/10 px-4 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-white/25 hover:text-white"
+                        >
+                          Reorder
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openDetails(order)}
+                        className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-gray-950 transition-colors hover:bg-gray-200"
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Delivery instructions — file deliveries auto-start and can be
-                  re-downloaded from the button. A product may expose two
-                  actions (tool + Chrome extension) rendered as one row. */}
-              {order.status === "completed" && (
-                <DeliveryLinkCard
-                  link={order.deliveryLink}
-                  label={order.deliveryLinkLabel}
-                  link2={order.deliveryLink2}
-                  label2={order.deliveryLink2Label}
-                  message={order.deliveryMessage}
-                  orderId={order.id}
-                  autoDownload
-                  className="mb-4"
-                />
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => openDetails(order)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
-                >
-                  View Details
-                </button>
-                {order.status === "completed" && (
-                  <button
-                    onClick={() => onReorder(order)}
-                    className="px-4 py-2 border border-green-500/30 text-green-400 rounded-lg hover:bg-green-500/10 transition-colors"
-                  >
-                    Reorder
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {orders.length === 0 && (
-            <div className="text-center py-20 bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-2xl border border-white/10">
-              <History className="w-16 h-16 mx-auto mb-4 text-gray-500" />
-              <h3 className="text-xl font-semibold text-white mb-2">
-                No Order History
-              </h3>
-              <p className="text-gray-400 mb-6">
-                You haven't placed any orders yet.
-              </p>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
-              >
-                Start Shopping
-              </button>
-            </div>
-          )}
-        </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
-
     </section>
   );
 }

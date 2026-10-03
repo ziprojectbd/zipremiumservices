@@ -278,9 +278,9 @@ export default function ProductDetail() {
                     {product.campaignPrice && product.campaignPrice < product.price ? (
                       <>
                         <span className="text-3xl font-bold" style={{ color: product.campaignColor || "#ef4444" }}>
-                          ৳{formatPrice(product.campaignPrice, 2)}
+                          ৳{formatPrice(product.campaignPrice, 0)}
                         </span>
-                        <span className="text-xl text-gray-500 line-through">৳{formatPrice(product.price, 2)}</span>
+                        <span className="text-xl text-gray-500 line-through">৳{formatPrice(product.price, 0)}</span>
                         {product.campaignDiscount && product.campaignDiscount > 0 && (
                           <span className="text-sm font-bold px-2 py-0.5 rounded" style={{ background: `${product.campaignColor || '#ef4444'}22`, color: product.campaignColor || '#ef4444' }}>
                             -{Math.round(product.campaignDiscount)}%
@@ -289,7 +289,7 @@ export default function ProductDetail() {
                       </>
                     ) : (
                       <span className="text-3xl font-bold" style={{ backgroundImage: `linear-gradient(90deg, hsl(${hue}, 70%, 65%), hsl(${(hue + 60) % 360}, 80%, 65%))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        ৳{formatPrice(product.price, 2)}
+                        ৳{formatPrice(product.price, 0)}
                       </span>
                     )}
                   </div>

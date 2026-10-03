@@ -457,7 +457,7 @@ export default function Home() {
     e.preventDefault();
     if (validateWeb3Form()) {
       const usdAmount = parseFloat(web3Form.amount);
-      const bdtAmount = formatPrice(usdAmount * exchangeRate, 2);
+      const bdtAmount = formatPrice(usdAmount * exchangeRate, 0);
 
       const p2pProduct = {
         id: `p2p-${Date.now()}`,

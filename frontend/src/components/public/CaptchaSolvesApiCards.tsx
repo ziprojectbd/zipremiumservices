@@ -786,7 +786,9 @@ export default function CaptchaSolvesApiCards({
                     ? Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100
                     : plan.priceValue;
                   const effectiveRate = captchaDiscount.exchangeRate || exchangeRate || 110;
-                  const discountedPriceBDT = Math.round(discountedPriceUSD * effectiveRate * 100) / 100;
+                  // Whole taka only — the BDT amount is rounded to an integer at
+                  // add-to-cart time so the cart/checkout BDT never shows decimals.
+                  const discountedPriceBDT = Math.round(discountedPriceUSD * effectiveRate);
                   return (
                   <button
                     onClick={() =>

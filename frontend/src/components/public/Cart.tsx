@@ -180,7 +180,9 @@ export default function CartView({
           scrollbar-width: none;
         }
       `}</style>
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    {/* The `dark` class is forced on this overlay so the cart always renders
+        with dark styles, no matter which device/browser theme is active. */}
+    <div className="dark fixed inset-0 z-50 overflow-hidden">
       <div
         className="absolute inset-0 bg-black bg-opacity-50"
         onClick={() => setIsCartOpen(false)}
@@ -235,7 +237,7 @@ export default function CartView({
                           {item.name}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-300">
-                          ৳{formatPrice(priceWithAddons(item.priceBDT || item.price, item) * (isSmm ? item.quantity / 1000 : item.quantity), 2)}
+                          ৳{formatPrice(priceWithAddons(item.priceBDT || item.price, item) * (isSmm ? item.quantity / 1000 : item.quantity), 0)}
                         </p>
                       </div>
                       {!isSmm ? (
@@ -246,7 +248,7 @@ export default function CartView({
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        <span className="w-8 text-center font-semibold">
+                        <span className="w-8 text-center font-semibold text-white">
                           {item.quantity}
                         </span>
                         <button
@@ -327,7 +329,7 @@ export default function CartView({
                                     {selected ? 'Added to this line' : `Adds ${pct}% to the price`} — ৳
                                     {formatPrice(
                                       (item.priceBDT || item.price) * (pct / 100) * (isSmm ? item.quantity / 1000 : item.quantity),
-                                      2,
+                                      0,
                                     )}
                                   </span>
                                 )}
@@ -348,7 +350,7 @@ export default function CartView({
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-gray-500 dark:text-gray-400">Base Price</span>
                                 <span className="font-medium text-gray-900 dark:text-gray-200">
-                                  ৳{formatPrice(baseLine, 2)}
+                                  ৳{formatPrice(baseLine, 0)}
                                 </span>
                               </div>
                               {applied.length > 0 && applied.map((addon) => {
@@ -359,7 +361,7 @@ export default function CartView({
                                       {addon.label} (+{aPct}%)
                                     </span>
                                     <span className="font-medium text-purple-700 dark:text-purple-300">
-                                      +৳{formatPrice((item.priceBDT || item.price) * (aPct / 100) * qtyFactor, 2)}
+                                      +৳{formatPrice((item.priceBDT || item.price) * (aPct / 100) * qtyFactor, 0)}
                                     </span>
                                   </div>
                                 );
@@ -367,7 +369,7 @@ export default function CartView({
                               <div className="flex items-center justify-between text-[11px] border-t border-purple-200/70 dark:border-purple-800/50 pt-1">
                                 <span className="font-semibold text-gray-900 dark:text-white">Final Price</span>
                                 <span className="font-bold text-purple-700 dark:text-purple-300">
-                                  ৳{formatPrice(finalLine, 2)}
+                                  ৳{formatPrice(finalLine, 0)}
                                 </span>
                               </div>
                             </div>
@@ -397,7 +399,7 @@ export default function CartView({
                                 const val = parseInt(e.target.value) || smmMin;
                                 updateCartItemQuantity(item.id, Math.min(smmMax, Math.max(smmMin, val)));
                               }}
-                              className="w-full px-3 py-2 bg-white/5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white text-center font-bold focus:outline-none focus:border-blue-500"
+                              className="w-full px-3 py-2 bg-white/5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-white text-center font-bold focus:outline-none focus:border-blue-500"
                               min={smmMin}
                               max={smmMax}
                             />
@@ -503,7 +505,7 @@ export default function CartView({
                   Total:
                 </span>
                 <span className="text-2xl font-bold text-blue-600">
-                  ৳{formatPrice(getTotalPrice(), 2)}
+                  ৳{formatPrice(getTotalPrice(), 0)}
                 </span>
               </div>
               <button

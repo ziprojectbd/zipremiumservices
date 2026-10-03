@@ -93,19 +93,20 @@ const orderSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  // Mobile payment details. NOT required: orders created through the
+  // manual-verification fallback (gateway could not auto-confirm the payment)
+  // have no payer number / TRX ID yet — the admin verifies the payment by
+  // hand and can attach the details later. The unique index on transactionId
+  // only covers non-empty values, so pending manual orders stay safe.
   paymentNumber: {
     type: String,
-    required: function(this: any) {
-      return this.paymentMethod && this.paymentMethod !== CRYPTO_PAYMENT_METHOD && this.paymentMethod !== 'cod';
-    },
+    required: false,
     default: '',
     trim: true,
   },
   transactionId: {
     type: String,
-    required: function(this: any) {
-      return this.paymentMethod && this.paymentMethod !== CRYPTO_PAYMENT_METHOD && this.paymentMethod !== 'cod';
-    },
+    required: false,
     default: '',
     trim: true,
   },

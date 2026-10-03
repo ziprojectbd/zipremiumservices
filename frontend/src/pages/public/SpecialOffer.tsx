@@ -98,9 +98,9 @@ function CampaignProductCard({
           {product.campaignPrice && product.campaignPrice < product.price ? (
             <>
               <span className="text-xl font-extrabold" style={{ color: campaignColor }}>
-                ৳{formatPrice(product.campaignPrice, 2)}
+                ৳{formatPrice(product.campaignPrice, 0)}
               </span>
-              <span className="text-sm text-gray-500 line-through">৳{formatPrice(product.price, 2)}</span>
+              <span className="text-sm text-gray-500 line-through">৳{formatPrice(product.price, 0)}</span>
               {product.campaignDiscount && product.campaignDiscount > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${campaignColor}22`, color: campaignColor }}>
                   -{Math.round(product.campaignDiscount)}%
@@ -108,7 +108,7 @@ function CampaignProductCard({
               )}
             </>
           ) : (
-            <span className="text-xl font-extrabold text-white">৳{formatPrice(product.price, 2)}</span>
+            <span className="text-xl font-extrabold text-white">৳{formatPrice(product.price, 0)}</span>
           )}
         </div>
 

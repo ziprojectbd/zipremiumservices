@@ -190,7 +190,7 @@ const ProductCard = React.memo(function ProductCard({
               <div className="flex items-start space-x-2">
                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: `hsl(${(hue + 100) % 360}, 60%, 60%)` }} />
                 <span className="text-xs text-gray-400 line-clamp-1">
-                  Rate: <span className="font-semibold text-white">৳{formatPrice(product.price, 2)}</span><span className="text-gray-500">/1000</span>
+                  Rate: <span className="font-semibold text-white">৳{formatPrice(product.price, 0)}</span><span className="text-gray-500">/1000</span>
                 </span>
               </div>
               {product.description && (
@@ -220,10 +220,10 @@ const ProductCard = React.memo(function ProductCard({
             {product.campaignPrice && product.campaignPrice < product.price ? (
               <div className="flex items-center justify-center gap-2">
                 <span className="text-lg font-extrabold" style={{ backgroundImage: `linear-gradient(90deg, ${priceGrad})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  ৳{formatPrice(product.campaignPrice, 2)}
+                  ৳{formatPrice(product.campaignPrice, 0)}
                 </span>
                 <span className="text-sm text-gray-500 line-through">
-                  ৳{formatPrice(product.price, 2)}
+                  ৳{formatPrice(product.price, 0)}
                 </span>
                 {product.campaignDiscount && product.campaignDiscount > 0 && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${product.campaignColor || '#ef4444'}22`, color: product.campaignColor || '#ef4444' }}>
@@ -236,7 +236,7 @@ const ProductCard = React.memo(function ProductCard({
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-1">
                   <span className="text-lg font-extrabold" style={{ backgroundImage: `linear-gradient(90deg, ${priceGrad})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    ৳{formatPrice(product.price, 2)}
+                    ৳{formatPrice(product.price, 0)}
                   </span>
                   <span className="text-[10px] text-gray-500 font-medium">/1000</span>
                 </div>
@@ -248,7 +248,7 @@ const ProductCard = React.memo(function ProductCard({
               </div>
             ) : (
               <span className="text-lg font-extrabold" style={{ backgroundImage: `linear-gradient(90deg, ${priceGrad})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                ৳{formatPrice(product.price, 2)}
+                ৳{formatPrice(product.price, 0)}
               </span>
             )}
             {shouldShowStock && product.stock !== undefined && !product.smmProvider && (

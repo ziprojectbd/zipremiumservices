@@ -141,7 +141,7 @@ export default function OrderHistoryPage() {
 
     if (!isLoggedIn && !isLoading) {
         return (
-            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 flex flex-col items-center justify-center p-4">
                 <h1 className="text-2xl font-bold text-white mb-4">Please Sign In to view your order history</h1>
                 <button
                     onClick={() => { navigate("/sign-in"); }}
@@ -153,21 +153,21 @@ export default function OrderHistoryPage() {
         );
     }
 
-    // Compute stats from orders
+    // Compute stats from the same server orders shown in the order history list
     const stats = React.useMemo(() => {
-        const total = orders.length;
-        const completed = orders.filter(o => o.status === 'completed').length;
-        const cancelled = orders.filter(o => o.status === 'cancelled').length;
-        const bdtSpent = orders.reduce((sum, o) => sum + ((o.currency !== 'USDT') ? (o.total || 0) : 0), 0);
-        const usdtSpent = orders.reduce((sum, o) => sum + (o.currency === 'USDT' ? (o.total || 0) : 0), 0);
+        const total = completedOrders.length;
+        const completed = completedOrders.filter(o => o.status === 'completed').length;
+        const cancelled = completedOrders.filter(o => o.status === 'cancelled').length;
+        const bdtSpent = completedOrders.reduce((sum, o) => sum + ((o.currency !== 'USDT') ? (o.total || 0) : 0), 0);
+        const usdtSpent = completedOrders.reduce((sum, o) => sum + (o.currency === 'USDT' ? (o.total || 0) : 0), 0);
         return { total, completed, cancelled, bdtSpent, usdtSpent };
-    }, [orders]);
+    }, [completedOrders]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100 transition-colors">
             {/* Stats Cards */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-6">
+            <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 pt-10">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-2">
                     <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-xl border border-blue-500/20 p-4">
                         <div className="flex items-center gap-2 mb-2">
                             <span className="text-blue-400 text-xs font-medium">Total Orders</span>
@@ -190,7 +190,7 @@ export default function OrderHistoryPage() {
                         <div className="flex items-center gap-2 mb-2">
                             <span className="text-cyan-400 text-xs font-medium">Total Spent (BDT)</span>
                         </div>
-                        <p className="text-white text-xl sm:text-2xl font-bold">{formatPrice(stats.bdtSpent, 2)} ৳</p>
+                        <p className="text-white text-xl sm:text-2xl font-bold">{formatPrice(stats.bdtSpent, 0)} ৳</p>
                     </div>
                     <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 rounded-xl border border-amber-500/20 p-4">
                         <div className="flex items-center gap-2 mb-2">

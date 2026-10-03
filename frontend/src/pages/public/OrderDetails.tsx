@@ -153,7 +153,9 @@ export default function OrderDetails() {
   const getCurrencySymbol = (currency?: string) => (currency === 'USDT' ? '$' : '৳');
   const formatOrderPrice = (price: number, currency?: string) => {
     const symbol = getCurrencySymbol(currency);
-    return `${symbol}${formatPrice(price, 2)}`;
+    // BDT is whole numbers only — no decimals; USDT keeps 2.
+    const decimals = currency === 'USDT' ? 2 : 0;
+    return `${symbol}${formatPrice(price, decimals)}`;
   };
 
   const CopyBtn = ({ fieldKey, value }: { fieldKey: string; value: string }) => (
@@ -601,20 +603,6 @@ export default function OrderDetails() {
                               </span>
                             )}
                         </span>
-                        {/* The captcha line's price is shown once, in the
-                            Purchase Summary — not repeated here. */}
-                        {!lineIsCaptcha(item) && (
-                          <div className="text-right shrink-0">
-                            <div className="text-xs sm:text-sm font-medium text-gray-100">
-                              ৳{formatPrice(item.price * item.quantity, 2)}
-                            </div>
-                            {isCrypto(order) && item.usdtAmount && (
-                              <div className="text-[11px] text-gray-500">
-                                ${formatPrice(item.usdtAmount * item.quantity, 2)}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                       {item.link && (
                         <div className="mt-1 text-[11px] text-gray-500">

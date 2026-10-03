@@ -87,7 +87,7 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                   }
                   // BDT: single shared whole-taka amount (same rounding as the
                   // Total) so the line always matches the checkout total.
-                  return <span>৳{formatPrice(getBDTItemAmount(item), 2)}</span>;
+                  return <span>৳{formatPrice(getBDTItemAmount(item), 0)}</span>;
                 })()}
               </div>
             </div>
@@ -102,7 +102,7 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                 {isCryptoPayment ? (
                   <span>-${formatPrice(discountAmount / exchangeRate, 2)}</span>
                 ) : (
-                  <span>-৳{formatPrice(discountAmount, 2)}</span>
+                  <span>-৳{formatPrice(discountAmount, 0)}</span>
                 )}
               </div>
             </div>
@@ -117,7 +117,7 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                   <span className="text-red-400 text-sm">Price unavailable</span>
                 )
               ) : (
-                <span>৳{formatPrice(getTotalPrice(), 2)}</span>
+                <span>৳{formatPrice(getTotalPrice(), 0)}</span>
               )}
             </div>
           </div>
