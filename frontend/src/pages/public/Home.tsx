@@ -562,6 +562,9 @@ export default function Home() {
             smmMin: p.smmMin || undefined,
             smmMax: p.smmMax || undefined,
             orderFields: p.orderFields || undefined,
+            // Optional paid extras, carried into the cart so its checkboxes and
+            // the price work straight from a product card.
+            addons: Array.isArray(p.addons) ? p.addons : undefined,
           };
         });
 

@@ -236,6 +236,8 @@ export const createAdminProduct = asyncHandler(async (req, res) => {
       imageUrl: imageUrl || '',
       available: available ?? true,
       ...req.body,
+      // Normalized last so a half-filled row from the form cannot fail validation.
+      addons: sanitizeAddons(req.body?.addons),
     });
 
     return res.status(201).json(success(product, 'Product created'));
@@ -247,11 +249,52 @@ export const createAdminProduct = asyncHandler(async (req, res) => {
   }
 });
 
+// Normalize the add-ons an admin submits.
+//
+// The form lets a draft be saved while a row is still half-filled, so a blank
+// label is dropped rather than failing validation, and the percentage is
+// clamped to the schema's range. The key is kept stable because cart selections
+// reference it.
+function sanitizeAddons(raw: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const label = String(item.label || '').trim();
+    if (!label) continue; // still being typed — skip
+
+    const key = String(item.key || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '-')
+      .slice(0, 60) || `addon-${out.length + 1}-${Date.now().toString(36)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      key,
+      label: label.slice(0, 80),
+      description: String(item.description || '').trim().slice(0, 160),
+      pricePercent: Math.min(1000, Math.max(0, Number(item.pricePercent) || 0)),
+      defaultSelected: Boolean(item.defaultSelected),
+    });
+  }
+
+  return out;
+}
+
 // PUT /api/admin/products/:id
 export const updateAdminProduct = asyncHandler(async (req, res) => {
   await connectDB();
 
-  const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+  const update: Record<string, unknown> = { ...req.body };
+  if ('addons' in update) {
+    update.addons = sanitizeAddons(update.addons);
+  }
+
+  const product = await Product.findByIdAndUpdate(req.params.id, update, {
     new: true,
     runValidators: true,
   });

@@ -12,6 +12,7 @@ import CouponInput from "../../components/public/checkout/CouponInput";
 import PaymentMethod from "../../components/public/checkout/PaymentMethod";
 import PaymentInstructions from "../../components/public/checkout/PaymentInstructions";
 import PaymentDetails from "../../components/public/checkout/PaymentDetails";
+import { priceWithAddons } from "../../utils/addons";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -280,7 +281,12 @@ export default function Checkout() {
           // guess the rate for items it cannot look up in the product table
           // (captcha packages, P2P fees) — for DB products it still uses its
           // own stored price, so this cannot be used to underpay.
-          usdtAmount: item.priceUSDT || (exchangeRate > 0 ? (item.price || 0) / exchangeRate : 0),
+          // Selected add-ons are included; the server re-derives and re-applies
+          // them from the product so the figure cannot be tampered with.
+          usdtAmount: priceWithAddons(
+            item.priceUSDT || (exchangeRate > 0 ? (item.price || 0) / exchangeRate : 0),
+            item,
+          ),
           quantity: item.quantity,
           category: item.category,
           smmProvider: item.smmProvider,
@@ -289,6 +295,7 @@ export default function Checkout() {
           captchamasterPlanId: item.captchamasterPlanId,
           link: item.link,
           details: item.details,
+          // Carries the add-on selection (`customData.addons`).
           customData: item.customData || {},
           orderFields: item.orderFields,
         })),

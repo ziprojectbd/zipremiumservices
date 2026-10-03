@@ -804,6 +804,15 @@ export default function CaptchaSolvesApiCards({
                         captchamasterPlanId: plan.id,
                         features: features.slice(0, 3),
                         available: true,
+                        addons: [
+                          {
+                            key: "kolotibablo-autologin",
+                            label: "Need Kolotibablo Auto Login Service?",
+                            description: "Optional +30% — enables automatic Kolotibablo login on every solved captcha.",
+                            pricePercent: 30,
+                            defaultSelected: false,
+                          },
+                        ],
                       })
                     }
                   className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-white transition-all duration-300 shadow-lg hover:scale-[1.02] active:scale-[0.98]"

@@ -3,6 +3,7 @@ import type { CartItem } from "../../../types";
 import { useShopContext } from "../../../store/ShopContext";
 import { Tag } from "lucide-react";
 import { formatPrice, roundCurrency } from "../../../utils/formatPrice";
+import { priceWithAddons } from "../../../utils/addons";
 
 interface OrderSummaryProps {
   cart: CartItem[];
@@ -48,11 +49,25 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                 )}
                 {item.customData && Object.keys(item.customData).length > 0 && (
                   <div className="mt-1 space-y-0.5">
-                    {Object.entries(item.customData).map(([key, val]) => (
-                      <div key={key} className="text-[11px] text-gray-500">
-                        <span className="capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                    {Object.entries(item.customData)
+                      // Raw add-on keys are rendered as labels below.
+                      .filter(([key]) => key !== 'addons')
+                      .map(([key, val]) => (
+                        <div key={key} className="text-[11px] text-gray-500">
+                          <span className="capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
+                        </div>
+                      ))}
+                    {Array.isArray(item.customData?.addons) && item.customData.addons.length > 0 && (
+                      <div className="text-[11px] text-purple-400">
+                        {(() => {
+                          const selectedKeys = new Set(item.customData.addons.map((k: unknown) => String(k)));
+                          const labels = (item.addons || [])
+                            .filter((a) => selectedKeys.has(String(a.key)))
+                            .map((a) => a.label);
+                          return `Add-ons: ${labels.length > 0 ? labels.join(', ') : item.customData.addons.join(', ')}`;
+                        })()}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -63,9 +78,11 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
                   if (isCryptoPayment) {
                     // Same USD source as getTotalPriceUSD() — use priceUSDT
                     // when available, otherwise convert the BDT price at the
-                    // current rate. Both places must agree so a line item
-                    // (e.g. $4.25) always matches the order total.
-                    const unitUSD = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
+                    // current rate, then apply the selected add-ons. Both
+                    // places must agree so a line item (e.g. $4.25) always
+                    // matches the order total.
+                    const baseUSD = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
+                    const unitUSD = priceWithAddons(baseUSD, item);
                     return <span>${formatPrice(unitUSD * effectiveQty, 2)}</span>;
                   }
                   // BDT: single shared whole-taka amount (same rounding as the

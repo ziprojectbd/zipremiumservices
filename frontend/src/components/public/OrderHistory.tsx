@@ -123,6 +123,26 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
                       >
                         <span className="text-gray-300">
                           {(item as any).productName || item.name} x{item.quantity}
+                          {/* Optional paid add-ons bought with this line. The
+                              server records the label + percentage at purchase
+                              time, so this stays accurate even if the product's
+                              add-ons change later. */}
+                          {Array.isArray((item as any).customData?.appliedAddons) &&
+                            (item as any).customData.appliedAddons.length > 0 && (
+                              <span className="block mt-0.5 space-x-1">
+                                {(item as any).customData.appliedAddons.map(
+                                  (a: { key?: string; label?: string; pricePercent?: number }) => (
+                                    <span
+                                      key={a.key}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200 align-middle"
+                                    >
+                                      {a.label || a.key}
+                                      {Number(a.pricePercent) > 0 ? ` +${a.pricePercent}%` : ''}
+                                    </span>
+                                  ),
+                                )}
+                              </span>
+                            )}
                         </span>
                         <div className="flex flex-col items-end">
                           <span className="text-white">৳{formatPrice(item.price * item.quantity, 2)}</span>

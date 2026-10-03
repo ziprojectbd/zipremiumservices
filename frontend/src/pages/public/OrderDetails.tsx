@@ -412,6 +412,23 @@ export default function OrderDetails() {
                         <span className="text-xs sm:text-sm text-gray-100 min-w-0">
                           {item.productName || item.name}
                           <span className="text-gray-500"> ×{item.quantity}</span>
+                          {/* Optional paid add-ons bought with this line. */}
+                          {Array.isArray(item.customData?.appliedAddons) &&
+                            item.customData.appliedAddons.length > 0 && (
+                              <span className="block mt-1 space-x-1">
+                                {item.customData.appliedAddons.map(
+                                  (a: { key?: string; label?: string; pricePercent?: number }) => (
+                                    <span
+                                      key={a.key}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200 align-middle"
+                                    >
+                                      {a.label || a.key}
+                                      {Number(a.pricePercent) > 0 ? ` +${a.pricePercent}%` : ''}
+                                    </span>
+                                  ),
+                                )}
+                              </span>
+                            )}
                         </span>
                         <div className="text-right shrink-0">
                           <div className="text-xs sm:text-sm font-medium text-gray-100">

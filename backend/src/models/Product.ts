@@ -190,6 +190,22 @@ const productSchema = new mongoose.Schema({
     }],
     default: [],
   },
+  // Optional paid extras offered on the cart line, e.g. "Kolotibablo Auto Login".
+  //
+  // Selecting one adds `pricePercent` to that line's unit price. The percentage
+  // is applied on the server too (see order.controller), so the client cannot
+  // change a price — the selection only chooses which add-ons are bought.
+  addons: {
+    type: [{
+      key: { type: String, required: true, trim: true },
+      label: { type: String, required: true, trim: true },
+      description: { type: String, default: '', trim: true },
+      /** Percentage added to the unit price when selected (30 = +30%). */
+      pricePercent: { type: Number, default: 0, min: 0, max: 1000 },
+      defaultSelected: { type: Boolean, default: false },
+    }],
+    default: [],
+  },
 }, {
   timestamps: true,
 });
@@ -301,6 +317,20 @@ if (existingProductModel && !existingProductModel.schema.path('deliveryLink2')) 
   existingProductModel.schema.add({
     deliveryLink2: { type: String, default: '', trim: true },
     deliveryLink2Label: { type: String, default: '', trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('addons')) {
+  existingProductModel.schema.add({
+    addons: {
+      type: [{
+        key: { type: String, required: true, trim: true },
+        label: { type: String, required: true, trim: true },
+        description: { type: String, default: '', trim: true },
+        pricePercent: { type: Number, default: 0, min: 0, max: 1000 },
+        defaultSelected: { type: Boolean, default: false },
+      }],
+      default: [],
+    },
   });
 }
 if (existingProductModel && !existingProductModel.schema.path('seoTitle')) {

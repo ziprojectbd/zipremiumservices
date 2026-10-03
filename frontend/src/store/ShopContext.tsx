@@ -3,6 +3,7 @@ import type { CartItem, Order, Product } from "../types";
 import api from "../lib/axios";
 import { devLog } from "../utils/devLogger";
 import { roundCurrency } from "../utils/formatPrice";
+import { priceWithAddons, initialAddonSelection } from "../utils/addons";
 import { useAuth } from "../context/AuthContext";
 import { useAppSettings } from "../store/AppSettingsContext";
 
@@ -232,7 +233,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             const existingItem = prevCart.find((item) => item.id === product.id);
             if (existingItem) {
                 return prevCart.map((item) =>
-                    item.id === product.id ? { ...item, quantity: item.quantity + 1, customData: customData || item.customData } : item
+                    item.id === product.id
+                        ? {
+                            ...item,
+                            quantity: item.quantity + 1,
+                            customData: customData || item.customData,
+                            // Keep the add-ons fresh: the product's definitions
+                            // (and any percentage change) win on re-add.
+                            addons: product.addons ?? item.addons,
+                        }
+                        : item
                 );
             }
             let initialQty = 1;
@@ -242,11 +252,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             const campaignPrice = (product as any).campaignPrice;
             const itemPriceBDT = campaignPrice != null && campaignPrice > 0
                 ? campaignPrice : product.priceBDT || product.priceUSDT || product.price;
+            // Seed the add-on selection so an add-on flagged as default starts
+            // selected when the buyer never made a choice.
+            const selectedAddons = initialAddonSelection(
+                product.addons,
+                customData?.addons,
+            );
             return [...prevCart, {
                 ...product, quantity: initialQty, price: itemPriceBDT,
                 priceBDT: itemPriceBDT,
                 campaignPrice: campaignPrice != null && campaignPrice > 0 ? campaignPrice : undefined,
-                customData: customData || {},
+                customData: { ...(customData || {}), addons: selectedAddons },
+                addons: product.addons || [],
             }];
         });
         if (lastAddedTimer.current) window.clearTimeout(lastAddedTimer.current);
@@ -304,7 +321,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const getSubtotalPrice = useCallback(() => {
         const subtotal = cart.reduce((total, item) => {
             const isSmm = item.smmProvider === 'oneservicebd';
-            const price = item.priceBDT || item.price;
+            // Selected add-ons raise this line's unit price (e.g. +30%).
+            const price = priceWithAddons(item.priceBDT || item.price, item);
             return total + price * (isSmm ? item.quantity / 1000 : item.quantity);
         }, 0);
         return roundCurrency(subtotal);
@@ -324,7 +342,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     // all use the exact same final value. No component may recalculate this.
     const getBDTItemAmount = useCallback((item: CartItem) => {
         const isSmm = item.smmProvider === 'oneservicebd';
-        const price = item.priceBDT || item.price || 0;
+        // Add-ons are part of the line amount; the total rounds the same way.
+        const price = priceWithAddons(item.priceBDT || item.price || 0, item);
         const effectiveQty = isSmm ? item.quantity / 1000 : item.quantity;
         return Math.max(0, Math.round(price * effectiveQty));
     }, []);
@@ -332,7 +351,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const getTotalPriceUSD = useCallback(() => {
         const subtotal = cart.reduce((total, item) => {
             const isSmm = item.smmProvider === 'oneservicebd';
-            const usdPrice = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
+            const base = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
+            const usdPrice = priceWithAddons(base, item);
             return total + usdPrice * (isSmm ? item.quantity / 1000 : item.quantity);
         }, 0);
         const discountUSD = roundCurrency(discountAmount / exchangeRate);
@@ -445,6 +465,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                                 productType: item.productType || '', captchamasterPlanId: item.captchamasterPlanId || '',
                                 details: item.details || '', stock: item.stock || 0,
                                 customData: item.customData || {},
+                                // Restore the add-ons and the selection so the
+                                // checkbox and the price survive a reload or a
+                                // different device.
+                                addons: Array.isArray(item.addons) ? item.addons : [],
                             }));
                         }
                         return prev;
@@ -486,6 +510,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                     productType: item.productType || '', captchamasterPlanId: item.captchamasterPlanId || '',
                     details: item.details || '', stock: item.stock || 0,
                     customData: item.customData || {},
+                    addons: Array.isArray(item.addons) ? item.addons : [],
                 }));
             });
         } catch { /* Non-blocking restore failure */ }

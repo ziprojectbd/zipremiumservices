@@ -18,6 +18,8 @@ export interface ICartItem {
   features?: string[];
   stock?: number;
   originalPrice?: number;
+  customData?: Record<string, unknown>;
+  addons?: { key?: string; label?: string; description?: string; pricePercent?: number; defaultSelected?: boolean }[];
 }
 
 export interface ICart {
@@ -99,6 +101,26 @@ const cartItemSchema = new mongoose.Schema({
   originalPrice: {
     type: Number,
     default: 0,
+  },
+  // Buyer-entered values for the product's order fields, plus the selected
+  // optional add-ons (`customData.addons`). Mongoose strict mode strips unknown
+  // fields, so without this declaration the selection was lost on every cart
+  // reload — the same class of bug that previously dropped the captcha plan id.
+  customData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
+  },
+  // The product's available add-ons, copied onto the line so the cart can render
+  // the checkboxes (and show the percentage) without a second product fetch.
+  addons: {
+    type: [{
+      key: { type: String, trim: true },
+      label: { type: String, trim: true },
+      description: { type: String, trim: true },
+      pricePercent: { type: Number, default: 0 },
+      defaultSelected: { type: Boolean, default: false },
+    }],
+    default: [],
   },
 });
 

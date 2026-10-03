@@ -26,6 +26,16 @@ export interface OrderField {
     showIf?: OrderFieldShowIf;
 }
 
+/** An optional paid extra on a product, e.g. "Kolotibablo Auto Login" (+30%). */
+export interface ProductAddon {
+    key: string;
+    label: string;
+    description?: string;
+    /** Percentage added to the unit price when selected (30 = +30%). */
+    pricePercent: number;
+    defaultSelected?: boolean;
+}
+
 export interface Product {
     id: number | string;
     name: string;
@@ -53,6 +63,8 @@ export interface Product {
     productType?: 'standard' | 'smm' | 'captchamaster';
     captchamasterPlanId?: string;
     orderFields?: OrderField[];
+    /** Optional paid extras offered on the cart line. */
+    addons?: ProductAddon[];
     campaignPrice?: number;
     campaignDiscount?: number;
     campaignAmountSaved?: number;

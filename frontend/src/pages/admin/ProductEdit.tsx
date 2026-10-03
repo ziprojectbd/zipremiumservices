@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Upload, Trash2, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import api from '../../lib/axios';
-import { roundCurrency } from '../../utils/formatPrice';
+import { roundCurrency, formatPrice } from '../../utils/formatPrice';
 import EnhancedAlert from '../../components/public/EnhancedAlert';
 import type { AlertConfig } from '../../components/public/EnhancedAlert';
 
@@ -32,6 +32,8 @@ interface Product {
   deliveryLink?: string;
   deliveryLinkLabel?: string;
   deliveryMessage?: string;
+  /** Optional paid extras offered on the cart line. */
+  addons?: { key: string; label: string; description?: string; pricePercent: number; defaultSelected?: boolean }[];
 }
 
 interface Category {
@@ -97,6 +99,7 @@ export default function AdminProductEdit() {
     deliveryLink: '',
     deliveryLinkLabel: '',
     deliveryMessage: '',
+    addons: [],
   });
 
   const [exchangeRate, setExchangeRate] = useState(110);
@@ -135,6 +138,7 @@ export default function AdminProductEdit() {
           deliveryLink: res.data.data.deliveryLink || '',
           deliveryLinkLabel: res.data.data.deliveryLinkLabel || '',
           deliveryMessage: res.data.data.deliveryMessage || '',
+          addons: Array.isArray(res.data.data.addons) ? res.data.data.addons : [],
         });
         const featureLines = (res.data.data.description || '')
           .split('\n')
@@ -733,6 +737,159 @@ export default function AdminProductEdit() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Optional Add-ons */}
+          <div className="border border-white/10 rounded-xl p-4 bg-white/[0.02]">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Optional Add-ons</label>
+                <p className="text-xs text-gray-500">
+                  Checkboxes offered on the cart line. Selecting one adds its percentage to that line's
+                  price. Leave empty to offer none.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    addons: [
+                      ...(prev.addons || []),
+                      {
+                        // A stable key derived from the label keeps the selection
+                        // meaningful even after the label is edited later.
+                        key: `addon-${Date.now().toString(36)}`,
+                        label: '',
+                        description: '',
+                        pricePercent: 30,
+                        defaultSelected: false,
+                      },
+                    ],
+                  }))
+                }
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold hover:bg-blue-500/30 transition-all"
+              >
+                + Add Add-on
+              </button>
+            </div>
+
+            {(formData.addons || []).length === 0 ? (
+              <p className="text-xs text-gray-600">No add-ons. Customers see no checkbox on this product.</p>
+            ) : (
+              <div className="space-y-3">
+                {(formData.addons || []).map((addon, idx) => (
+                  <div key={addon.key || idx} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-400 mb-1.5">Label</label>
+                        <input
+                          type="text"
+                          value={addon.label}
+                          maxLength={80}
+                          placeholder="Need Kolotibablo Auto Login"
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              addons: (prev.addons || []).map((a, i) =>
+                                i === idx ? { ...a, label: e.target.value } : a,
+                              ),
+                            }))
+                          }
+                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1.5">Extra price (%)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={1000}
+                            step="1"
+                            value={addon.pricePercent}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                addons: (prev.addons || []).map((a, i) =>
+                                  i === idx
+                                    ? {
+                                        ...a,
+                                        pricePercent: Math.min(1000, Math.max(0, Number(e.target.value) || 0)),
+                                      }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            className="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                          <span className="text-gray-400 text-sm">%</span>
+                          {Number(addon.pricePercent) > 0 && (
+                            <span className="text-xs text-emerald-300">
+                              e.g. ৳{formatPrice(((formData.priceBDT || formData.price || 0) * Number(addon.pricePercent)) / 100, 2)} on
+                              the base price
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-end justify-between gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(addon.defaultSelected)}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                addons: (prev.addons || []).map((a, i) =>
+                                  i === idx ? { ...a, defaultSelected: e.target.checked } : a,
+                                ),
+                              }))
+                            }
+                            className="w-4 h-4 rounded text-blue-500 focus:ring-blue-500"
+                          />
+                          Selected by default
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              addons: (prev.addons || []).filter((_, i) => i !== idx),
+                            }))
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-400/30 text-red-300 text-xs font-semibold hover:bg-red-500/25 transition-all"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                          Description <span className="text-gray-600">(optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={addon.description || ''}
+                          maxLength={160}
+                          placeholder="Auto-login to Kolotibablo for you"
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              addons: (prev.addons || []).map((a, i) =>
+                                i === idx ? { ...a, description: e.target.value } : a,
+                              ),
+                            }))
+                          }
+                          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Images */}

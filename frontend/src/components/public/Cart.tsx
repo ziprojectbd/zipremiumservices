@@ -5,6 +5,7 @@ import api from "../../lib/axios";
 import type { Product, CartItem } from "../../types";
 import DynamicOrderForm, { validateOrderFields } from "./DynamicOrderForm";
 import { formatPrice } from "../../utils/formatPrice";
+import { availableAddons, selectedAddonKeys, selectedAddons, priceWithAddons } from "../../utils/addons";
 
 function getSmmLinkPlaceholder(category: string, details?: string): string {
   const cat = (category || '').toLowerCase();
@@ -234,7 +235,7 @@ export default function CartView({
                           {item.name}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-300">
-                          ৳{formatPrice((item.priceBDT || item.price) * (isSmm ? item.quantity / 1000 : item.quantity), 2)}
+                          ৳{formatPrice(priceWithAddons(item.priceBDT || item.price, item) * (isSmm ? item.quantity / 1000 : item.quantity), 2)}
                         </p>
                       </div>
                       {!isSmm ? (
@@ -264,6 +265,116 @@ export default function CartView({
                       </button>
                       )}
                     </div>
+
+                    {/* Optional paid add-ons (e.g. "Need Kolotibablo Auto Login",
+                        +30%). Selecting one raises this line's price. */}
+                    {availableAddons(item).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                          <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
+                            Optional Add-ons
+                          </span>
+                        </div>
+                        {availableAddons(item).map((addon) => {
+                          const selected = selectedAddonKeys(item).includes(String(addon.key));
+                          const pct = Number(addon.pricePercent) || 0;
+                          return (
+                            <label
+                              key={addon.key}
+                              className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                selected
+                                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700'
+                                  : 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-800'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => {
+                                  const current = selectedAddonKeys(item);
+                                  const next = selected
+                                    ? current.filter((k) => k !== addon.key)
+                                    : [...current, addon.key];
+                                  updateCartItemCustomData(item.id, {
+                                    ...(item.customData || {}),
+                                    addons: next,
+                                  });
+                                }}
+                                className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {addon.label}
+                                  </span>
+                                  {pct > 0 && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                                      +{pct}%
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                                    optional
+                                  </span>
+                                </span>
+                                {addon.description && (
+                                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {addon.description}
+                                  </span>
+                                )}
+                                {pct > 0 && (
+                                  <span className="block text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                    {selected ? 'Added to this line' : `Adds ${pct}% to the price`} — ৳
+                                    {formatPrice(
+                                      (item.priceBDT || item.price) * (pct / 100) * (isSmm ? item.quantity / 1000 : item.quantity),
+                                      2,
+                                    )}
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          );
+                        })}
+
+                        {/* Price breakdown — Base Price, selected add-on(s) and
+                            the Final Price the line will charge. */}
+                        {(() => {
+                          const qtyFactor = isSmm ? item.quantity / 1000 : item.quantity;
+                          const baseLine = (item.priceBDT || item.price) * qtyFactor;
+                          const finalLine = priceWithAddons(item.priceBDT || item.price, item) * qtyFactor;
+                          const applied = selectedAddons(item);
+                          return (
+                            <div className="rounded-lg border border-purple-200 dark:border-purple-800/60 bg-purple-50/50 dark:bg-purple-900/10 p-2.5 space-y-1">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-gray-500 dark:text-gray-400">Base Price</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-200">
+                                  ৳{formatPrice(baseLine, 2)}
+                                </span>
+                              </div>
+                              {applied.length > 0 && applied.map((addon) => {
+                                const aPct = Number(addon.pricePercent) || 0;
+                                return (
+                                  <div key={addon.key} className="flex items-center justify-between text-[11px]">
+                                    <span className="text-purple-700 dark:text-purple-300">
+                                      {addon.label} (+{aPct}%)
+                                    </span>
+                                    <span className="font-medium text-purple-700 dark:text-purple-300">
+                                      +৳{formatPrice((item.priceBDT || item.price) * (aPct / 100) * qtyFactor, 2)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              <div className="flex items-center justify-between text-[11px] border-t border-purple-200/70 dark:border-purple-800/50 pt-1">
+                                <span className="font-semibold text-gray-900 dark:text-white">Final Price</span>
+                                <span className="font-bold text-purple-700 dark:text-purple-300">
+                                  ৳{formatPrice(finalLine, 2)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                     {isSmm && (
                       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
                         <div>

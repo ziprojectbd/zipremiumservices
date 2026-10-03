@@ -14,6 +14,7 @@ import axios from 'axios';
 import { getClientIP, getGeoFromIP, countryCodeToFlag } from '@utils/geo';
 import { mapOrderToProvider, getProviderEndpoint } from '@utils/providerMapper';
 import { roundCurrency } from '@utils/currency';
+import { captchamasterAddons } from '@utils/addons';
 import { extractGoogleDriveFileId, fetchDriveFile, attachmentHeader } from '@utils/driveDownload';
 import logger from '@config/logger';
 
@@ -371,7 +372,35 @@ export const createOrder = asyncHandler(async (req, res) => {
       const planId = String(item.captchamasterPlanId || item.customData?.captchamasterPlanId || '');
       const isCaptchaItem = item.productType === 'captchamaster' || String(productId).startsWith('cm-') || Boolean(planId);
 
+      // Add-ons applied to this line by the server (CaptchaMaster plans only —
+      // they have no Product document to look up). Recorded on the order item
+      // so the exact charged percentage is auditable.
+      let captchaAppliedAddons: Array<{ key: string; label: string; pricePercent: number }> = [];
+      let captchaAddonPercent = 0;
+
       if (isCaptchaItem) {
+        // Optional paid add-on ("Kolotibablo Auto Login", +30%).
+        //
+        // The percentage comes from the server-side CaptchaMaster catalog,
+        // never from the request body — the client can only select the add-on,
+        // it cannot change its price. Unknown keys are ignored.
+        const requestedAddonKeys = new Set(
+          Array.isArray(item.customData?.addons)
+            ? item.customData.addons.map((k: unknown) => String(k))
+            : (typeof item.customData?.addons === 'string' && item.customData.addons
+                ? [String(item.customData.addons)]
+                : []),
+        );
+        captchaAppliedAddons = captchamasterAddons()
+          .filter((a) => a?.key && requestedAddonKeys.has(String(a.key)))
+          .map((a) => ({
+            key: String(a.key),
+            label: String(a.label || '').slice(0, 80),
+            pricePercent: Math.min(1000, Math.max(0, Number(a.pricePercent) || 0)),
+          }));
+        captchaAddonPercent = captchaAppliedAddons.reduce((sum, a) => sum + a.pricePercent, 0);
+        const captchaMultiplier = 1 + captchaAddonPercent / 100;
+
         const pricing = await loadCaptchaPricing();
         const listPriceUsd = pricing.byPlanId.get(planId);
 
@@ -386,13 +415,20 @@ export const createOrder = asyncHandler(async (req, res) => {
           const rate = pricing.rate > 0 ? pricing.rate : exchangeRate;
           const netBdt = rate > 0 ? Math.round(netUsd * rate * 100) / 100 : bdtUnit;
 
-          unitPx = isCrypto ? netUsd : netBdt;
+          // Authoritative server base price — apply the add-on on top of it.
+          unitPx = (isCrypto ? netUsd : netBdt) * captchaMultiplier;
         } else {
           // Plan unknown (rotated away, or the reseller is unreachable): fall
           // back to the client value rather than blocking the order.
+          //
+          // `clientUsdt` already carries the client's add-on math (the body's
+          // usdtAmount is sent add-on-inclusive), so it is used as-is; the BDT
+          // `price` field is the bare base, so the add-on is applied there.
           unitPx = isCrypto
-            ? (clientUsdt > 0 ? clientUsdt : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit))
-            : bdtUnit;
+            ? (clientUsdt > 0
+                ? clientUsdt
+                : (exchangeRate > 0 ? roundCurrency(bdtUnit / exchangeRate, 3) : bdtUnit) * captchaMultiplier)
+            : bdtUnit * captchaMultiplier;
         }
       } else {
         unitPx = isCrypto
@@ -422,9 +458,12 @@ export const createOrder = asyncHandler(async (req, res) => {
         price: roundCurrency(unitPx * effectiveQty),
         // The BDT-side amount is kept for display on BDT orders; on crypto
         // orders both fields carry the USD figure the customer pays.
+        //
+        // For CaptchaMaster lines `unitPx` already carries the server-derived
+        // add-on, so the BDT display amount includes it too.
         usdtAmount: isCrypto
           ? roundCurrency(unitPx * effectiveQty)
-          : roundCurrency(bdtUnit * effectiveQty),
+          : roundCurrency((isCaptchaItem ? unitPx : bdtUnit) * effectiveQty),
         productName: item.productName || name || (productId ? productId : '') || '',
         category: item.category || '',
         link: link || '',
@@ -433,7 +472,15 @@ export const createOrder = asyncHandler(async (req, res) => {
         details: details || '',
         productType: item.productType || '',
         captchamasterPlanId: item.captchamasterPlanId || item.customData?.captchamasterPlanId || '',
-        customData,
+        // `customData.addons` carries the selection; `appliedAddons` records the
+        // add-ons the server actually charged, so the order shows exactly what
+        // was bought (mirrors the regular-product branch above).
+        customData: {
+          ...customData,
+          ...(isCaptchaItem && captchaAppliedAddons.length
+            ? { appliedAddons: captchaAppliedAddons, addonPercent: captchaAddonPercent }
+            : {}),
+        },
       });
       continue;
     }
@@ -474,6 +521,35 @@ export const createOrder = asyncHandler(async (req, res) => {
       }
     }
 
+    // Optional paid add-ons (e.g. "Need Kolotibablo Auto Login", +30%).
+    //
+    // The percentages come from the PRODUCT, and only the selection comes from
+    // the request, so a client can choose what to buy but cannot change a price.
+    // An unknown key is ignored, and the percentage is clamped to a sane range.
+    const requestedAddonKeys = new Set(
+      Array.isArray(item.customData?.addons)
+        ? item.customData.addons.map((k: unknown) => String(k))
+        : (typeof item.customData?.addons === 'string' && item.customData.addons
+            ? [String(item.customData.addons)]
+            : []),
+    );
+    const productAddons = Array.isArray((product as { addons?: unknown }).addons)
+      ? ((product as { addons: Array<{ key?: string; label?: string; pricePercent?: number }> }).addons)
+      : [];
+    const appliedAddons = productAddons
+      .filter((a) => a?.key && requestedAddonKeys.has(String(a.key)))
+      .map((a) => ({
+        key: String(a.key),
+        // Label is recorded so the order can show what was bought without
+        // re-reading the product (which may have changed since).
+        label: String(a.label || '').slice(0, 80),
+        pricePercent: Math.min(1000, Math.max(0, Number(a.pricePercent) || 0)),
+      }));
+    const addonPercent = appliedAddons.reduce((sum, a) => sum + a.pricePercent, 0);
+    if (addonPercent > 0) {
+      unitPrice = unitPrice * (1 + addonPercent / 100);
+    }
+
     const isSmmProduct = product.smmProvider === 'oneservicebd';
     const effectiveQuantity = isSmmProduct ? (quantity || 1) / 1000 : (quantity || 1);
     // Line totals are NOT rounded for the running sum. The client adds the
@@ -494,7 +570,15 @@ export const createOrder = asyncHandler(async (req, res) => {
       smmServiceId: product.smmServiceId || '',
       smmProvider: product.smmProvider || '',
       details: details || '',
-      customData: item.customData || {},
+      // `customData.addons` carries the selection; `appliedAddons` records the
+      // percentages the server actually charged, so the order shows exactly what
+      // was bought even if the product's add-ons change later.
+      customData: {
+        ...(item.customData || {}),
+        ...(appliedAddons.length
+          ? { appliedAddons, addonPercent }
+          : {}),
+      },
     });
   }
 

@@ -60,6 +60,8 @@ export default function ProductDetail() {
             smmMin: p.smmMin || undefined,
             smmMax: p.smmMax || undefined,
             orderFields: p.orderFields || [],
+            // Optional paid extras, so the cart can offer the checkboxes.
+            addons: Array.isArray(p.addons) ? p.addons : [],
             seoSlug: p.seoSlug || '',
             // Campaign fields from API
             campaignPrice: p.campaignPrice,
