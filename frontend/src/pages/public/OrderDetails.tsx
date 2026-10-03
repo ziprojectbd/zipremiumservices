@@ -449,7 +449,7 @@ export default function OrderDetails() {
                       : 'Awaiting delivery'
                   }
                 />
-                <Field label="Email/Username" value={order.email} copyKey="captcha_email" />
+                {/* The buyer's email is shown once, in the Summary section. */}
                 {order.captchaApiKey ? (
                   <div className="flex items-start justify-between gap-3 py-2 border-b border-white/5">
                     <span className="text-xs text-gray-500 shrink-0 pt-0.5">API Key</span>
@@ -505,8 +505,8 @@ export default function OrderDetails() {
             {/* Customer + KBL information for the CaptchaMaster order */}
             {isCaptchaOrder && (
               <Section title="Customer Information">
+                {/* The email is shown once, in the Summary section. */}
                 <Field label="Customer Name" value={order.username || order.email} />
-                <Field label="Customer Email" value={order.email} copyKey="customer_email" />
                 <Field
                   label="Kolotibablo Auto Login"
                   value={

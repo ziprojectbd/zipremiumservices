@@ -427,8 +427,9 @@ export default function AdminOrderDetails() {
           {order.ipAddress && (
             <DetailRow label="IP Address:" value={order.ipAddress} />
           )}
-          <DetailRow label="Amount:" value={<span className="text-white font-medium">{formatPrice(order.amount ?? 0, order.currency)}</span>} />
-          <DetailRow label="Currency:" value={order.currency || (isCryptoOrder(order) ? 'USDT' : 'BDT')} />
+          {/* Amount/Currency intentionally omitted here — the Purchase
+              Summary's Final Price shows the charged amount with its
+              currency symbol. */}
           <DetailRow label="Date:" value={formatDateTime(order.orderDate || order.createdAt || '')} />
           <DetailRow label="Order Status:" value={<StatusBadge type="order" status={ordStatus} />} />
         </InfoCard>
@@ -582,27 +583,9 @@ export default function AdminOrderDetails() {
               {captchaDelivered ? 'Delivered' : 'Pending'}
             </span>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Customer + KBL information */}
-            <div className="space-y-2.5 text-xs sm:text-sm">
-              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Customer Information</span>
-              <DetailRow label="Customer Name:" value={order.username || order.email || '-'} />
-              <DetailRow label="Customer Email:" value={order.email || '-'} copyBtn={<CopyBtn fieldKey="customer_email" value={order.email || '-'} />} />
-              <DetailRow
-                label="Kolotibablo Auto Login:"
-                value={
-                  <span className={captchaKbl && captchaAddonPercent > 0 ? 'text-green-400' : 'text-gray-400'}>
-                    {captchaKbl && captchaAddonPercent > 0
-                      ? `Yes (+${captchaAddonPercent}%)`
-                      : 'No'}
-                  </span>
-                }
-              />
-              <DetailRow
-                label="KBL:"
-                value={<span className="font-mono">{String(captchaKbl)}</span>}
-              />
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Customer name / email are NOT repeated here — the Order
+                Information card above already shows Username and Email. */}
 
             {/* Delivered API / package */}
             <div className="space-y-2.5 text-xs sm:text-sm">
@@ -655,11 +638,13 @@ export default function AdminOrderDetails() {
                   </span>
                 }
               />
+              <DetailRow
+                label="KBL:"
+                value={<span className="font-mono">{String(captchaKbl)}</span>}
+              />
               {captchaKbl && captchaAddonPercent > 0 && (
                 <DetailRow label="Auto Login Charge:" value={formatPrice(captchaCharge, order.currency)} />
               )}
-              {/* No Order Total here — the Order Information card already
-                  shows the order Amount. */}
               <DetailRow label="Final Price:" value={<span className="text-white font-medium">{formatPrice(captchaFinal, order.currency)}</span>} />
             </div>
           </div>
