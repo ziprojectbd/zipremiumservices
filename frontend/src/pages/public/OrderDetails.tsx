@@ -251,7 +251,8 @@ export default function OrderDetails() {
   // ---- CaptchaMaster context — derived ONLY from this order's stored data ----
   // Same detection family as the server (productType / category / cm- product
   // id / plan id) so the sections never appear for other product types.
-  const captchaItem = order.items.find((item: any) => {
+  const lineIsCaptcha = (item: any): boolean => {
+    if (!item) return false;
     const product = String(item?.product || item?.productId || '');
     const planId = String(
       item?.captchamasterPlanId || item?.customData?.captchamasterPlanId || '',
@@ -267,7 +268,9 @@ export default function OrderDetails() {
       product.startsWith('cm-') ||
       planId.length > 0
     );
-  }) as any;
+  };
+
+  const captchaItem = order.items.find((item: any) => lineIsCaptcha(item)) as any;
 
   const isCaptchaOrder = Boolean(
     captchaItem ||
@@ -535,8 +538,9 @@ export default function OrderDetails() {
                     value={formatOrderPrice(captchaCharge, order.currency)}
                   />
                 )}
+                {/* No Order Total here — the Summary section already shows
+                    the order Amount. */}
                 <Field label="Final Price" value={formatOrderPrice(captchaFinal, order.currency)} />
-                <Field label="Order Total" value={formatOrderPrice(order.total, order.currency)} />
               </Section>
             )}
 
@@ -597,16 +601,20 @@ export default function OrderDetails() {
                               </span>
                             )}
                         </span>
-                        <div className="text-right shrink-0">
-                          <div className="text-xs sm:text-sm font-medium text-gray-100">
-                            ৳{formatPrice(item.price * item.quantity, 2)}
-                          </div>
-                          {isCrypto(order) && item.usdtAmount && (
-                            <div className="text-[11px] text-gray-500">
-                              ${formatPrice(item.usdtAmount * item.quantity, 2)}
+                        {/* The captcha line's price is shown once, in the
+                            Purchase Summary — not repeated here. */}
+                        {!lineIsCaptcha(item) && (
+                          <div className="text-right shrink-0">
+                            <div className="text-xs sm:text-sm font-medium text-gray-100">
+                              ৳{formatPrice(item.price * item.quantity, 2)}
                             </div>
-                          )}
-                        </div>
+                            {isCrypto(order) && item.usdtAmount && (
+                              <div className="text-[11px] text-gray-500">
+                                ${formatPrice(item.usdtAmount * item.quantity, 2)}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {item.link && (
                         <div className="mt-1 text-[11px] text-gray-500">

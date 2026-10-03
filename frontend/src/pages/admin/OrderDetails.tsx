@@ -296,7 +296,8 @@ export default function AdminOrderDetails() {
   // ---- CaptchaMaster context — from this order's stored data only ----
   // Mirrors the server's detection family so the section never appears for
   // other product types.
-  const captchaItem = (Array.isArray(order.items) ? order.items : []).find((item: any) => {
+  const lineIsCaptcha = (item: any): boolean => {
+    if (!item) return false;
     const product = String(item?.product || item?.productId || '');
     const planId = String(
       item?.captchamasterPlanId || item?.customData?.captchamasterPlanId || '',
@@ -312,7 +313,11 @@ export default function AdminOrderDetails() {
       product.startsWith('cm-') ||
       planId.length > 0
     );
-  }) as any;
+  };
+
+  const captchaItem = (Array.isArray(order.items) ? order.items : []).find(
+    (item: any) => lineIsCaptcha(item),
+  ) as any;
 
   const isCaptchaOrder = Boolean(
     captchaItem ||
@@ -352,10 +357,6 @@ export default function AdminOrderDetails() {
 
   const captchaDelivered =
     Boolean(order.captchaApiKey) || order.delivery?.status === 'completed';
-  const captchaRef =
-    order.delivery?.externalReference ||
-    order.captchaPackage?.captchaMasterOrderId ||
-    '';
 
   return (
     <div>
@@ -487,13 +488,17 @@ export default function AdminOrderDetails() {
                   </div>
                   <span className="text-gray-300 text-xs sm:text-sm">x{item.quantity || 1}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1.5">
-                  <span>Unit Price: {formatPrice((item.price || 0) / (item.quantity || 1), order.currency)}</span>
-                  <span>Total: {formatPrice(item.price || 0, order.currency)}</span>
-                  {isCryptoOrder(order) && item.usdtAmount && (
-                    <span className="text-gray-500">${item.usdtAmount?.toFixed?.(2) ?? (item.usdtAmount ?? 0)}</span>
-                  )}
-                </div>
+                {/* Captcha lines are priced in the Purchase Summary below —
+                    showing unit/total here would repeat the same numbers. */}
+                {!lineIsCaptcha(item) && (
+                  <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1.5">
+                    <span>Unit Price: {formatPrice((item.price || 0) / (item.quantity || 1), order.currency)}</span>
+                    <span>Total: {formatPrice(item.price || 0, order.currency)}</span>
+                    {isCryptoOrder(order) && item.usdtAmount && (
+                      <span className="text-gray-500">${item.usdtAmount?.toFixed?.(2) ?? (item.usdtAmount ?? 0)}</span>
+                    )}
+                  </div>
+                )}
                 {item.link && (
                   <div className="mt-2 pt-2 border-t border-white/5 flex flex-col sm:flex-row sm:justify-between text-xs">
                     <span className="text-gray-400 mb-1 sm:mb-0">Target Link:</span>
@@ -522,16 +527,37 @@ export default function AdminOrderDetails() {
                     </div>
                   </details>
                 )}
-                {item.customData && Object.keys(item.customData).length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/5">
-                    {Object.entries(item.customData).map(([key, val]) => (
-                      <div key={key} className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
-                        <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
-                        <span className="text-gray-200">{String(val)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* customData is rendered human-readable: applied add-ons as
+                    "Label: Yes (+30%)" rows, and the raw add-on bookkeeping
+                    keys (appliedAddons / addonPercent / addons) are never
+                    dumped as objects. */}
+                {(() => {
+                  const cd = item.customData;
+                  if (!cd || Object.keys(cd).length === 0) return null;
+                  const applied = Array.isArray(cd.appliedAddons) ? cd.appliedAddons : [];
+                  const entries = Object.entries(cd).filter(
+                    ([key]) => !['appliedAddons', 'addonPercent', 'addons'].includes(key),
+                  );
+                  if (applied.length === 0 && entries.length === 0) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-white/5">
+                      {applied.map((a: any) => (
+                        <div key={String(a?.key)} className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                          <span>{String(a?.label || a?.key || 'Add-on')}</span>
+                          <span className="text-purple-300">
+                            Yes{Number(a?.pricePercent) > 0 ? ` (+${a.pricePercent}%)` : ''}
+                          </span>
+                        </div>
+                      ))}
+                      {entries.map(([key, val]) => (
+                        <div key={key} className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                          <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                          <span className="text-gray-200">{String(val)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -586,12 +612,6 @@ export default function AdminOrderDetails() {
                 label="Package/Plan:"
                 value={order.captchaPackage?.planName || captchaItem?.productName || captchaItem?.name || '-'}
               />
-              {order.captchaPackage?.credits !== undefined && (
-                <DetailRow
-                  label="Credits:"
-                  value={`${order.captchaPackage?.creditsRemaining ?? order.captchaPackage?.credits ?? 0} / ${order.captchaPackage?.credits ?? 0} remaining`}
-                />
-              )}
               <DetailRow label="Quantity:" value={captchaItem?.quantity ?? 1} />
               <DetailRow
                 label="API Key:"
@@ -619,12 +639,6 @@ export default function AdminOrderDetails() {
                   </span>
                 }
               />
-              {captchaRef && (
-                <DetailRow label="Reference ID:" value={<span className="font-mono">{captchaRef}</span>} copyBtn={<CopyBtn fieldKey="captcha_ref" value={captchaRef} />} />
-              )}
-              {order.delivery?.deliveredAt && (
-                <DetailRow label="Delivery Date/Time:" value={formatDateTime(order.delivery.deliveredAt)} />
-              )}
             </div>
 
             {/* Purchase price breakdown — saved at purchase time */}
@@ -644,15 +658,17 @@ export default function AdminOrderDetails() {
               {captchaKbl && captchaAddonPercent > 0 && (
                 <DetailRow label="Auto Login Charge:" value={formatPrice(captchaCharge, order.currency)} />
               )}
+              {/* No Order Total here — the Order Information card already
+                  shows the order Amount. */}
               <DetailRow label="Final Price:" value={<span className="text-white font-medium">{formatPrice(captchaFinal, order.currency)}</span>} />
-              <DetailRow label="Order Total:" value={<span className="text-white font-medium">{formatPrice(order.amount ?? 0, order.currency)}</span>} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Notes & Extras */}
-      {(order.notes || order.deliveryNote || order.captchaApiKey || (order as any).delivery?.status === 'failed' || (Array.isArray(order.items) && order.items.some((i: any) => (i.productName || i.name || '').includes('P2P Fee')))) && (
+      {/* Notes & Extras — the CaptchaMaster API key / KBL flag live in the
+          CaptchaMaster Delivery card above, so they are not repeated here. */}
+      {(order.notes || order.deliveryNote || (order as any).delivery?.status === 'failed' || (Array.isArray(order.items) && order.items.some((i: any) => (i.productName || i.name || '').includes('P2P Fee')))) && (
         <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
           <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Additional Info</h3>
           <div className="space-y-2.5 text-xs sm:text-sm">
@@ -661,19 +677,6 @@ export default function AdminOrderDetails() {
             )}
             {order.notes && (
               <DetailRow label="Notes:" value={order.notes} />
-            )}
-            {order.captchaApiKey && (
-              <DetailRow label="Captcha API Key:" value={order.captchaApiKey} copyBtn={<CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />} />
-            )}
-            {order.captchaApiKey && typeof order.kbl === 'boolean' && (
-              <DetailRow
-                label="Kolotibablo Auto Login:"
-                value={
-                  <span className={order.kbl ? 'text-green-400' : 'text-gray-400'}>
-                    {order.kbl ? 'Yes' : 'No'} (kbl: {String(order.kbl)})
-                  </span>
-                }
-              />
             )}
             {(order as any).delivery?.status === 'failed' && (
               <DetailRow label="Delivery Error:" value={<span className="text-red-400">{(order as any).delivery?.errorMessage || 'Unknown delivery error'}</span>} />
