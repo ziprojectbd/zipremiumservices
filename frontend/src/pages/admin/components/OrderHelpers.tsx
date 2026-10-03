@@ -62,6 +62,22 @@ export interface Order {
     errorMessage?: string;
     deliveredAt?: string;
   };
+  // The CaptchaMaster package purchased for THIS order (attached by the API
+  // when the order has a delivered captchaApiKey). Historical delivery data.
+  captchaPackage?: {
+    planId?: string;
+    planName?: string;
+    credits?: number;
+    creditsRemaining?: number;
+    price?: number;
+    currency?: string;
+    captchaMasterPackageId?: string;
+    captchaMasterOrderId?: string;
+    packageType?: string;
+    status?: string;
+    expiresAt?: string | null;
+    activatedAt?: string | null;
+  };
   // crypto fields
   cryptoCurrency?: string;
   crypto_currency?: string;

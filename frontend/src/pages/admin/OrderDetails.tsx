@@ -293,6 +293,70 @@ export default function AdminOrderDetails() {
   const payStatus = normalizePaymentStatus(order);
   const ordStatus = normalizeOrderStatus(order);
 
+  // ---- CaptchaMaster context — from this order's stored data only ----
+  // Mirrors the server's detection family so the section never appears for
+  // other product types.
+  const captchaItem = (Array.isArray(order.items) ? order.items : []).find((item: any) => {
+    const product = String(item?.product || item?.productId || '');
+    const planId = String(
+      item?.captchamasterPlanId || item?.customData?.captchamasterPlanId || '',
+    );
+    const category = String(item?.category || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    return (
+      item?.productType === 'captchamaster' ||
+      item?.customData?.productType === 'captchamaster' ||
+      category === 'captcha solver api' ||
+      product.startsWith('cm-') ||
+      planId.length > 0
+    );
+  }) as any;
+
+  const isCaptchaOrder = Boolean(
+    captchaItem ||
+      order.captchaApiKey ||
+      order.delivery?.provider === 'captchamaster',
+  );
+
+  // +30% add-on read from what was frozen at purchase time:
+  // appliedAddons (server-confirmed) > addonPercent > raw addons selection.
+  const captchaAddonPercent = (() => {
+    if (!captchaItem) return 0;
+    const cd: Record<string, any> = captchaItem.customData || {};
+    const applied = Array.isArray(cd.appliedAddons) ? cd.appliedAddons : [];
+    const kblApplied = applied.find(
+      (a: any) => String(a?.key) === 'kolotibablo-autologin',
+    );
+    if (kblApplied) return Number(kblApplied.pricePercent) || 0;
+    if (cd.addonPercent !== undefined && Number.isFinite(Number(cd.addonPercent))) {
+      return Math.max(0, Number(cd.addonPercent));
+    }
+    const selected = Array.isArray(cd.addons)
+      ? cd.addons
+      : typeof cd.addons === 'string' && cd.addons
+        ? [cd.addons]
+        : [];
+    return selected.map(String).includes('kolotibablo-autologin') ? 30 : 0;
+  })();
+
+  const captchaKbl =
+    typeof order.kbl === 'boolean' ? order.kbl : captchaAddonPercent > 0;
+
+  // SAVED line amount in the order currency — never a current-price recompute.
+  const captchaFinal = Number(captchaItem?.price ?? 0) || Number(captchaItem?.usdtAmount ?? 0);
+  const captchaBase =
+    captchaAddonPercent > 0 ? captchaFinal / (1 + captchaAddonPercent / 100) : captchaFinal;
+  const captchaCharge = captchaFinal - captchaBase;
+
+  const captchaDelivered =
+    Boolean(order.captchaApiKey) || order.delivery?.status === 'completed';
+  const captchaRef =
+    order.delivery?.externalReference ||
+    order.captchaPackage?.captchaMasterOrderId ||
+    '';
+
   return (
     <div>
       {/* Header */}
@@ -470,6 +534,119 @@ export default function AdminOrderDetails() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* CaptchaMaster Delivery — customer + KBL info, the delivered
+          package/API for THIS order, and the saved purchase breakdown. */}
+      {isCaptchaOrder && (
+        <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+              CaptchaMaster Delivery
+            </h3>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                captchaDelivered
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                  : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+              }`}
+            >
+              {captchaDelivered ? 'Delivered' : 'Pending'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Customer + KBL information */}
+            <div className="space-y-2.5 text-xs sm:text-sm">
+              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Customer Information</span>
+              <DetailRow label="Customer Name:" value={order.username || order.email || '-'} />
+              <DetailRow label="Customer Email:" value={order.email || '-'} copyBtn={<CopyBtn fieldKey="customer_email" value={order.email || '-'} />} />
+              <DetailRow
+                label="Kolotibablo Auto Login:"
+                value={
+                  <span className={captchaKbl && captchaAddonPercent > 0 ? 'text-green-400' : 'text-gray-400'}>
+                    {captchaKbl && captchaAddonPercent > 0
+                      ? `Yes (+${captchaAddonPercent}%)`
+                      : 'No'}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="KBL:"
+                value={<span className="font-mono">{String(captchaKbl)}</span>}
+              />
+            </div>
+
+            {/* Delivered API / package */}
+            <div className="space-y-2.5 text-xs sm:text-sm">
+              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Delivered API / Package</span>
+              <DetailRow label="Product:" value={captchaItem?.productName || captchaItem?.name || '-'} />
+              <DetailRow
+                label="Package/Plan:"
+                value={order.captchaPackage?.planName || captchaItem?.productName || captchaItem?.name || '-'}
+              />
+              {order.captchaPackage?.credits !== undefined && (
+                <DetailRow
+                  label="Credits:"
+                  value={`${order.captchaPackage?.creditsRemaining ?? order.captchaPackage?.credits ?? 0} / ${order.captchaPackage?.credits ?? 0} remaining`}
+                />
+              )}
+              <DetailRow label="Quantity:" value={captchaItem?.quantity ?? 1} />
+              <DetailRow
+                label="API Key:"
+                value={
+                  order.captchaApiKey ? (
+                    <span className="font-mono">{order.captchaApiKey}</span>
+                  ) : (
+                    <span className="text-yellow-400">Not delivered yet</span>
+                  )
+                }
+                copyBtn={order.captchaApiKey ? <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} /> : undefined}
+              />
+              <DetailRow
+                label="Delivery Status:"
+                value={
+                  <span className={captchaDelivered ? 'text-green-400' : 'text-yellow-400'}>
+                    {order.delivery?.status
+                      ? String(order.delivery.status)
+                        .charAt(0)
+                        .toUpperCase()
+                        .concat(String(order.delivery.status).slice(1))
+                      : captchaDelivered
+                        ? 'Delivered'
+                        : 'Pending'}
+                  </span>
+                }
+              />
+              {captchaRef && (
+                <DetailRow label="Reference ID:" value={<span className="font-mono">{captchaRef}</span>} copyBtn={<CopyBtn fieldKey="captcha_ref" value={captchaRef} />} />
+              )}
+              {order.delivery?.deliveredAt && (
+                <DetailRow label="Delivery Date/Time:" value={formatDateTime(order.delivery.deliveredAt)} />
+              )}
+            </div>
+
+            {/* Purchase price breakdown — saved at purchase time */}
+            <div className="space-y-2.5 text-xs sm:text-sm">
+              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Purchase Summary</span>
+              <DetailRow label="Base Price:" value={formatPrice(captchaBase, order.currency)} />
+              <DetailRow
+                label="Kolotibablo Auto Login:"
+                value={
+                  <span className={captchaKbl && captchaAddonPercent > 0 ? 'text-green-400' : 'text-gray-400'}>
+                    {captchaKbl && captchaAddonPercent > 0
+                      ? `Yes (+${captchaAddonPercent}%)`
+                      : 'No'}
+                  </span>
+                }
+              />
+              {captchaKbl && captchaAddonPercent > 0 && (
+                <DetailRow label="Auto Login Charge:" value={formatPrice(captchaCharge, order.currency)} />
+              )}
+              <DetailRow label="Final Price:" value={<span className="text-white font-medium">{formatPrice(captchaFinal, order.currency)}</span>} />
+              <DetailRow label="Order Total:" value={<span className="text-white font-medium">{formatPrice(order.amount ?? 0, order.currency)}</span>} />
+            </div>
           </div>
         </div>
       )}

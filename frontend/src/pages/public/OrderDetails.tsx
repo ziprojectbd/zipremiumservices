@@ -33,6 +33,12 @@ function mapOrder(raw: any): Order {
         smmProvider: item?.smmProvider || '',
         smmOrderId: item?.smmOrderId || '',
         details: item?.details || '',
+        // CaptchaMaster / add-on data — kept so the purchase breakdown can be
+        // derived from the prices and add-ons frozen at purchase time.
+        usdtAmount: Number(item?.usdtAmount ?? 0),
+        customData: item?.customData || {},
+        productType: item?.productType || '',
+        captchamasterPlanId: item?.captchamasterPlanId || '',
       }))
     : [
         {
@@ -76,6 +82,10 @@ function mapOrder(raw: any): Order {
     deliveryLink2Label: raw.deliveryLink2Label || '',
     deliveryMessage: raw.deliveryMessage || '',
     captchaApiKey: raw.captchaApiKey || null,
+    username: raw.username || '',
+    kbl: raw.kbl === true,
+    delivery: raw.delivery || undefined,
+    captchaPackage: raw.captchaPackage || undefined,
     p2pToken: raw.p2pToken || '',
     p2pNetwork: raw.p2pNetwork || '',
     p2pWalletAddress: raw.p2pWalletAddress || '',
@@ -238,6 +248,74 @@ export default function OrderDetails() {
     );
   }
 
+  // ---- CaptchaMaster context — derived ONLY from this order's stored data ----
+  // Same detection family as the server (productType / category / cm- product
+  // id / plan id) so the sections never appear for other product types.
+  const captchaItem = order.items.find((item: any) => {
+    const product = String(item?.product || item?.productId || '');
+    const planId = String(
+      item?.captchamasterPlanId || item?.customData?.captchamasterPlanId || '',
+    );
+    const category = String(item?.category || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    return (
+      item?.productType === 'captchamaster' ||
+      item?.customData?.productType === 'captchamaster' ||
+      category === 'captcha solver api' ||
+      product.startsWith('cm-') ||
+      planId.length > 0
+    );
+  }) as any;
+
+  const isCaptchaOrder = Boolean(
+    captchaItem ||
+      order.captchaApiKey ||
+      order.delivery?.provider === 'captchamaster',
+  );
+
+  // The +30% add-on, read from what was FROZEN at purchase time:
+  //  1. customData.appliedAddons — the server-received add-on with its real
+  //     percentage (authoritative when present)
+  //  2. customData.addonPercent — the server-recorded total percentage
+  //  3. customData.addons — the raw selection (legacy orders)
+  const captchaAddonPercent = (() => {
+    if (!captchaItem) return 0;
+    const cd: Record<string, any> = captchaItem.customData || {};
+    const applied = Array.isArray(cd.appliedAddons) ? cd.appliedAddons : [];
+    const kblApplied = applied.find(
+      (a: any) => String(a?.key) === 'kolotibablo-autologin',
+    );
+    if (kblApplied) return Number(kblApplied.pricePercent) || 0;
+    if (cd.addonPercent !== undefined && Number.isFinite(Number(cd.addonPercent))) {
+      return Math.max(0, Number(cd.addonPercent));
+    }
+    const selected = Array.isArray(cd.addons)
+      ? cd.addons
+      : typeof cd.addons === 'string' && cd.addons
+        ? [cd.addons]
+        : [];
+    return selected.map(String).includes('kolotibablo-autologin') ? 30 : 0;
+  })();
+
+  const captchaKbl =
+    typeof order.kbl === 'boolean' ? order.kbl : captchaAddonPercent > 0;
+
+  // Price breakdown from the SAVED line amount (order currency), never from
+  // current product prices.
+  const captchaFinal = Number(captchaItem?.price ?? 0) || Number(captchaItem?.usdtAmount ?? 0);
+  const captchaBase =
+    captchaAddonPercent > 0 ? captchaFinal / (1 + captchaAddonPercent / 100) : captchaFinal;
+  const captchaCharge = captchaFinal - captchaBase;
+
+  const captchaDelivered =
+    Boolean(order.captchaApiKey) || order.delivery?.status === 'completed';
+  const captchaRef =
+    order.delivery?.externalReference ||
+    order.captchaPackage?.captchaMasterOrderId ||
+    '';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-950 text-gray-100 transition-colors">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -342,34 +420,123 @@ export default function OrderDetails() {
               </Section>
             )}
 
-            {/* Captcha API Key */}
-            {order.captchaApiKey && (
-              <Section title="Captcha API Key">
-                <div className="flex items-start justify-between gap-3 py-2">
-                  <span className="text-xs text-gray-500 shrink-0 pt-0.5">API Key</span>
-                  <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right min-w-0">
-                    <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
-                      {visibleKeys.has('captcha_api_key')
-                        ? order.captchaApiKey
-                        : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => toggleKeyVisibility('captcha_api_key')}
-                      className="p-1 text-gray-500 hover:text-white transition-colors shrink-0"
-                      title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
-                    >
-                      {visibleKeys.has('captcha_api_key') ? (
-                        <EyeOff className="w-3.5 h-3.5" />
-                      ) : (
-                        <Eye className="w-3.5 h-3.5" />
+            {/* CaptchaMaster API — the exact package/access purchased for THIS
+                order, read from the order's stored delivery data (the API key
+                is masked by default and can be revealed + copied by the buyer). */}
+            {isCaptchaOrder && (
+              <Section title="CaptchaMaster API">
+                <Field
+                  label="Product"
+                  value={captchaItem?.productName || captchaItem?.name}
+                />
+                <Field
+                  label="Package"
+                  value={
+                    order.captchaPackage?.planName ||
+                    captchaItem?.productName ||
+                    captchaItem?.name
+                  }
+                />
+                <Field label="Quantity" value={captchaItem?.quantity ?? 1} />
+                <Field
+                  label="API Access"
+                  value={
+                    captchaDelivered
+                      ? 'Purchased — API key assigned to this order'
+                      : 'Awaiting delivery'
+                  }
+                />
+                <Field label="Email/Username" value={order.email} copyKey="captcha_email" />
+                {order.captchaApiKey ? (
+                  <div className="flex items-start justify-between gap-3 py-2 border-b border-white/5">
+                    <span className="text-xs text-gray-500 shrink-0 pt-0.5">API Key</span>
+                    <span className="inline-flex items-center justify-end flex-wrap gap-1 text-right min-w-0">
+                      <code className="text-xs sm:text-sm font-mono text-emerald-300 break-all">
+                        {visibleKeys.has('captcha_api_key')
+                          ? order.captchaApiKey
+                          : order.captchaApiKey.slice(0, 12) + '.'.repeat(20)}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('captcha_api_key')}
+                        className="p-1 text-gray-500 hover:text-white transition-colors shrink-0"
+                        title={visibleKeys.has('captcha_api_key') ? 'Hide key' : 'Show key'}
+                      >
+                        {visibleKeys.has('captcha_api_key') ? (
+                          <EyeOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <Eye className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      {visibleKeys.has('captcha_api_key') && (
+                        <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
                       )}
-                    </button>
-                    {visibleKeys.has('captcha_api_key') && (
-                      <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
-                    )}
-                  </span>
-                </div>
+                    </span>
+                  </div>
+                ) : (
+                  <Field label="API Key" value="Not delivered yet" />
+                )}
+                <Field
+                  label="Delivery Status"
+                  value={
+                    order.delivery?.status
+                      ? String(order.delivery.status)
+                        .charAt(0)
+                        .toUpperCase()
+                        .concat(String(order.delivery.status).slice(1))
+                      : captchaDelivered
+                        ? 'Delivered'
+                        : 'Pending'
+                  }
+                />
+                <Field label="Reference ID" value={captchaRef} copyKey="captcha_ref" mono />
+                {order.delivery?.deliveredAt && (
+                  <Field
+                    label="Delivery Date/Time"
+                    value={new Date(order.delivery.deliveredAt).toLocaleString()}
+                  />
+                )}
+              </Section>
+            )}
+
+            {/* Customer + KBL information for the CaptchaMaster order */}
+            {isCaptchaOrder && (
+              <Section title="Customer Information">
+                <Field label="Customer Name" value={order.username || order.email} />
+                <Field label="Customer Email" value={order.email} copyKey="customer_email" />
+                <Field
+                  label="Kolotibablo Auto Login"
+                  value={
+                    captchaKbl && captchaAddonPercent > 0
+                      ? `Yes (+${captchaAddonPercent}%)`
+                      : 'No'
+                  }
+                />
+                <Field label="KBL" value={String(captchaKbl)} mono />
+              </Section>
+            )}
+
+            {/* Purchase price breakdown — always from the prices SAVED at
+                purchase time, never recomputed from current product prices. */}
+            {isCaptchaOrder && (
+              <Section title="Purchase Summary">
+                <Field label="Base Price" value={formatOrderPrice(captchaBase, order.currency)} />
+                <Field
+                  label="Kolotibablo Auto Login"
+                  value={
+                    captchaKbl && captchaAddonPercent > 0
+                      ? `Yes (+${captchaAddonPercent}%)`
+                      : 'No'
+                  }
+                />
+                {captchaKbl && captchaAddonPercent > 0 && (
+                  <Field
+                    label="Auto Login Charge"
+                    value={formatOrderPrice(captchaCharge, order.currency)}
+                  />
+                )}
+                <Field label="Final Price" value={formatOrderPrice(captchaFinal, order.currency)} />
+                <Field label="Order Total" value={formatOrderPrice(order.total, order.currency)} />
               </Section>
             )}
 

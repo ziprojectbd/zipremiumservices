@@ -132,6 +132,28 @@ export interface Order {
     cryptoCurrency?: string;
     currency?: string;
     captchaApiKey?: string | null;
+    // Buyer identity stored on the order at purchase time.
+    username?: string;
+    // Kolotibablo Auto Login (+30%) add-on flag; set server-side from the
+    // stored add-on selection on the CaptchaMaster line.
+    kbl?: boolean;
+    // The CaptchaMaster package purchased for THIS order, attached by the API
+    // when the order has a delivered captchaApiKey. Historical delivery data
+    // only — never the live product configuration.
+    captchaPackage?: {
+        planId?: string;
+        planName?: string;
+        credits?: number;
+        creditsRemaining?: number;
+        price?: number;
+        currency?: string;
+        captchaMasterPackageId?: string;
+        captchaMasterOrderId?: string;
+        packageType?: string;
+        status?: string;
+        expiresAt?: string | null;
+        activatedAt?: string | null;
+    };
     p2pToken?: string;
     p2pNetwork?: string;
     p2pWalletAddress?: string;
