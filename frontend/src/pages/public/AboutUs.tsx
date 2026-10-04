@@ -206,7 +206,7 @@ export default function AboutUs() {
               </p>
               <div className="mt-6 pt-4 border-t border-gray-700/50">
                 <p className="text-white font-semibold text-sm sm:text-base">MD ZIKRUL ISLAM</p>
-                <p className="text-gray-400 text-xs sm:text-sm">Founder & CEO, ZI Premium Services</p>
+                <p className="text-gray-400 text-xs sm:text-sm">Founder & CEO,  𝗭𝗜 𝗣𝗥𝗘𝗠𝗜𝗨𝗠 𝗦𝗘𝗥𝗩𝗜𝗖𝗘𝗦</p>
               </div>
             </div>
           </div>

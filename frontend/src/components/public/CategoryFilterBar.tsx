@@ -63,6 +63,8 @@ export default function CategoryFilterBar({
     }
   }, [propCategories]);
 
+  const [scrollProgress, setScrollProgress] = useState(0);
+
   const handleSelect = (category: Category) => {
     const slug =
       category.name === "All"
@@ -79,10 +81,17 @@ export default function CategoryFilterBar({
 
   return (
     <div className={containerClassName || ""}>
-      <CategoryChipRow fadeFrom="from-slate-950" centerOn={selectedCategory}>
+      <CategoryChipRow 
+        fadeFrom="from-slate-950" 
+        centerOn={selectedCategory} 
+        onProgressChange={setScrollProgress}
+      >
         {categories.map((category) => {
           const isActive = selectedCategory === category.name;
           const count = countOf(category);
+          const accentColor = category.gradient
+            ? category.gradient.split(' ')[0].replace('from-', '').replace(/-\d+$/, '-400')
+            : 'text-purple-400';
 
           return (
             <CategoryChip
@@ -94,26 +103,20 @@ export default function CategoryFilterBar({
               onClick={() => handleSelect(category)}
             >
               {typeof count === 'number' && count > 0 && (
-                <CategoryChipCount value={count} active={isActive} />
+                <CategoryChipCount value={count} active={isActive} color={accentColor} />
               )}
             </CategoryChip>
           );
         })}
       </CategoryChipRow>
 
-      {/* Scroll position indicator — mobile only. */}
-      {categories.length > 1 && (
-        <div className="flex justify-center gap-1 mt-1.5 md:hidden">
-          {categories.map((cat) => (
-            <div
-              key={cat.name}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                selectedCategory === cat.name ? "w-4 bg-purple-400" : "w-1 bg-white/20"
-              }`}
-            />
-          ))}
-        </div>
-      )}
+      {/* Scroll progress bar */}
+      <div className="w-full h-0.5 bg-white/10 rounded mt-1">
+        <div
+          className={`h-full bg-gradient-to-r from-purple-400 to-purple-500 rounded`}
+          style={{ width: `${scrollProgress * 100}%` }}
+        />
+      </div>
     </div>
   );
 }

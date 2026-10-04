@@ -1,23 +1,60 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-/**
- * The category chip, defined once.
- *
- * The storefront filter bar and the admin filter row both render through these
- * pieces, so the two can never drift apart visually. The markup and classes here
- * are the storefront's original chip, moved out of CategoryFilterBar unchanged.
- */
-
-// ---------------------------------------------------------------------------
-// Horizontal panning
-//
-// Extracted from the component so the interaction can be exercised without a
-// browser: `attachRowScroll` takes a scroll element and an event bus (the window
-// in production, a stub in tests) and returns a cleanup function.
-// ---------------------------------------------------------------------------
-
 /** A pointer move is treated as a drag past this many pixels. */
 export const DRAG_THRESHOLD = 4;
+
+/** The storefront category chip, styled after the airdrop page tab buttons. */
+
+/**
+ * Turns a Tailwind gradient string like "from-cyan-500 to-blue-500" into
+ * a Tailwind class string with opacity: "bg-gradient-to-r from-cyan-500/20 to-blue-500/20".
+ */
+function gradientWithOpacity(gradient: string | undefined, opacity = 20): string {
+  const base = gradient || 'from-purple-500 to-indigo-500';
+  const withOpacity = base.replace(/(\w+)-500\b/g, (_, color) => `${color}-500/${opacity}`);
+  return `bg-gradient-to-r ${withOpacity}`;
+}
+
+/**
+ * Bright label color for inactive chips, matching the category's gradient hue.
+ * Literal class names so Tailwind generates each utility.
+ */
+const CATEGORY_TEXT_COLORS: Record<string, string> = {
+  amber: 'text-amber-400',
+  blue: 'text-blue-400',
+  cyan: 'text-cyan-400',
+  emerald: 'text-emerald-400',
+  fuchsia: 'text-fuchsia-400',
+  gray: 'text-slate-300',
+  green: 'text-green-400',
+  indigo: 'text-indigo-400',
+  orange: 'text-orange-400',
+  pink: 'text-pink-400',
+  purple: 'text-purple-400',
+  red: 'text-red-400',
+  rose: 'text-rose-400',
+  sky: 'text-sky-400',
+  slate: 'text-slate-300',
+  teal: 'text-teal-400',
+  violet: 'text-violet-400',
+  yellow: 'text-yellow-400',
+};
+
+/** Bright label color matching the gradient's first hue (e.g. from-cyan-500 → text-cyan-400). */
+function categoryTextColor(gradient?: string): string {
+  const hue = gradient?.match(/\bfrom-([a-z]+)-\d+/i)?.[1]?.toLowerCase();
+  return (hue && CATEGORY_TEXT_COLORS[hue]) || 'text-purple-400';
+}
+
+/** The chip's Tailwind classes. */
+export function categoryChipClass(active: boolean, gradient?: string): string {
+  return [
+    'snap-start shrink-0 relative flex items-center gap-1 sm:gap-2 px-3 sm:px-8 py-3 sm:py-5 text-[10px] sm:text-sm font-russo antialiased transition-all duration-500 rounded-xl whitespace-nowrap group border overflow-hidden',
+    active
+      ? 'text-white border-white/10'
+      : `${categoryTextColor(gradient)} hover:text-white hover:border-white/30`,
+  ].join(' ');
+}
 
 /** The subset of an element's surface this needs. */
 export interface RowScrollHost {
@@ -114,23 +151,18 @@ export function attachRowScroll(el: RowScrollHost, bus: RowEventBus = window): (
   };
 }
 
-/** The chip's Tailwind classes. `gradient` is a Tailwind pair like "from-cyan-500 to-blue-500". */
-export function categoryChipClass(active: boolean, gradient?: string): string {
-  return [
-    'snap-start shrink-0 relative px-2 sm:px-4 py-1.5 sm:py-2.5 rounded-lg transition-all duration-200',
-    'font-semibold shadow-md overflow-hidden group flex items-center gap-1 sm:gap-2 backdrop-blur-sm border whitespace-nowrap',
-    active
-      ? `bg-gradient-to-r ${gradient || 'from-gray-500 to-slate-500'} text-white shadow-lg border-white/20 scale-105`
-      : 'bg-white/10 text-white/80 hover:text-white hover:bg-white/20 hover:shadow-lg hover:scale-102 border-white/10 hover:border-white/30',
-  ].join(' ');
-}
-
 /** The chip's icon slot. */
-export function CategoryChipIcon({ icon, active }: { icon: ReactNode; active: boolean }) {
+export function CategoryChipIcon({ icon, active, gradient }: { icon: ReactNode; active: boolean; gradient?: string }) {
+  const accentColor = gradient
+    ? gradient.split(' ')[0].replace('from-', '').replace(/-\d+$/, '-400')
+    : 'text-purple-400';
+  const inactiveColor = 'text-white/40 group-hover:text-white/80';
   return (
     <span
-      className={`text-xs sm:text-base filter drop-shadow-sm ${
-        active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'
+      className={`relative z-10 w-6 h-6 flex items-center justify-center ${
+        active
+          ? `${accentColor} scale-110 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]`
+          : inactiveColor
       }`}
     >
       {icon}
@@ -141,32 +173,17 @@ export function CategoryChipIcon({ icon, active }: { icon: ReactNode; active: bo
 /** The chip's label slot. */
 export function CategoryChipLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="relative z-10 text-[10px] sm:text-sm font-semibold tracking-tight">{children}</span>
-  );
-}
-
-/** Decorative overlays that make the active chip shimmer on hover. */
-export function CategoryChipShine({ active }: { active: boolean }) {
-  if (!active) {
-    return (
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-    );
-  }
-  return (
-    <>
-      <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer bg-[length:200%_100%]" />
-      <div className="absolute -inset-0.5 bg-gradient-to-r opacity-20 blur-sm group-hover:opacity-30 transition-opacity duration-300" />
-    </>
+    <span className="relative z-10 text-[10px] sm:text-sm font-bold tracking-wider sm:tracking-widest ml-1">{children}</span>
   );
 }
 
 /** Product count shown next to a chip's label. */
-export function CategoryChipCount({ value, active }: { value: number; active: boolean }) {
+export function CategoryChipCount({ value, active, color }: { value: number; active: boolean; color?: string }) {
+  const inactiveColor = color || 'text-purple-400';
   return (
     <span
-      className={`relative z-10 text-[10px] font-semibold rounded-full px-1.5 py-0.5 ${
-        active ? 'bg-white/25 text-white' : 'bg-black/30 text-gray-400'
+      className={`relative z-10 text-[10px] font-bold rounded-md px-2 py-0.5 border ${
+        active ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : `bg-white/5 ${inactiveColor} border-white/10`
       }`}
     >
       {value}
@@ -197,7 +214,7 @@ export interface CategoryChipProps {
   children?: ReactNode;
 }
 
-/** A single selectable category chip. */
+/** A single selectable category chip, styled like the airdrop page tab buttons. */
 export default function CategoryChip({
   label,
   icon,
@@ -207,6 +224,12 @@ export default function CategoryChip({
   title,
   children,
 }: CategoryChipProps) {
+  const accentGradient = gradient || 'from-purple-500 to-indigo-500';
+  const activeOverlay = gradientWithOpacity(accentGradient, 20);
+  const hoverOverlay = gradientWithOpacity(accentGradient, 10);
+  const overlayClass = active ? activeOverlay : `bg-transparent group-hover:${hoverOverlay}`;
+  const indicatorClass = `absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] sm:h-[3px] bg-gradient-to-r rounded-t-full transition-all duration-500 shadow-[0_0_15px_rgba(168,85,247,1)] ${active ? 'w-6 sm:w-10 opacity-100' : 'w-0 opacity-0 group-hover:w-4 sm:group-hover:w-6 group-hover:opacity-100'} ${accentGradient}`;
+
   return (
     <button
       type="button"
@@ -216,9 +239,13 @@ export default function CategoryChip({
       aria-pressed={active}
       className={categoryChipClass(active, gradient)}
     >
-      <CategoryChipIcon icon={icon} active={active} />
+      <div className={`absolute inset-0 transition-all duration-500 ${overlayClass}`} />
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none hidden sm:block">
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-400 to-transparent animate-shimmer-fast" />
+        <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-400 to-transparent animate-shimmer-fast delay-75" />
+      </div>
+      <div className={indicatorClass} />
       <CategoryChipLabel>{label}</CategoryChipLabel>
-      <CategoryChipShine active={active} />
       {children}
     </button>
   );
@@ -237,6 +264,11 @@ export interface CategoryChipRowProps {
    * itself never moves.
    */
   centerOn?: string;
+  /**
+   * Called with the horizontal scroll progress (0-1) so a parent can render a
+   * progress indicator for the row.
+   */
+  onProgressChange?: (progress: number) => void;
 }
 
 /**
@@ -251,8 +283,25 @@ export function CategoryChipRow({
   fadeFrom = 'from-slate-950',
   className = '',
   centerOn,
+  onProgressChange,
 }: CategoryChipRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Track scroll progress for the visual progress bar
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onProgressChange) return;
+
+    const handleScroll = () => {
+      if (!el) return;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const progress = Math.min(Math.max(el.scrollLeft / maxScroll, 0), 1);
+      onProgressChange(progress);
+    };
+
+    el.addEventListener('scroll', handleScroll);
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [onProgressChange]);
 
   // Wheel panning + click-and-drag panning. See attachRowScroll for the details.
   useEffect(() => {

@@ -649,7 +649,9 @@ iframe {
     transform: none !important;
   }
 
-  .hover\:text-white,
+  /* Category chips (.snap-start) keep their own base text color on touch
+     devices — the inherit rule would erase the bright category color. */
+  .hover\:text-white:not(.snap-start),
   .hover\:text-blue-300,
   .hover\:text-green-300 {
     color: inherit !important;
@@ -670,7 +672,7 @@ iframe {
   }
 
   .hover\:border-white\/20,
-  .hover\:border-white\/30,
+  .hover\:border-white\/30:not(.snap-start),
   .hover\:border-purple-400\/30,
   .hover\:border-green-400\/30 {
     border-color: inherit !important;

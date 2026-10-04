@@ -5,9 +5,13 @@ export default {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
-  theme: {
-    extend: {
-      animation: {
+theme: {
+      extend: {
+        fontFamily: {
+          isometra: ['Isometra', 'sans-serif'],
+          russo: ['"Russo One"', 'sans-serif'],
+        },
+        animation: {
         'gradient-x': 'gradient-x 15s ease infinite',
         'gradient-y': 'gradient-y 15s ease infinite',
         'gradient-xy': 'gradient-xy 15s ease infinite',

@@ -427,6 +427,9 @@ export default function ProductsPage() {
         <CategoryChipRow fadeFrom="from-slate-950" centerOn={selectedCategory}>
           {categoryFilters.map((cat) => {
             const isActive = selectedCategory === cat.name;
+            const accentColor = cat.gradient
+              ? cat.gradient.split(' ')[0].replace('from-', '').replace(/-\d+$/, '-400')
+              : 'text-purple-400';
             return (
               <CategoryChip
                 key={cat.name}
@@ -442,7 +445,7 @@ export default function ProductsPage() {
                 }
               >
                 {typeof cat.total === 'number' && cat.total > 0 && (
-                  <CategoryChipCount value={cat.total} active={isActive} />
+                  <CategoryChipCount value={cat.total} active={isActive} color={accentColor} />
                 )}
                 {Boolean(cat.hidden) && <CategoryChipHiddenBadge value={cat.hidden as number} />}
               </CategoryChip>
