@@ -369,7 +369,7 @@ export default function LiveSupportPage() {
               </span>
               <br />
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-300 bg-clip-text text-transparent animate-gradient text-4xl sm:text-5xl">
-                We're Here For You \u2728
+                We're Here For You
               </span>
             </h1>
 
