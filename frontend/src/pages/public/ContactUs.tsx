@@ -47,12 +47,12 @@ export default function ContactUs() {
             </div>
             <p className="text-gray-300 mb-4 text-sm sm:text-base">Join our Telegram channel for the latest updates and exclusive offers.</p>
             <a
-              href="https://t.me/trustedearningsources"
+              href="https://t.me/zipremiumservices_official"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors duration-300 text-sm sm:text-base"
             >
-              @trustedearningsources
+               𝗭𝗜 𝗣𝗥𝗘𝗠𝗜𝗨𝗠 𝗦𝗘𝗥𝗩𝗜𝗖𝗘𝗦 | 𝗢𝗙𝗙𝗜𝗖𝗜𝗔𝗟
               <ArrowRight className="w-4 h-4" />
             </a>
           </div>
@@ -75,7 +75,7 @@ export default function ContactUs() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors duration-300 text-sm sm:text-base"
             >
-              @zikrulislamjuwel
+              ZIKRUL ISLAM (JUWEL)
               <ArrowRight className="w-4 h-4" />
             </a>
           </div>
@@ -93,12 +93,12 @@ export default function ContactUs() {
             </div>
             <p className="text-gray-300 mb-4 text-sm sm:text-base">Follow us on Facebook for news, tips, and community discussions.</p>
             <a
-              href="https://www.facebook.com/zikrulislam.juwel"
+              href="https://www.facebook.com/zipremiumservices"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-pink-400 hover:text-pink-300 transition-colors duration-300 text-sm sm:text-base"
             >
-              MD ZIKRUL ISLAM
+              𝗭𝗜 𝗣𝗥𝗘𝗠𝗜𝗨𝗠 𝗦𝗘𝗥𝗩𝗜𝗖𝗘𝗦
               <ArrowRight className="w-4 h-4" />
             </a>
           </div>
@@ -116,12 +116,12 @@ export default function ContactUs() {
             </div>
             <p className="text-gray-300 mb-4 text-sm sm:text-base">Follow our Instagram for behind-the-scenes content and service showcases.</p>
             <a
-              href="https://www.instagram.com/zikrulislam.juwel"
+              href="https://www.instagram.com/zipremiumservices"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors duration-300 text-sm sm:text-base"
             >
-              @zikrulislam.juwel
+               𝗭𝗜 𝗣𝗥𝗘𝗠𝗜𝗨𝗠 𝗦𝗘𝗥𝗩𝗜𝗖𝗘𝗦 | 𝗢𝗙𝗙𝗜𝗖𝗜𝗔𝗟
               <ArrowRight className="w-4 h-4" />
             </a>
           </div>

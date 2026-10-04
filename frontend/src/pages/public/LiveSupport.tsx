@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Headset,
   MessageCircle,
@@ -7,11 +6,9 @@ import {
   Send,
   Clock,
   Shield,
-  ArrowLeft,
   Sparkles,
   Zap,
   Globe,
-  Facebook,
   ChevronRight,
   ChevronDown,
   ThumbsUp,
@@ -168,17 +165,17 @@ export default function LiveSupportPage() {
       emoji: '\uD83D\uDCAC'
     },
     {
-      icon: Facebook,
-      title: 'Facebook',
-      description: 'Connect with us on Facebook. Message us anytime on our page.',
-      action: 'Visit Page',
-      href: 'https://www.facebook.com/zikrulislam.juwel',
-      gradient: 'from-blue-500 to-indigo-600',
-      glow: 'rgba(99,102,241,0.3)',
-      badge: 'Active',
-      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-      responseTime: '< 30 min',
-      emoji: '\uD83D\uDCD8'
+      icon: Send,
+      title: 'Telegram',
+      description: 'Chat with us on Telegram. Quick, secure and always available.',
+      action: 'Open Telegram',
+      href: 'https://t.me/zikrulislamjuwel',
+      gradient: 'from-sky-400 to-cyan-500',
+      glow: 'rgba(34,158,217,0.3)',
+      badge: 'Instant',
+      badgeBg: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+      responseTime: '< 15 min',
+      emoji: '\u2708\uFE0F'
     },
     {
       icon: Mail,
@@ -316,12 +313,7 @@ export default function LiveSupportPage() {
 
         {/* ── STICKY HEADER ──────────────────────────────────────────────── */}
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-gray-950/80 border-b border-white/[0.06]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2 text-purple-300 hover:text-white transition-all group">
-              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-              <span className="font-medium">Back to Shop</span>
-            </Link>
-
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-end">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="absolute inset-0 bg-green-500/40 rounded-full blur-md animate-pulse" />
@@ -382,9 +374,9 @@ export default function LiveSupportPage() {
             </h1>
 
             <p className="text-lg sm:text-xl text-purple-200/70 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Get instant help from our dedicated support team \u2014 available{' '}
-              <span className="text-green-400 font-semibold">24 hours a day, 7 days a week</span>.
-              No waiting, no bots \u2014 just real friendly humans.
+              Get instant help from our dedicated support team — available{' '}
+              <span className="text-green-400 font-bold">24 hours a day, 7 days a week</span>.
+              No waiting, no bots — just real, friendly humans.
             </p>
 
             {/* Feature pills */}
@@ -432,7 +424,7 @@ export default function LiveSupportPage() {
               <p className="text-purple-200/60 max-w-xl mx-auto">Pick your preferred platform to connect with us instantly</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {contactMethods.map((method, index) => (
                 <a
                   key={index}
@@ -452,9 +444,6 @@ export default function LiveSupportPage() {
                     {method.badge}
                   </span>
 
-                  {/* Emoji */}
-                  <div className="text-3xl mb-4">{method.emoji}</div>
-
                   {/* Icon */}
                   <div className={`relative w-14 h-14 bg-gradient-to-br ${method.gradient} rounded-2xl flex items-center justify-center mb-5 shadow-lg group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
                     <method.icon className="w-7 h-7 text-white" />
@@ -473,9 +462,10 @@ export default function LiveSupportPage() {
                     <span>Response: {method.responseTime}</span>
                   </div>
 
-                  <div className={`flex items-center gap-2 font-semibold text-sm bg-gradient-to-r ${method.gradient} bg-clip-text text-transparent group-hover:gap-3 transition-all`}>
-                    <span>{method.action}</span>
-                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-white/60" />
+                  <div className={`relative w-full flex items-center justify-center gap-2 font-bold text-sm py-3.5 rounded-xl bg-gradient-to-r ${method.gradient} text-white shadow-lg group-hover:shadow-2xl group-hover:-translate-y-0.5 group-active:translate-y-0 group-active:scale-[0.98] transition-all duration-300 overflow-hidden focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none`}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-100 transition-transform duration-700" />
+                    <span className="relative">{method.action}</span>
+                    <ChevronRight className="relative w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </div>
                 </a>
               ))}
@@ -530,27 +520,6 @@ export default function LiveSupportPage() {
           </div>
         </section>
 
-        {/* ── FOOTER ────────────────────────────────────────────────────── */}
-        <footer className="border-t border-white/[0.06] py-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="p-1.5 bg-gradient-to-br from-blue-350 to-purple-600 rounded-lg shadow-lg flex-shrink-0">
-                <img src="/zi-logo.svg" alt="ZI PREMIUM SERVICES Logo" className="w-7 h-7 object-contain" />
-              </div>
-              <div className="text-left">
-                <p className="font-extrabold leading-tight">
-                  <span className="bg-gradient-to-r from-pink-500 via-amber-400 to-sky-500 bg-clip-text text-transparent drop-shadow-sm">
-                    ZI PREMIUM SERVICES
-                  </span>
-                </p>
-                <p className="text-xs text-gray-400">Your Digital Gateway</p>
-              </div>
-            </div>
-            <p className="text-white/30 text-sm mt-3">
-              &copy; {new Date().getFullYear()} ZI Premium Services. All rights reserved.
-            </p>
-          </div>
-        </footer>
       </div>
 
       {/* ── FLOATING LIVE CHAT BUBBLE ──────────────────────────────────── */}
