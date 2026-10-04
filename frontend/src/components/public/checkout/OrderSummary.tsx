@@ -2,8 +2,8 @@ import React from "react";
 import type { CartItem } from "../../../types";
 import { useShopContext } from "../../../store/ShopContext";
 import { Tag } from "lucide-react";
-import { formatPrice, roundCurrency } from "../../../utils/formatPrice";
-import { priceWithAddons } from "../../../utils/addons";
+import { formatPrice } from "../../../utils/formatPrice";
+import { priceWithAddons, selectedAddons } from "../../../utils/addons";
 
 interface OrderSummaryProps {
   cart: CartItem[];
@@ -14,7 +14,7 @@ interface OrderSummaryProps {
 }
 
 export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, paymentMethod, exchangeRate = 110 }: OrderSummaryProps) {
-  const { showAlert, couponCode, discountAmount, discountType, getBDTItemAmount } = useShopContext();
+  const { showAlert, couponCode, discountAmount } = useShopContext();
   const isCryptoPayment = paymentMethod === 'paycrypto';
 
   React.useEffect(() => {
@@ -32,66 +32,34 @@ export default function OrderSummary({ cart, getTotalPrice, getTotalPriceUSD, pa
         </div>
       ) : (
         <div className="space-y-4">
-          {cart.map((item, index) => (
-            <div
-              key={`${item.id}-${index}`}
-              className="flex items-center justify-between"
-            >
-              <div>
-                <div className="font-medium text-white">{item.name}</div>
-                <div className="text-sm text-gray-400">
-                  Qty: {item.quantity}
+          {cart.map((item, index) => {
+            const basePrice = item.priceBDT || item.price;
+            const addons = selectedAddons(item);
+            const finalPrice = priceWithAddons(basePrice, item);
+
+            return (
+              <div key={`${item.id}-${index}`} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-white">{item.name}</div>
+                    <div className="text-sm text-gray-400">Qty: {item.quantity}</div>
+                  </div>
                 </div>
-                {item.link && item.smmProvider === 'oneservicebd' && (
-                  <div className="text-[11px] text-gray-500 truncate max-w-[200px]">
-                    Link: {item.link}
+                <div className="pl-3 space-y-1">
+                  <div className="flex items-center justify-between text-sm text-gray-300">
+                    <span>Base Price</span>
+                    <span>৳{formatPrice(basePrice, 0)}</span>
                   </div>
-                )}
-                {item.customData && Object.keys(item.customData).length > 0 && (
-                  <div className="mt-1 space-y-0.5">
-                    {Object.entries(item.customData)
-                      // Raw add-on keys are rendered as labels below.
-                      .filter(([key]) => key !== 'addons')
-                      .map(([key, val]) => (
-                        <div key={key} className="text-[11px] text-gray-500">
-                          <span className="capitalize">{key.replace(/_/g, ' ')}:</span> {String(val)}
-                        </div>
-                      ))}
-                    {Array.isArray(item.customData?.addons) && item.customData.addons.length > 0 && (
-                      <div className="text-[11px] text-purple-400">
-                        {(() => {
-                          const selectedKeys = new Set(item.customData.addons.map((k: unknown) => String(k)));
-                          const labels = (item.addons || [])
-                            .filter((a) => selectedKeys.has(String(a.key)))
-                            .map((a) => a.label);
-                          return `Add-ons: ${labels.length > 0 ? labels.join(', ') : item.customData.addons.join(', ')}`;
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {addons.map((addon) => (
+                    <div key={String(addon.key)} className="flex items-center justify-between text-sm text-purple-400">
+                      <span>Kolotibablo Auto Login Service Fee +{addon.pricePercent}%</span>
+                      <span>৳{formatPrice((basePrice * (addon.pricePercent || 0)) / 100, 0)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="font-semibold text-white">
-                {(() => {
-                  const isSmm = item.smmProvider === 'oneservicebd';
-                  const effectiveQty = isSmm ? item.quantity / 1000 : item.quantity;
-                  if (isCryptoPayment) {
-                    // Same USD source as getTotalPriceUSD() — use priceUSDT
-                    // when available, otherwise convert the BDT price at the
-                    // current rate, then apply the selected add-ons. Both
-                    // places must agree so a line item (e.g. $4.25) always
-                    // matches the order total.
-                    const baseUSD = item.priceUSDT || (item.price ? roundCurrency(item.price / exchangeRate) : 0);
-                    const unitUSD = priceWithAddons(baseUSD, item);
-                    return <span>${formatPrice(unitUSD * effectiveQty, 2)}</span>;
-                  }
-                  // BDT: single shared whole-taka amount (same rounding as the
-                  // Total) so the line always matches the checkout total.
-                  return <span>৳{formatPrice(getBDTItemAmount(item), 0)}</span>;
-                })()}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {couponCode && discountAmount > 0 && (
             <div className="flex items-center justify-between pt-2">
               <div className="flex items-center gap-2 text-green-400">

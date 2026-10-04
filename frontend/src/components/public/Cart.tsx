@@ -187,8 +187,8 @@ export default function CartView({
         className="absolute inset-0 bg-black bg-opacity-50"
         onClick={() => setIsCartOpen(false)}
       ></div>
-      <div className="absolute right-0 top-0 h-full w-full max-w-md max-w-[100vw] bg-white dark:bg-gray-900 shadow-xl overflow-hidden">
-        <div className="flex flex-col h-full w-full max-w-full min-w-0">
+      <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-xl">
+        <div className="flex flex-col h-full">
           <div className="flex items-center justify-between p-4 sm:p-6 border-b">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Order Cart
@@ -201,14 +201,14 @@ export default function CartView({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 hide-scrollbar w-full max-w-full min-w-0">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 hide-scrollbar">
             {cart.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
                 <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p>Your cart is empty</p>
               </div>
             ) : (
-              <div className="space-y-4 w-full max-w-full min-w-0">
+              <div className="space-y-4">
                 {cart.map((item, index) => {
                   const isSmm = item.smmProvider === 'oneservicebd';
                   let smmMin = (isSmm && item.smmMin) ? item.smmMin : 1;
@@ -227,10 +227,10 @@ export default function CartView({
                   }
                   const linkPlaceholder = isSmm ? getSmmLinkPlaceholder(item.category, item.details) : '';
                   return (
-<div
-                     key={`${item.id}-${index}`}
-                     className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg shadow-sm w-full max-w-full"
-                   >
+                  <div
+                    key={`${item.id}-${index}`}
+                    className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg shadow-sm"
+                  >
                     <div className="flex items-center space-x-4">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2">
@@ -303,10 +303,10 @@ export default function CartView({
                                     addons: next,
                                   });
                                 }}
-                                className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
+                                className="mt-0.5 w-4 !w-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
                               />
                               <span className="min-w-0 flex-1">
-                                <span className="flex items-center gap-2 flex-wrap min-w-0">
+                                <span className="flex items-center gap-2 flex-wrap">
                                   <span className="text-sm font-medium text-gray-900 dark:text-white min-w-0 break-words">
                                     {addon.label}
                                   </span>
@@ -320,12 +320,12 @@ export default function CartView({
                                   </span>
                                 </span>
                                 {addon.description && (
-                                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 break-words">
+                                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 min-w-0 break-words">
                                     {addon.description}
                                   </span>
                                 )}
                                 {pct > 0 && (
-                                  <span className="block text-[11px] text-gray-500 dark:text-gray-400 mt-1 break-words">
+                                  <span className="block text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                                     {selected ? 'Added to this line' : `Adds ${pct}% to the price`} — ৳
                                     {formatPrice(
                                       (item.priceBDT || item.price) * (pct / 100) * (isSmm ? item.quantity / 1000 : item.quantity),
@@ -348,29 +348,29 @@ export default function CartView({
                           return (
                             <div className="rounded-lg border border-purple-200 dark:border-purple-800/60 bg-purple-50/50 dark:bg-purple-900/10 p-2.5 space-y-1">
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-gray-500 dark:text-gray-400 min-w-0 break-words">Base Price</span>
-<span className="font-medium text-gray-900 dark:text-gray-200 shrink-0">
-                                    ৳{formatPrice(baseLine, 0)}
-                                  </span>
+                                <span className="text-gray-500 dark:text-gray-400">Base Price</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-200">
+                                  ৳{formatPrice(baseLine, 0)}
+                                </span>
                               </div>
                               {applied.length > 0 && applied.map((addon) => {
                                 const aPct = Number(addon.pricePercent) || 0;
                                 return (
                                   <div key={addon.key} className="flex items-center justify-between text-[11px]">
-                                    <span className="text-purple-700 dark:text-purple-300 min-w-0 break-words">
+                                    <span className="text-purple-700 dark:text-purple-300">
                                       {addon.label} (+{aPct}%)
                                     </span>
-                                    <span className="font-medium text-purple-700 dark:text-purple-300 shrink-0">
+                                    <span className="font-medium text-purple-700 dark:text-purple-300">
                                       +৳{formatPrice((item.priceBDT || item.price) * (aPct / 100) * qtyFactor, 0)}
                                     </span>
                                   </div>
                                 );
                               })}
                               <div className="flex items-center justify-between text-[11px] border-t border-purple-200/70 dark:border-purple-800/50 pt-1">
-                                <span className="font-semibold text-gray-900 dark:text-white min-w-0 break-words">Final Price</span>
-<span className="font-bold text-purple-700 dark:text-purple-300 shrink-0">
-                                    ৳{formatPrice(finalLine, 0)}
-                                  </span>
+                                <span className="font-semibold text-gray-900 dark:text-white">Final Price</span>
+                                <span className="font-bold text-purple-700 dark:text-purple-300">
+                                  ৳{formatPrice(finalLine, 0)}
+                                </span>
                               </div>
                             </div>
                           );
