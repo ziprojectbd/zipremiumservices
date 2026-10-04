@@ -29,9 +29,9 @@ export default function PaymentMethod({
           }`}
         >
           <img
-            src="/images/bkash-logo.webp"
-            alt="bKash"
-            className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain"
+            src="https://res.cloudinary.com/dxilo3mlg/image/upload/v1791131974/10551890_urguxb.png"
+            alt="Mobile Payment"
+            className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain"
           />
           <div className="font-semibold text-xs sm:text-sm md:text-base text-white">Mobile Payment</div>
           <div className="text-[9px] sm:text-[11px] md:text-xs text-gray-400 leading-tight">
@@ -57,9 +57,11 @@ export default function PaymentMethod({
               : 'border-white/10 bg-white/5 hover:border-purple-500/40 hover:bg-purple-500/5'
           }`}
         >
-          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm sm:text-base md:text-lg font-bold">
-            B
-          </div>
+          <img
+            src="https://res.cloudinary.com/dxilo3mlg/image/upload/v1791131759/images_x7ayxv.png"
+            alt="Crypto Payment"
+            className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain rounded-full"
+          />
           <div className="font-semibold text-xs sm:text-sm md:text-base text-white">Crypto Payment</div>
           <div className="text-[9px] sm:text-[11px] md:text-xs text-gray-400 leading-tight">
             USDT &amp; other crypto
