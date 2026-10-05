@@ -34,7 +34,7 @@ export default function MarketplaceHeroBanner() {
   const totalListings = countsData?.total || 0;
 
   return (
-    <section className="relative py-12 overflow-hidden bg-gradient-to-b from-slate-900 via-purple-950/30 to-slate-900">
+    <section className="relative pt-12 pb-2 overflow-hidden bg-gradient-to-b from-slate-900 via-purple-950/30 to-slate-900">
       {/* Background Effects */}
       <div className="absolute inset-0">
         <div className="absolute top-0 left-1/4 w-[300px] h-[300px] bg-purple-500/20 rounded-full blur-[80px]" />
@@ -95,23 +95,38 @@ export default function MarketplaceHeroBanner() {
           </div>
 
           {/* Stats */}
-          <div className="flex flex-wrap items-center justify-center gap-6 mt-8">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm">
-              <TrendingUp className="w-5 h-5 text-purple-400" />
-              <span className="text-white font-bold">{totalListings > 1000 ? `${(totalListings / 1000).toFixed(1)}K+` : totalListings}</span>
-              <span className="text-slate-400 text-sm">Active Listings</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm">
-              <CheckCircle2 className="w-5 h-5 text-green-400" />
-              <span className="text-white font-bold">100K+</span>
-              <span className="text-slate-400 text-sm">Happy Customers</span>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm">
-              <Star className="w-5 h-5 text-amber-400" />
-              <span className="text-white font-bold">99%</span>
-              <span className="text-slate-400 text-sm">Success Rate</span>
-            </div>
-          </div>
+          {/* Stats */}
+<div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 mt-6 sm:mt-8 w-full px-2 sm:px-0">
+  <div className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm min-w-0">
+    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 shrink-0" />
+    <span className="text-white font-bold text-sm sm:text-base whitespace-nowrap">
+      {totalListings > 1000 ? `${(totalListings / 1000).toFixed(1)}K+` : totalListings}
+    </span>
+    <span className="text-slate-400 text-xs sm:text-sm whitespace-nowrap">
+      Active Listings
+    </span>
+  </div>
+
+  <div className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm min-w-0">
+    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 shrink-0" />
+    <span className="text-white font-bold text-sm sm:text-base whitespace-nowrap">
+      100K+
+    </span>
+    <span className="text-slate-400 text-xs sm:text-sm whitespace-nowrap">
+      Happy Customers
+    </span>
+  </div>
+
+  <div className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-white/5 rounded-xl border border-white/10 backdrop-blur-sm min-w-0">
+    <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
+    <span className="text-white font-bold text-sm sm:text-base whitespace-nowrap">
+      99%
+    </span>
+    <span className="text-slate-400 text-xs sm:text-sm whitespace-nowrap">
+      Success Rate
+    </span>
+  </div>
+</div>
         </div>
       </div>
     </section>

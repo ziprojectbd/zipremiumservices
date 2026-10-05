@@ -342,7 +342,7 @@ export default function HeroSection({ heroRef, sideSliderSettings, liveOrders }:
                                     <span className="relative inline-block max-w-full">
                                         <div className="absolute inset-0 rounded-lg opacity-50 -z-10" style={{ backgroundImage: 'radial-gradient( circle 710px at 5.2% 7.2%, rgba(37,89,222,1) 0%, rgba(37,89,222,1) 7.5%, rgba(4,4,29,1) 44.7% )' }}>
                                         </div>
-                                        <span className="relative z-10 px-3 sm:px-4 py-1.5 sm:py-1 text-[clamp(1.2rem,5vw,3rem)] bg-gradient-to-r from-lime-500 via-red-500 to-lime-500 bg-clip-text text-transparent drop-shadow-2xl block sm:inline-block text-center whitespace-normal sm:whitespace-nowrap cinzel-decorative-black">
+                                        <span className="relative z-10 px-3 sm:px-4 py-1.5 sm:py-1 text-[clamp(1.2rem,5vw,3rem)] bg-gradient-to-r from-pink-500 via-amber-400 to-sky-500 bg-clip-text text-transparent drop-shadow-2xl block sm:inline-block text-center whitespace-normal sm:whitespace-nowrap cinzel-decorative-black">
                                             ZI PREMIUM SERVICES
                                         </span>
                                     </span>

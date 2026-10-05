@@ -560,17 +560,19 @@ export default function OrderDetails() {
               </Section>
             )}
 
-            {/* Delivery Note */}
-            {order.deliveryNote && (
-              <Section title="Delivery Note">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                    {order.deliveryNote}
-                  </p>
-                  <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
-                </div>
-              </Section>
-            )}
+             {/* Delivery Note */}
+             <Section title="Delivery Note">
+               {order.deliveryNote ? (
+                 <div className="flex items-start justify-between gap-3">
+                   <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                     {order.deliveryNote}
+                   </p>
+                   <CopyBtn fieldKey="delivery_note" value={order.deliveryNote} />
+                 </div>
+               ) : (
+                 <p className="text-xs sm:text-sm text-gray-400">No delivery note</p>
+               )}
+             </Section>
 
             {/* Items — full width so long names and links stay readable */}
             <div className="lg:col-span-2">

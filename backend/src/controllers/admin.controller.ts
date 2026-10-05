@@ -590,11 +590,15 @@ export const updateAdminOrder = asyncHandler(async (req, res) => {
       case 'approve_order':
         order.status = 'approved';
         break;
-      case 'deliver_order': {
-        // Idempotency: if already delivered with a key, skip API call
-        if (order.status === 'delivered' && order.captchaApiKey) {
-          break;
-        }
+       case 'deliver_order': {
+         // Save delivery note from request body before the early return
+         if (req.body.deliveryNote !== undefined) {
+           order.deliveryNote = req.body.deliveryNote || '';
+         }
+         // Idempotency: if already delivered with a key, skip API call
+         if (order.status === 'delivered' && order.captchaApiKey) {
+           break;
+         }
 
         // ------------------------------------------------------------------
         // Delivery instructions (download/install link).

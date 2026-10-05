@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import api from '../../lib/axios';
@@ -148,7 +148,7 @@ export default function OrdersPage() {
   const [showDeliverModal, setShowDeliverModal] = useState(false);
   const [deliverOrderId, setDeliverOrderId] = useState<string | null>(null);
   const [deliverNote, setDeliverNote] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   // The exact { customerName, customerEmail, kbl } payload the server will
   // send for a CaptchaMaster order, fetched when the delivery modal opens so
   // the admin can verify the values before confirming.
@@ -159,7 +159,6 @@ export default function OrdersPage() {
     kbl: boolean;
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const actionBusyRef = useRef(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -244,16 +243,34 @@ export default function OrdersPage() {
     fetchOrders(status, true);
   };
 
+  // Updates the given order in the local list with the backend's response data.
+  // This runs client-side only and never triggers a document reload or table remount.
+  const updateOrderInPlace = (orderId: string, updates: Partial<Order>) => {
+    setOrders((prev) =>
+      prev.map((o) => (o._id === orderId ? { ...o, ...updates } : o))
+    );
+  };
+
+  // Mirrors the exact order state the backend returned for this action so the
+  // UI reflects it locally with no page reload or table remount.
+  const applyActionUpdate = (orderId: string, data: ApiResponse<Order>['data']) => {
+    if (data?._id) {
+      updateOrderInPlace(data._id, data);
+    } else {
+      updateOrderInPlace(orderId, { status: data?.status });
+    }
+  };
+
   const handleStatusUpdated = async () => {
-    await fetchOrders(statusFilter, true);
+    // Refresh the stats panel with the server's latest counts. This is a small
+    // API call (not a page reload) and keeps the stats accurate.
     fetchStats();
   };
 
   // ---- Actions ----
   const runAction = async (action: 'verify' | 'reject' | 'approve', orderId: string) => {
-    if (actionBusyRef.current) return;
-    actionBusyRef.current = true;
-    setActionLoading(true);
+    if (actionLoadingId === orderId) return;
+    setActionLoadingId(orderId);
     try {
       const actionMap: Record<string, string> = {
         verify: 'verify_payment',
@@ -272,12 +289,15 @@ export default function OrdersPage() {
         approve: 'Order approved successfully',
       };
       showToast(messages[action], 'success');
+      // Update only this order in the local list — no page reload / no full
+      // table remount. The server's response reflects the exact state the
+      // backend stored.
+      applyActionUpdate(orderId, json.data);
       handleStatusUpdated();
     } catch (err: any) {
       showToast(err?.response?.data?.error || 'Failed to update order', 'error');
     } finally {
-      setActionLoading(false);
-      actionBusyRef.current = false;
+      setActionLoadingId(null);
     }
   };
 
@@ -395,17 +415,17 @@ export default function OrdersPage() {
             <table className="w-full min-w-[1200px]">
               <thead className="bg-gradient-to-r from-blue-500/15 via-cyan-500/10 to-teal-500/15 backdrop-blur-sm">
                 <tr className="border-b border-white/10">
-                  <th className="text-left py-2.5 px-3 text-blue-200 font-semibold text-[10px] uppercase tracking-wider">Order ID</th>
-                  <th className="text-left py-2.5 px-3 text-cyan-200 font-semibold text-[10px] uppercase tracking-wider">Product</th>
-                  <th className="text-left py-2.5 px-3 text-fuchsia-200 font-semibold text-[10px] uppercase tracking-wider">Username</th>
-                  <th className="text-left py-2.5 px-3 text-amber-200 font-semibold text-[10px] uppercase tracking-wider">Country</th>
-                  <th className="text-left py-2.5 px-3 text-cyan-200 font-semibold text-[10px] uppercase tracking-wider">Payment Method</th>
-                  <th className="text-left py-2.5 px-3 text-blue-200 font-semibold text-[10px] uppercase tracking-wider">Quick Info</th>
-                  <th className="text-left py-2.5 px-3 text-emerald-200 font-semibold text-[10px] uppercase tracking-wider">Amount</th>
-                  <th className="text-left py-2.5 px-3 text-amber-200 font-semibold text-[10px] uppercase tracking-wider">Payment Status</th>
-                  <th className="text-left py-2.5 px-3 text-lime-200 font-semibold text-[10px] uppercase tracking-wider">Order Status</th>
-                  <th className="text-left py-2.5 px-3 text-sky-200 font-semibold text-[10px] uppercase tracking-wider">Created At</th>
-                  <th className="text-left py-2.5 px-3 text-rose-200 font-semibold text-[10px] uppercase tracking-wider">Actions</th>
+                   <th className="text-left py-2.5 px-3 text-blue-200 font-semibold text-[10px] uppercase tracking-wider">Order ID</th>
+                   <th className="text-left py-2.5 px-3 text-cyan-200 font-semibold text-[10px] uppercase tracking-wider">Product</th>
+                   <th className="text-left py-2.5 px-3 text-fuchsia-200 font-semibold text-[10px] uppercase tracking-wider">Username</th>
+                   <th className="text-left py-2.5 px-3 text-amber-200 font-semibold text-[10px] uppercase tracking-wider">Country</th>
+                   <th className="text-left py-2.5 px-3 text-cyan-200 font-semibold text-[10px] uppercase tracking-wider">Payment Method</th>
+                   <th className="text-left py-2.5 px-3 text-blue-200 font-semibold text-[10px] uppercase tracking-wider">Quick Info</th>
+                   <th className="text-left py-2.5 px-3 text-emerald-200 font-semibold text-[10px] uppercase tracking-wider">Amount</th>
+                   <th className="text-left py-2.5 px-3 text-amber-200 font-semibold text-[10px] uppercase tracking-wider">Payment Status</th>
+                   <th className="text-left py-2.5 px-3 text-lime-200 font-semibold text-[10px] uppercase tracking-wider">Order Status</th>
+                   <th className="text-left py-2.5 px-3 text-sky-200 font-semibold text-[10px] uppercase tracking-wider">Created At</th>
+                   <th className="text-left py-2.5 px-3 text-rose-200 font-semibold text-[10px] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -484,7 +504,7 @@ export default function OrdersPage() {
                                 setDeliverNote('');
                                 setShowDeliverModal(true);
                               }}
-                              disabled={actionLoading || actionBusyRef.current}
+                               disabled={actionLoadingId === order._id}
                               className="px-1.5 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600 text-white disabled:opacity-50"
                               title="Deliver Order"
                             >
@@ -493,22 +513,22 @@ export default function OrdersPage() {
                           )}
                           {payStatus !== 'verified' && !['delivered', 'rejected'].includes(ordStatus) && (
                             <>
-                              <button
-                                onClick={() => runAction('verify', order._id)}
-                                disabled={actionLoading || payStatus === 'verified' || payStatus === 'rejected'}
-                                className="px-1.5 py-1 text-[10px] rounded bg-green-600/80 hover:bg-green-600 text-white disabled:opacity-50"
-                                title="Verify Payment"
-                              >
-                                Verify
-                              </button>
-                              <button
-                                onClick={() => runAction('reject', order._id)}
-                                disabled={actionLoading || payStatus === 'rejected'}
-                                className="px-1.5 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600 text-white disabled:opacity-50"
-                                title="Reject Payment"
-                              >
-                                Reject
-                              </button>
+                               <button
+                                 onClick={() => runAction('verify', order._id)}
+                                 disabled={actionLoadingId === order._id || payStatus === 'verified' || payStatus === 'rejected'}
+                                 className="px-1.5 py-1 text-[10px] rounded bg-green-600/80 hover:bg-green-600 text-white disabled:opacity-50"
+                                 title="Verify Payment"
+                               >
+                                 Verify
+                               </button>
+                               <button
+                                 onClick={() => runAction('reject', order._id)}
+                                 disabled={actionLoadingId === order._id || payStatus === 'rejected'}
+                                 className="px-1.5 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600 text-white disabled:opacity-50"
+                                 title="Reject Payment"
+                               >
+                                 Reject
+                               </button>
                             </>
                           )}
                         </div>
@@ -581,35 +601,34 @@ export default function OrdersPage() {
               >
                 Cancel
               </button>
-              <button
-                onClick={async () => {
-                  setShowDeliverModal(false);
-                  if (actionBusyRef.current) return;
-                  actionBusyRef.current = true;
-                  setActionLoading(true);
-                  try {
-                    const res = await api.put(`/admin/orders/${deliverOrderId}`, {
-                      action: 'deliver_order',
-                      deliveryNote: deliverNote.trim() || undefined,
-                    });
-                    const json: ApiResponse<Order> = res.data;
-                    if (!json.success) {
-                      showToast(apiErrorMessage(json, 'Failed to deliver order'), 'error');
-                      return;
-                    }
-                    showToast('Order delivered successfully', 'success');
-                    handleStatusUpdated();
-                  } catch (err: any) {
-                    showToast(apiErrorMessage(err?.response?.data, 'Failed to deliver order'), 'error');
-                  } finally {
-                    setActionLoading(false);
-                    actionBusyRef.current = false;
-                  }
-                }}
-                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors text-sm font-medium"
-              >
-                Confirm Delivery
-              </button>
+               <button
+                 onClick={async () => {
+                   setShowDeliverModal(false);
+                   if (actionLoadingId === deliverOrderId) return;
+                   setActionLoadingId(deliverOrderId);
+                   try {
+                     const res = await api.put(`/admin/orders/${deliverOrderId}`, {
+                       action: 'deliver_order',
+                       deliveryNote: deliverNote.trim() || undefined,
+                     });
+                     const json: ApiResponse<Order> = res.data;
+                     if (!json.success) {
+                       showToast(apiErrorMessage(json, 'Failed to deliver order'), 'error');
+                       return;
+                     }
+                     showToast('Order delivered successfully', 'success');
+                     applyActionUpdate(deliverOrderId, json.data);
+                     handleStatusUpdated();
+                   } catch (err: any) {
+                     showToast(apiErrorMessage(err?.response?.data, 'Failed to deliver order'), 'error');
+                   } finally {
+                     setActionLoadingId(null);
+                   }
+                 }}
+                 className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors text-sm font-medium"
+               >
+                 Confirm Delivery
+               </button>
             </div>
           </div>
         </div>

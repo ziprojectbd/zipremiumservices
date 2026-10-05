@@ -23,6 +23,8 @@ interface Order {
   createdAt?: string;
   currency?: string;
   items?: Array<{ productName?: string; price?: number; usdtAmount?: number }>;
+  payment_status?: string;
+  paymentStatus?: string;
 }
 
 interface Product {
@@ -55,6 +57,12 @@ export default function AdminDashboard() {
   const [todayRevenue, setTodayRevenue] = useState({ usdt: 0, bdt: 0 });
   const [loading, setLoading] = useState(true);
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
+  // Per-order loading guard so only the clicked card/button shows loading.
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  // Delivery confirmation modal.
+  const [deliverNote, setDeliverNote] = useState('');
+  const [showDeliverModal, setShowDeliverModal] = useState(false);
+  const [deliverOrderId, setDeliverOrderId] = useState<string | null>(null);
 
   // Modal state
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -135,6 +143,14 @@ export default function AdminDashboard() {
     }
   };
 
+  const getPaymentStatus = (order: Order) => {
+    return (order.payment_status || order.paymentStatus || '').toLowerCase();
+  };
+
+  const isPaymentVerified = (order: Order) => {
+    return getPaymentStatus(order) === 'verified';
+  };
+
   const handleViewOrder = (order: Order) => {
     setSelectedOrder(order);
     setShowViewModal(true);
@@ -153,16 +169,20 @@ export default function AdminDashboard() {
 
   const handleConfirmDelete = async () => {
     if (!selectedOrder?._id) return;
+    if (actionLoadingId === selectedOrder._id) return;
+    setActionLoadingId(selectedOrder._id);
     try {
       const res = await api.delete(`/admin/orders/${selectedOrder._id}`);
       if (res.data.success) {
-        window.location.reload();
+        // Remove the deleted order from the recent orders list locally — no page reload.
+        setRecentOrders((prev) => prev.filter((o) => o._id !== selectedOrder._id));
       } else {
         setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: `Failed to delete: ${res.data.error}` });
       }
     } catch {
       setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to delete order' });
     } finally {
+      setActionLoadingId(null);
       setShowDeleteModal(false);
       setSelectedOrder(null);
     }
@@ -182,6 +202,61 @@ export default function AdminDashboard() {
     } finally {
       setShowEditModal(false);
       setSelectedOrder(null);
+    }
+  };
+
+  // ---- Recent Orders Actions (no page reload) ----
+  const runAction = async (action: 'verify' | 'reject' | 'approve', orderId: string | undefined) => {
+    if (!orderId) return;
+    if (actionLoadingId === orderId) return;
+    setActionLoadingId(orderId);
+    try {
+      const actionMap: Record<string, string> = {
+        verify: 'verify_payment',
+        reject: 'reject_payment',
+        approve: 'approve_order',
+      };
+      const res = await api.put(`/admin/orders/${orderId}`, { action: actionMap[action] });
+      const json = res.data;
+      if (!json.success) {
+        setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to update order' });
+        return;
+      }
+      // Update the affected order in the recent orders list locally — no reload.
+      if (json.data?._id) {
+        setRecentOrders((prev) => prev.map((o) => (o._id === json.data._id ? { ...o, ...json.data } : o)));
+      } else {
+        setRecentOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, status: json.data?.status } : o)));
+      }
+    } catch {
+      setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to update order' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeliver = async (orderId: string | undefined) => {
+    if (!orderId) return;
+    if (actionLoadingId === orderId) return;
+    setActionLoadingId(orderId);
+    try {
+      const res = await api.put(`/admin/orders/${orderId}`, { action: 'deliver_order', deliveryNote: deliverNote.trim() || undefined });
+      const json = res.data;
+      if (!json.success) {
+        setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to deliver order' });
+        return;
+      }
+      // Update the affected order locally — no reload.
+      if (json.data?._id) {
+        setRecentOrders((prev) => prev.map((o) => (o._id === json.data._id ? { ...o, ...json.data } : o)));
+      }
+    } catch {
+      setAlertConfig({ isOpen: true, type: 'error', title: 'Error', message: 'Failed to deliver order' });
+    } finally {
+      setActionLoadingId(null);
+      setShowDeliverModal(false);
+      setDeliverOrderId(null);
+      setDeliverNote('');
     }
   };
 
@@ -386,13 +461,76 @@ export default function AdminDashboard() {
                       <span className="text-white font-medium">{getCurrencySym(order.currency)}{formatPrice(Number(order.amount), 2)}</span>
                     </div>
                     <div className="flex items-center gap-2 pt-1 border-t border-white/5">
-                      <button onClick={() => handleViewOrder(order)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-blue-500/10 rounded-lg text-xs transition-all">
+                      <button
+                        onClick={() => handleViewOrder(order)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-blue-500/10 rounded-lg text-xs transition-all"
+                      >
                         <Eye className="w-3.5 h-3.5" /> View
                       </button>
-                      <button onClick={() => handleDeleteOrder(order)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg text-xs transition-all">
+                      <button
+                        onClick={() => handleDeleteOrder(order)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg text-xs transition-all"
+                      >
                         <Trash2 className="w-3.5 h-3.5" /> Delete
                       </button>
                     </div>
+                    {isPaymentVerified(order) && !['delivered', 'rejected', 'cancelled'].includes(order.status.toLowerCase()) && (
+                      <div className="pt-2 border-t border-white/5">
+                         <button
+                           onClick={() => {
+                             if (!order._id) return;
+                             setDeliverOrderId(order._id);
+                             setDeliverNote('');
+                             setShowDeliverModal(true);
+                           }}
+                           disabled={actionLoadingId === order._id}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg text-xs transition-all disabled:opacity-50"
+                          type="button"
+                        >
+                          {actionLoadingId === order._id ? (
+                            <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Truck className="w-3.5 h-3.5" /> Deliver
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                    {!isPaymentVerified(order) && !['delivered', 'rejected', 'cancelled'].includes(order.status.toLowerCase()) && (
+                      <div className="pt-2 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => runAction('verify', order._id)}
+                            disabled={actionLoadingId === order._id}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-green-400 bg-white/5 hover:bg-green-500/10 rounded-lg text-xs transition-all disabled:opacity-50"
+                            type="button"
+                          >
+                            {actionLoadingId === order._id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Verify
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => runAction('reject', order._id)}
+                            disabled={actionLoadingId === order._id}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg text-xs transition-all disabled:opacity-50"
+                            type="button"
+                          >
+                            {actionLoadingId === order._id ? (
+                              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <XCircle className="w-3.5 h-3.5" /> Reject
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -420,11 +558,71 @@ export default function AdminDashboard() {
                           <StatusBadge status={order.status} />
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="flex items-center space-x-2">
-                            <button onClick={() => handleViewOrder(order)} className="p-1 text-gray-400 hover:text-blue-400 transition-all hover:scale-110" title="View Order">
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              onClick={() => handleViewOrder(order)}
+                              className="p-1 text-gray-400 hover:text-blue-400 transition-all hover:scale-110"
+                              title="View Order"
+                              type="button"
+                            >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDeleteOrder(order)} className="p-1 text-gray-400 hover:text-red-400 transition-all hover:scale-110" title="Delete Order">
+                             {isPaymentVerified(order) && !['delivered', 'rejected', 'cancelled'].includes(order.status.toLowerCase()) && (
+                               <button
+                                 onClick={() => {
+                                   if (!order._id) return;
+                                   setDeliverOrderId(order._id);
+                                   setDeliverNote('');
+                                   setShowDeliverModal(true);
+                                 }}
+                                 disabled={actionLoadingId === order._id}
+                                className="p-1 text-gray-400 hover:text-red-400 transition-all hover:scale-110 disabled:opacity-50 disabled:hover:scale-100"
+                                title="Deliver Order"
+                                type="button"
+                              >
+                                {actionLoadingId === order._id ? (
+                                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Truck className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
+                            {!isPaymentVerified(order) && !['delivered', 'rejected', 'cancelled'].includes(order.status.toLowerCase()) && (
+                              <>
+                                <button
+                                  onClick={() => runAction('verify', order._id)}
+                                  disabled={actionLoadingId === order._id}
+                                  className="p-1 text-gray-400 hover:text-green-400 transition-all hover:scale-110 disabled:opacity-50 disabled:hover:scale-100"
+                                  title="Verify Payment"
+                                  type="button"
+                                >
+                                  {actionLoadingId === order._id ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => runAction('reject', order._id)}
+                                  disabled={actionLoadingId === order._id}
+                                  className="p-1 text-gray-400 hover:text-red-400 transition-all hover:scale-110 disabled:opacity-50 disabled:hover:scale-100"
+                                  title="Reject Payment"
+                                  type="button"
+                                >
+                                  {actionLoadingId === order._id ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <XCircle className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteOrder(order)}
+                              className="p-1 text-gray-400 hover:text-red-400 transition-all hover:scale-110"
+                              title="Delete Order"
+                              type="button"
+                            >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -609,6 +807,58 @@ export default function AdminDashboard() {
               </button>
               <button onClick={handleConfirmDelete} className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deliver Confirmation Modal */}
+      {showDeliverModal && deliverOrderId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Confirm Delivery</h3>
+            {actionLoadingId === deliverOrderId && (
+              <p className="text-gray-500 text-xs mb-3">Delivering…</p>
+            )}
+            {!actionLoadingId && (
+              <div className="mb-4 rounded-lg border border-purple-400/30 bg-purple-500/10 p-3">
+                <p className="text-gray-400 text-xs">
+                  Delivering this order marks it as delivered and sends it to the fulfillment provider. This action updates the order status in real time.
+                </p>
+              </div>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-300 text-xs sm:text-sm font-medium mb-1.5">Delivery Note (optional)</label>
+                <textarea
+                  value={deliverNote}
+                  onChange={(e) => setDeliverNote(e.target.value)}
+                  placeholder="Add a note for this delivery…"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowDeliverModal(false);
+                  setDeliverOrderId(null);
+                  setDeliverNote('');
+                }}
+                className="flex-1 py-2 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition-colors text-sm"
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeliver(deliverOrderId)}
+                disabled={actionLoadingId === deliverOrderId}
+                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors text-sm font-medium disabled:opacity-50"
+                type="button"
+              >
+                {actionLoadingId === deliverOrderId ? 'Delivering…' : 'Confirm Delivery'}
               </button>
             </div>
           </div>

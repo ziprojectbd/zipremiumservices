@@ -140,6 +140,18 @@ export default function AdminOrderDetails() {
     }
   }, [orderNumber]);
 
+  // Mirrors the exact order state the backend returned for this action so the
+  // UI reflects it locally with no full re-render caused by a page fetch.
+  const applyActionUpdate = (data: ApiResponse<Order>['data']) => {
+    if (order) {
+      if (data?._id) {
+        setOrder(data);
+      } else if (data?.status) {
+        setOrder({ ...order, status: data.status });
+      }
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     fetchOrder();
@@ -196,7 +208,7 @@ export default function AdminOrderDetails() {
         approve: 'Order approved successfully',
       };
       showToast(messages[action], 'success');
-      await fetchOrder();
+      applyActionUpdate(json.data);
     } catch (err: any) {
       showToast(apiErrorMessage(err?.response?.data, 'Failed to update order'), 'error');
     } finally {
@@ -221,7 +233,7 @@ export default function AdminOrderDetails() {
         return;
       }
       showToast('Order delivered successfully', 'success');
-      await fetchOrder();
+      applyActionUpdate(json.data);
     } catch (err: any) {
       showToast(apiErrorMessage(err?.response?.data, 'Failed to deliver order'), 'error');
     } finally {

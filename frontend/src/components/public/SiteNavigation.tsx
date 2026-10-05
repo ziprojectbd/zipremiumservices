@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { attachRowScroll } from '../shared/CategoryChip';
 
 const navLinks = [
   { href: '/', label: 'Home' },
-  { href: '/#products', label: 'Services' },
   { href: '/airdrop', label: 'Airdrop' },
   { href: '/marketplace', label: 'Marketplace' },
   { href: '/my-orders', label: 'My Orders' },
@@ -12,19 +13,35 @@ const navLinks = [
 
 export default function SiteNavigation({ className = '' }: { className?: string }) {
   const location = useLocation();
+  const navRef = useRef<HTMLDivElement>(null);
 
   const isActive = (href: string) => {
     if (href.includes('#')) return false;
     return location.pathname === href;
   };
 
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    return attachRowScroll(el);
+  }, []);
+
   return (
-    <nav className={`flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none ${className}`}>
+    <nav
+      ref={navRef}
+      className="flex items-center gap-0 sm:gap-2 overflow-x-auto overflow-y-hidden nav-scroll-hide cursor-grab"
+      style={{
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehaviorX: 'contain',
+      }}
+    >
       {navLinks.map((link) => (
         <Link
           key={link.href}
           to={link.href}
-          className={`relative group px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base font-medium rounded-lg whitespace-nowrap transition-all duration-500 overflow-hidden ${
+          className={`relative group px-2 sm:px-5 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base font-medium rounded-lg whitespace-nowrap transition-all duration-500 overflow-hidden min-w-fit ${
             isActive(link.href)
               ? 'text-purple-200'
               : 'text-gray-300 hover:text-white'

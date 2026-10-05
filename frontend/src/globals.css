@@ -842,6 +842,16 @@ iframe {
   display: none !important;
 }
 
+/* Hide scrollbar on nav only - preserves all scroll methods */
+.nav-scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.nav-scroll-hide::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* ======================================================================
    Mobile: force white text on dark admin backgrounds
    Fixes browser/OS default black text on inputs, selects, options,

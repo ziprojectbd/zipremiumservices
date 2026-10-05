@@ -161,6 +161,17 @@ export default function OrderHistory({ orders, onReorder }: OrderHistoryProps) {
                     ))}
                   </div>
 
+                  {order.deliveryNote && (
+                    <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                      <h4 className="text-xs font-semibold text-cyan-300 uppercase tracking-wider mb-2">
+                        Delivery Note
+                      </h4>
+                      <p className="text-xs sm:text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                        {order.deliveryNote}
+                      </p>
+                    </div>
+                  )}
+
                   {order.status === 'completed' && (
                     <div className="mt-5">
                       <DeliveryLinkCard
