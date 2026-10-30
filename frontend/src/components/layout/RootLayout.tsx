@@ -25,7 +25,6 @@ export default function RootLayout() {
     setAlertConfig,
     handleSignIn: onSignInClick,
     handleSignUp: onSignUpClick,
-    validateCart,
   } = useShopContext();
 
   return (
@@ -55,7 +54,6 @@ export default function RootLayout() {
         onAlert={(type, title, message, onConfirm) =>
           setAlertConfig({ isOpen: true, type, title, message, onConfirm })
         }
-        validateCart={validateCart}
       />
       <EnhancedAlert
         isOpen={alertConfig.isOpen}

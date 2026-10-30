@@ -91,7 +91,6 @@ export interface CartProps {
   onSignInClick: () => void;
   onSignUpClick: () => void;
   onAlert: (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string, onConfirm?: () => void) => void;
-  validateCart: () => Promise<{ removedItems: any[] } | null>;
 }
 
 export default function CartView({
@@ -111,7 +110,6 @@ export default function CartView({
   onSignInClick,
   onSignUpClick,
   onAlert,
-  validateCart,
 }: CartProps) {
   const navigate = useNavigate();
   const [linkInputs, setLinkInputs] = useState<Record<string, string>>({});
@@ -170,19 +168,6 @@ export default function CartView({
       }
     });
   }, [isCartOpen, cart, liveDetails]);
-
-  // Server-side expiration check whenever the cart drawer opens: strip expired
-  // discounted items so a stale offer can never be checked out.
-  useEffect(() => {
-    if (!isCartOpen) return;
-    let cancelled = false;
-    validateCart().then((result) => {
-      if (!cancelled && result?.removedItems?.length) {
-        // The context already updated the cart; just re-render reflects it.
-      }
-    });
-    return () => { cancelled = true; };
-  }, [isCartOpen, validateCart]);
 
   if (!isCartOpen) return null;
 
