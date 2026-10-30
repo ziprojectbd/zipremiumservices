@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Environment files — injected at runtime by docker-compose / orchestrator
+.env
+.env.local
+.env.*.local
+
+# Version control
+.git
+.gitignore
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs (these should be volumes in production)
+logs/
+*.log
+npm-debug.log*
+
+# Cache
+.cache
+.tsbuildinfo
+.eslintcache
+
+# Docker build context
+Dockerfile
+.dockerignore
+docker-compose*.yml
+docker-compose*.yaml
+
+# Docs
+*.md
+README*
+
+# Tests
+__tests__
+coverage
+.nyc_output
+
+# NOTE: src/, tsconfig.json, .npmrc are NOT excluded here
+# because the multi-stage Dockerfile needs them for the build stage.
+# Only the final runner stage copies dist/ (not src/).

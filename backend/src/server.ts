@@ -1,0 +1,144 @@
+import app from './app.js';
+import connectDB from '@db/connect';
+import env from '@config/env';
+import logger, { logCriticalError } from '@config/logger';
+import { validateEnv } from '@config/env';
+import { closeRedis } from '@config/redis';
+import mongoose from 'mongoose';
+import { initSocketIO } from '@socket/index.js';
+import http from 'http';
+let server: http.Server | null = null;
+
+async function start(): Promise<void> {
+  try {
+    // Validate environment variables
+    validateEnv();
+    logger.info('Environment variables validated');
+
+    // Connect to MongoDB
+    await connectDB();
+    logger.info('MongoDB connected');
+
+    // Start job queues/workers (Redis-backed cart-expiration cleanup, etc.).
+    // Guarded so the API keeps working in environments without Redis.
+    if (env.REDIS_ENABLED) {
+      const { cleanupQueue } = await import('@jobs/index.js');
+      // Repeatable cart-expiration cleanup: strip expired discounted items
+      // from every cart every 5 minutes.
+      await cleanupQueue
+        .add(
+          'expire-cart-discounts',
+          { action: 'expire-cart-discounts' },
+          {
+            repeat: { every: 5 * 60 * 1000 },
+            jobId: 'cart-expiration-cleanup',
+          },
+        )
+        .catch((err) => {
+          logger.warn('Could not schedule repeatable cart-expiration cleanup', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      logger.info('Job queues and workers started');
+    }
+
+    // Start server
+    server = http.createServer(app).listen(env.PORT, () => {
+      logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+      logger.info(`Health check: http://localhost:${env.PORT}/health`);
+      logger.info(`API Docs: http://localhost:${env.PORT}/api-docs`);
+      logger.info(`Metrics: http://localhost:${env.PORT}/metrics`);
+    });
+
+    // Initialize Socket.IO
+    initSocketIO(server);
+    logger.info('Socket.IO initialized');
+
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        logCriticalError(`Port ${env.PORT} is already in use`, error);
+        process.exit(1);
+      } else {
+        logCriticalError('Server error', error);
+        process.exit(1);
+      }
+    });
+
+  } catch (err) {
+    logCriticalError('Failed to start server', err);
+    process.exit(1);
+  }
+}
+
+// =========================================================================
+// Graceful Shutdown Handler
+// =========================================================================
+async function gracefulShutdown(signal: string): Promise<void> {
+  logger.info(`${signal} received. Starting graceful shutdown...`);
+
+  // Stop accepting new requests
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server!.close((err) => {
+        if (err) {
+          logger.error('Error closing HTTP server', { error: err.message });
+        } else {
+          logger.info('HTTP server closed');
+        }
+        resolve();
+      });
+    });
+  }
+
+  // Close MongoDB connection
+  try {
+    await mongoose.connection.close();
+    logger.info('MongoDB connection closed');
+  } catch (err) {
+    logger.error('Error closing MongoDB connection', { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Close Redis-backed job queues
+  if (env.REDIS_ENABLED) {
+    try {
+      const { closeAllQueues } = await import('@jobs/index.js');
+      await closeAllQueues();
+      logger.info('Job queues closed');
+    } catch (err) {
+      logger.error('Error closing job queues', { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // Close Redis connection if enabled
+  try {
+    await closeRedis();
+  } catch (err) {
+    logger.error('Error closing Redis connection', { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  logger.info('Graceful shutdown complete');
+  process.exit(0);
+}
+
+// Handle termination signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logCriticalError('Uncaught exception', err);
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
+});
+
+// Handle unhandled promise rejections — log them but keep the server alive.
+// A single bad request (e.g. an auth error thrown before its catch) must never
+// take the whole API down in production.
+process.on('unhandledRejection', (reason) => {
+  logCriticalError('Unhandled promise rejection', reason);
+});
+
+start();
+
+// Export for testing
+export { app, server };

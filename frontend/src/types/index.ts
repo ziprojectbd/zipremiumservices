@@ -1,0 +1,240 @@
+export interface OrderFieldValidation {
+    min?: number;
+    max?: number;
+    pattern?: string;
+}
+
+export interface OrderFieldShowIf {
+    field?: string;
+    equals?: string;
+}
+
+export interface OrderFieldOption {
+    label: string;
+    value: string;
+}
+
+export interface OrderField {
+    key: string;
+    label: string;
+    type: 'text' | 'textarea' | 'number' | 'url' | 'email' | 'select' | 'radio' | 'checkbox' | 'date' | 'time' | 'password' | 'hidden';
+    placeholder?: string;
+    required?: boolean;
+    options?: string[] | OrderFieldOption[];
+    defaultValue?: any;
+    validation?: OrderFieldValidation;
+    showIf?: OrderFieldShowIf;
+}
+
+/** An optional paid extra on a product, e.g. "Kolotibablo Auto Login" (+30%). */
+export interface ProductAddon {
+    key: string;
+    label: string;
+    description?: string;
+    /** Percentage added to the unit price when selected (30 = +30%). */
+    pricePercent: number;
+    defaultSelected?: boolean;
+}
+
+export interface Product {
+    id: number | string;
+    name: string;
+    description: string;
+    price: number;
+    originalPrice: number;
+    priceBDT?: number;
+    priceUSDT?: number;
+    category: string;
+    icon?: React.ReactNode;
+    features: string[];
+    imageUrl?: string;
+    images?: string[];
+    stock?: number;
+    available?: boolean;
+    showStock?: boolean;
+    showImageSlider?: boolean;
+    dbId?: string;
+    seoSlug?: string;
+    details?: string;
+    smmProvider?: string;
+    smmServiceId?: string;
+    smmMin?: number;
+    smmMax?: number;
+    productType?: 'standard' | 'smm' | 'captchamaster';
+    captchamasterPlanId?: string;
+    orderFields?: OrderField[];
+    /** Optional paid extras offered on the cart line. */
+    addons?: ProductAddon[];
+    campaignPrice?: number;
+    campaignDiscount?: number;
+    campaignAmountSaved?: number;
+    campaignBadge?: string;
+    campaignSlug?: string;
+    campaignColor?: string;
+    campaignDiscountType?: string;
+    campaignEndDate?: string;
+    campaignTotalStock?: number;
+    campaignUsedStock?: number;
+}
+
+export interface CampaignData {
+    _id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    bannerImage?: string;
+    mobileBanner?: string;
+    campaignLogo?: string;
+    colorTheme: string;
+    status: 'draft' | 'scheduled' | 'active' | 'expired';
+    priority: number;
+    startDate?: string;
+    endDate?: string;
+    discountType: string;
+    discountValue: number;
+    couponCode?: string;
+    targetType: string;
+    isActive: boolean;
+    isFeatured: boolean;
+    totalStock: number;
+    usedStock: number;
+    remainingStock?: number;
+    isRunning?: boolean;
+    timeRemaining?: number | null;
+}
+
+export interface CartItem extends Product {
+    quantity: number;
+    link?: string;
+    customData?: Record<string, any>;
+    // Discount provenance for server-side expiration enforcement. Never trusted
+    // from the client; re-derived/validated against Campaign/Coupon on restore
+    // and at checkout.
+    campaignId?: string;
+    campaignSlug?: string;
+    couponCode?: string;
+    discountSource?: 'campaign' | 'coupon' | 'payment_method' | 'bulk_quantity' | 'weekly_special' | 'none';
+    discountType?: string;
+    // Applicable expiration timestamp (campaign endDate or coupon expiresAt).
+    expiresAt?: string;
+}
+
+export interface Order {
+    id: string;
+    date: string;
+    status: "pending" | "processing" | "completed" | "cancelled";
+    total: number;
+    items: (CartItem & { customData?: Record<string, any> })[];
+    paymentMethod: string;
+    trxId: string;
+    payerNumber: string;
+    txHash?: string;
+    walletAddress?: string;
+    orderNumber?: string;
+    email?: string;
+    paymentStatus?: string;
+    transactionId?: string;
+    paymentNumber?: string;
+    paidVia?: string;
+    selectedNetwork?: string;
+    selectedPlatform?: string;
+    senderUid?: string;
+    cryptoCurrency?: string;
+    currency?: string;
+    captchaApiKey?: string | null;
+    // Buyer identity stored on the order at purchase time.
+    username?: string;
+    // Kolotibablo Auto Login (+30%) add-on flag; set server-side from the
+    // stored add-on selection on the CaptchaMaster line.
+    kbl?: boolean;
+    // The CaptchaMaster package purchased for THIS order, attached by the API
+    // when the order has a delivered captchaApiKey. Historical delivery data
+    // only — never the live product configuration.
+    captchaPackage?: {
+        planId?: string;
+        planName?: string;
+        credits?: number;
+        creditsRemaining?: number;
+        price?: number;
+        currency?: string;
+        captchaMasterPackageId?: string;
+        captchaMasterOrderId?: string;
+        packageType?: string;
+        status?: string;
+        expiresAt?: string | null;
+        activatedAt?: string | null;
+    };
+    p2pToken?: string;
+    p2pNetwork?: string;
+    p2pWalletAddress?: string;
+    couponCode?: string;
+    discountAmount?: number;
+    discountType?: string;
+    deliveryNote?: string;
+    // Delivery instructions frozen on the order at delivery time (e.g. a
+    // browser-extension install link for products fulfilled by download).
+    deliveryLink?: string;
+    deliveryLinkLabel?: string;
+    // Optional second delivery action (e.g. the companion Chrome extension).
+    deliveryLink2?: string;
+    deliveryLink2Label?: string;
+    deliveryMessage?: string;
+    delivery?: {
+        provider?: string;
+        status?: 'pending' | 'completed' | 'failed' | '';
+        externalReference?: string;
+        errorMessage?: string;
+        deliveredAt?: string;
+    };
+}
+
+export interface ShopProduct {
+    id: number | string;
+    name: string;
+    description: string;
+    price: number;
+    priceBDT?: number;
+    priceUSDT?: number;
+    originalPrice: number;
+    category: string;
+    icon?: React.ReactNode;
+    features: string[];
+    rating?: number;
+    reviews?: number | string;
+    imageUrl?: string;
+    images?: string[];
+    stock?: number;
+    available?: boolean;
+    showStock?: boolean;
+    showImageSlider?: boolean;
+    dbId?: string;
+    seoSlug?: string;
+    details?: string;
+    smmProvider?: string;
+    smmServiceId?: string;
+    smmMin?: number;
+    smmMax?: number;
+    orderFields?: OrderField[];
+    campaignPrice?: number;
+    campaignDiscount?: number;
+    campaignAmountSaved?: number;
+    campaignBadge?: string;
+    campaignSlug?: string;
+    campaignColor?: string;
+    campaignDiscountType?: string;
+    campaignEndDate?: string;
+    campaignTotalStock?: number;
+    campaignUsedStock?: number;
+}
+
+export interface Airdrop {
+    id: number;
+    title: string;
+    description: string;
+    reward: string;
+    participants: string;
+    timeLeft: string;
+    type: string;
+    color: string;
+    status: "live" | "ended" | "upcoming";
+}

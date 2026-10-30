@@ -1,0 +1,68 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Production builds
+dist
+dist-ssr
+out
+build
+
+# Compiled JS and declarations alongside TS source (backend/src)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Cache
+.cache
+.parcel-cache
+*.tsbuildinfo
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.local
+.eslintcache
+
+.vercel
+
+.openclaude/
+cookies*.txt
+
+# Local agent plans / scratch
+.kilo/plans/
+
+# Coolify
+*.env.production
+.env.production.local

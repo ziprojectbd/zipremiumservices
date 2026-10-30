@@ -1,0 +1,815 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, XCircle, Truck, Clock3, Trash2 } from 'lucide-react';
+import api from '../../lib/axios';
+import {
+  Order,
+  ApiResponse,
+  StatusBadge,
+  PaymentMethodBadge,
+  CopyBtn,
+  DetailRow,
+  formatDateTime,
+  formatPrice,
+  normalizePaymentStatus,
+  normalizeOrderStatus,
+  isCryptoOrder,
+  apiErrorMessage,
+} from './components/OrderHelpers';
+
+// ---------------------------------------------------------------------------
+// Loading Skeleton
+// ---------------------------------------------------------------------------
+function LoadingSkeleton() {
+  return (
+    <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-6">
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 bg-white/10 rounded w-48" />
+        <div className="h-4 bg-white/10 rounded w-64" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+          <div className="h-40 bg-white/10 rounded" />
+          <div className="h-40 bg-white/10 rounded" />
+        </div>
+        <div className="h-4 bg-white/10 rounded w-full" />
+        <div className="h-4 bg-white/10 rounded w-3/4" />
+        <div className="h-4 bg-white/10 rounded w-1/2" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Toast Component
+// ---------------------------------------------------------------------------
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div
+      className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl border backdrop-blur-xl flex items-center gap-3 ${
+        type === 'success'
+          ? 'bg-green-900/90 border-green-500/30 text-green-200'
+          : 'bg-red-900/90 border-red-500/30 text-red-200'
+      }`}
+    >
+      {type === 'success' ? (
+        <CheckCircle2 className="w-5 h-5 text-green-400" />
+      ) : (
+        <XCircle className="w-5 h-5 text-red-400" />
+      )}
+      <span className="text-sm font-medium">{message}</span>
+      <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100">
+        <XCircle className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Info Card Wrapper
+// ---------------------------------------------------------------------------
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5">
+      <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">{title}</h3>
+      <div className="space-y-2.5 text-xs sm:text-sm">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// OrderDetails Page
+// ---------------------------------------------------------------------------
+export default function AdminOrderDetails() {
+  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const navigate = useNavigate();
+  const actionBusyRef = useRef(false);
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showDeliverModal, setShowDeliverModal] = useState(false);
+  const [deliverNote, setDeliverNote] = useState('');
+  // The exact { customerName, customerEmail, kbl } payload the server will
+  // send for this CaptchaMaster order, fetched when the delivery modal opens
+  // so the admin can verify the values before confirming.
+  const [deliveryPreview, setDeliveryPreview] = useState<{
+    isCaptchaMaster: boolean;
+    customerName: string;
+    customerEmail: string;
+    kbl: boolean;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+  }, []);
+
+  // ---- Fetch order ----
+  const fetchOrder = useCallback(async () => {
+    if (!orderNumber) return;
+    try {
+      const res = await api.get(`/admin/orders/${orderNumber}`);
+      const json: ApiResponse<Order> = res.data;
+      if (json.success && json.data) {
+        setOrder(json.data);
+        setNotFound(false);
+        setError(null);
+      } else {
+        setNotFound(true);
+        setOrder(null);
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setNotFound(true);
+        setOrder(null);
+      } else {
+        setError(apiErrorMessage(err?.response?.data, 'Failed to load order details'));
+        setOrder(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [orderNumber]);
+
+  // Mirrors the exact order state the backend returned for this action so the
+  // UI reflects it locally with no full re-render caused by a page fetch.
+  const applyActionUpdate = (data: ApiResponse<Order>['data']) => {
+    if (order) {
+      if (data?._id) {
+        setOrder(data);
+      } else if (data?.status) {
+        setOrder({ ...order, status: data.status });
+      }
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    fetchOrder();
+    const interval = setInterval(fetchOrder, 10000);
+    return () => clearInterval(interval);
+  }, [fetchOrder]);
+
+  // Load the CaptchaMaster delivery preview when the delivery modal opens —
+  // the server computes it from the stored order (customer name/email plus
+  // the kbl add-on flag), never from client input.
+  useEffect(() => {
+    if (!showDeliverModal || !order?._id) return;
+    let cancelled = false;
+    setDeliveryPreview(null);
+    setPreviewLoading(true);
+    api
+      .get(`/admin/orders/${order._id}/delivery-preview`)
+      .then((res) => {
+        if (!cancelled && res.data?.success && res.data.data) {
+          setDeliveryPreview(res.data.data);
+        }
+      })
+      .catch(() => {
+        // Non-blocking: the delivery still works without the preview.
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showDeliverModal, order?._id]);
+
+  // ---- Actions ----
+  const runAction = async (action: 'verify' | 'reject' | 'approve') => {
+    if (!order || actionBusyRef.current) return;
+    let note = '';
+    if (action === 'verify' || action === 'reject') {
+      note = prompt(`${action.charAt(0).toUpperCase() + action.slice(1)} note (optional):`) || '';
+    }
+    actionBusyRef.current = true;
+    setActionLoading(true);
+    try {
+      const actionMap: Record<string, string> = {
+        verify: 'verify_payment',
+        reject: 'reject_payment',
+        approve: 'approve_order',
+      };
+      const res = await api.put(`/admin/orders/${order._id}`, {
+        action: actionMap[action],
+        ...(action === 'verify' ? { verificationNote: note } : {}),
+        ...(action === 'reject' ? { rejectionNote: note } : {}),
+      });
+      const json: ApiResponse<Order> = res.data;
+      if (!json.success) {
+        showToast(apiErrorMessage(json, 'Failed to update order'), 'error');
+        return;
+      }
+      const messages: Record<string, string> = {
+        verify: 'Payment verified successfully',
+        reject: 'Payment rejected',
+        approve: 'Order approved successfully',
+      };
+      showToast(messages[action], 'success');
+      applyActionUpdate(json.data);
+    } catch (err: any) {
+      showToast(apiErrorMessage(err?.response?.data, 'Failed to update order'), 'error');
+    } finally {
+      setActionLoading(false);
+      actionBusyRef.current = false;
+    }
+  };
+
+  const runDelete = async () => {
+    if (!order || actionBusyRef.current) return;
+    if (!window.confirm('Are you sure you want to delete this order? This cannot be undone.')) return;
+    actionBusyRef.current = true;
+    setActionLoading(true);
+    try {
+      const res = await api.delete(`/admin/orders/${order._id}`);
+      const json: ApiResponse<Order> = res.data;
+      if (!json.success) {
+        showToast(apiErrorMessage(json, 'Failed to delete order'), 'error');
+        return;
+      }
+      showToast('Order deleted', 'success');
+      navigate('/admin/orders');
+    } catch (err: any) {
+      showToast(apiErrorMessage(err?.response?.data, 'Failed to delete order'), 'error');
+    } finally {
+      setActionLoading(false);
+      actionBusyRef.current = false;
+    }
+  };
+
+  const handleDeliver = async () => {
+    if (!order || actionBusyRef.current) return;
+    setShowDeliverModal(false);
+    actionBusyRef.current = true;
+    setActionLoading(true);
+    try {
+      const res = await api.put(`/admin/orders/${order._id}`, {
+        action: 'deliver_order',
+        deliveryNote: deliverNote.trim() || undefined,
+      });
+      const json: ApiResponse<Order> = res.data;
+      if (!json.success) {
+        showToast(apiErrorMessage(json, 'Failed to deliver order'), 'error');
+        return;
+      }
+      showToast('Order delivered successfully', 'success');
+      applyActionUpdate(json.data);
+    } catch (err: any) {
+      showToast(apiErrorMessage(err?.response?.data, 'Failed to deliver order'), 'error');
+    } finally {
+      setActionLoading(false);
+      actionBusyRef.current = false;
+    }
+  };
+
+  // ---- State: Loading ----
+  if (loading) {
+    return (
+      <div>
+        <div className="mb-6">
+          <button
+            onClick={() => navigate('/admin/orders')}
+            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm mb-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Orders
+          </button>
+        </div>
+        <LoadingSkeleton />
+      </div>
+    );
+  }
+
+  // ---- State: Not Found ----
+  if (notFound) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <XCircle className="w-16 h-16 text-red-400 mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Order Not Found</h2>
+        <p className="text-gray-400 mb-6">No order found with ID: {orderNumber}</p>
+        <button
+          onClick={() => navigate('/admin/orders')}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          Back to Orders
+        </button>
+      </div>
+    );
+  }
+
+  // ---- State: Error ----
+  if (error || !order) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <XCircle className="w-16 h-16 text-red-400 mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Failed to Load Order</h2>
+        <p className="text-gray-400 mb-6">{error || 'An unexpected error occurred'}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate('/admin/orders')}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+          >
+            Back to Orders
+          </button>
+          <button
+            onClick={() => { setLoading(true); setError(null); fetchOrder(); }}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- State: Success ----
+  const payStatus = normalizePaymentStatus(order);
+  const ordStatus = normalizeOrderStatus(order);
+
+  // ---- CaptchaMaster context — from this order's stored data only ----
+  // Mirrors the server's detection family so the section never appears for
+  // other product types.
+  const lineIsCaptcha = (item: any): boolean => {
+    if (!item) return false;
+    const product = String(item?.product || item?.productId || '');
+    const planId = String(
+      item?.captchamasterPlanId || item?.customData?.captchamasterPlanId || '',
+    );
+    const category = String(item?.category || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    return (
+      item?.productType === 'captchamaster' ||
+      item?.customData?.productType === 'captchamaster' ||
+      category === 'captcha solver api' ||
+      product.startsWith('cm-') ||
+      planId.length > 0
+    );
+  };
+
+  const captchaItem = (Array.isArray(order.items) ? order.items : []).find(
+    (item: any) => lineIsCaptcha(item),
+  ) as any;
+
+  const isCaptchaOrder = Boolean(
+    captchaItem ||
+      order.captchaApiKey ||
+      order.delivery?.provider === 'captchamaster',
+  );
+
+  // +30% add-on read from what was frozen at purchase time:
+  // appliedAddons (server-confirmed) > addonPercent > raw addons selection.
+  const captchaAddonPercent = (() => {
+    if (!captchaItem) return 0;
+    const cd: Record<string, any> = captchaItem.customData || {};
+    const applied = Array.isArray(cd.appliedAddons) ? cd.appliedAddons : [];
+    const kblApplied = applied.find(
+      (a: any) => String(a?.key) === 'kolotibablo-autologin',
+    );
+    if (kblApplied) return Number(kblApplied.pricePercent) || 0;
+    if (cd.addonPercent !== undefined && Number.isFinite(Number(cd.addonPercent))) {
+      return Math.max(0, Number(cd.addonPercent));
+    }
+    const selected = Array.isArray(cd.addons)
+      ? cd.addons
+      : typeof cd.addons === 'string' && cd.addons
+        ? [cd.addons]
+        : [];
+    return selected.map(String).includes('kolotibablo-autologin') ? 30 : 0;
+  })();
+
+  const captchaKbl =
+    typeof order.kbl === 'boolean' ? order.kbl : captchaAddonPercent > 0;
+
+  // SAVED line amount in the order currency — never a current-price recompute.
+  const captchaFinal = Number(captchaItem?.price ?? 0) || Number(captchaItem?.usdtAmount ?? 0);
+  const captchaBase =
+    captchaAddonPercent > 0 ? captchaFinal / (1 + captchaAddonPercent / 100) : captchaFinal;
+  const captchaCharge = captchaFinal - captchaBase;
+
+  const captchaDelivered =
+    Boolean(order.captchaApiKey) || order.delivery?.status === 'completed';
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-6">
+        <button
+          onClick={() => navigate('/admin/orders')}
+          className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm mb-3"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Orders
+        </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">
+              Order {order.orderNumber || order._id}
+            </h1>
+            <StatusBadge type="order" status={ordStatus} />
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      {!['delivered', 'rejected'].includes(ordStatus) && (
+        <div className="flex flex-wrap gap-3 mb-6">
+          {payStatus !== 'verified' && (
+            <>
+              <button
+                onClick={() => runAction('verify')}
+                disabled={actionLoading || actionBusyRef.current}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Verify Payment
+              </button>
+              <button
+                onClick={() => runAction('reject')}
+                disabled={actionLoading || actionBusyRef.current}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <XCircle className="w-4 h-4" /> Reject Payment
+              </button>
+              <button
+                onClick={runDelete}
+                disabled={actionLoading || actionBusyRef.current}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" /> Delete Order
+              </button>
+            </>
+          )}
+          {payStatus === 'verified' && (
+            <button
+              onClick={() => {
+                setDeliverNote('');
+                setShowDeliverModal(true);
+              }}
+              disabled={actionLoading || actionBusyRef.current}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Truck className="w-4 h-4" /> Deliver Order
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Info Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
+        {/* Order Info */}
+        <InfoCard title="Order Information">
+          <DetailRow label="Order Number:" value={order.orderNumber || order._id} copyBtn={<CopyBtn fieldKey="order_id" value={order.orderNumber || order._id} />} />
+          <DetailRow label="Username:" value={order.username || '-'} />
+          <DetailRow label="Email:" value={order.email || '-'} copyBtn={<CopyBtn fieldKey="email" value={order.email || '-'} />} />
+          {(order.countryFlag || order.country) && (
+            <DetailRow label="Country:" value={<span className="inline-flex items-center gap-1.5">{order.countryFlag && <span className="text-lg">{order.countryFlag}</span>}<span>{order.country || order.countryCode || '-'}</span></span>} />
+          )}
+          {order.ipAddress && (
+            <DetailRow label="IP Address:" value={order.ipAddress} />
+          )}
+          {/* Amount/Currency intentionally omitted here — the Purchase
+              Summary's Final Price shows the charged amount with its
+              currency symbol. */}
+          <DetailRow label="Date:" value={formatDateTime(order.orderDate || order.createdAt || '')} />
+          <DetailRow label="Order Status:" value={<StatusBadge type="order" status={ordStatus} />} />
+        </InfoCard>
+
+        {/* Payment Info */}
+        <InfoCard title="Payment Information">
+          <DetailRow label="Payment Method:" value={<PaymentMethodBadge method={order.payment_method || order.paymentMethod || '-'} />} />
+          <DetailRow label="Payment Status:" value={<StatusBadge type="payment" status={payStatus} />} />
+          {order.couponCode && (
+            <DetailRow label="Coupon:" value={`${order.couponCode}${order.discountAmount ? ` (-${formatPrice(order.discountAmount, order.currency)})` : ''}`} />
+          )}
+          {!isCryptoOrder(order) && (
+            <>
+              <DetailRow label="Payment Number:" value={order.payment_number || order.paymentNumber || '-'} copyBtn={<CopyBtn fieldKey="payment_number" value={order.payment_number || order.paymentNumber || '-'} />} />
+              <DetailRow label="Transaction ID:" value={order.transaction_id || order.transactionId || '-'} copyBtn={<CopyBtn fieldKey="transaction_id" value={order.transaction_id || order.transactionId || '-'} />} />
+            </>
+          )}
+          {isCryptoOrder(order) && (
+            <>
+              {(order.paid_via || order.paidVia) === 'network' && (
+                <DetailRow
+                  label={<span className="inline-flex items-center gap-2">Transaction Hash:<span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">CRYPTO</span></span>}
+                  value={order.txHash || '-'}
+                  copyBtn={<CopyBtn fieldKey="tx_hash" value={order.txHash || '-'} />}
+                />
+              )}
+              <DetailRow label="Currency:" value={order.crypto_currency || order.cryptoCurrency || '-'} />
+              <DetailRow label="Paid Via:" value={(() => { const pv = (order.paid_via || order.paidVia || '-').toString(); return pv.toLowerCase() === 'uid' ? 'UID' : pv; })()} />
+              <DetailRow label="Network/Platform:" value={(order.paid_via || order.paidVia) === 'network' ? (order.selected_network || order.selectedNetwork || '-') : (order.selected_platform || order.selectedPlatform || '-')} />
+              <DetailRow
+                label={(order.paid_via || order.paidVia) === 'network' ? 'Wallet Address:' : 'Sender UID:'}
+                value={(order.paid_via || order.paidVia) === 'network' ? (order.wallet_address || order.walletAddress || '-') : (order.sender_uid || order.senderUid || '-')}
+                copyBtn={(order.paid_via || order.paidVia) === 'network' ? <CopyBtn fieldKey="wallet_address" value={order.wallet_address || order.walletAddress || '-'} /> : <CopyBtn fieldKey="sender_uid" value={order.sender_uid || order.senderUid || '-'} />}
+              />
+            </>
+          )}
+        </InfoCard>
+      </div>
+
+      {/* Items */}
+      {Array.isArray(order.items) && order.items.length > 0 && (
+        <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">
+            Order Items ({order.items.length})
+          </h3>
+          <div className="space-y-3">
+            {order.items.map((item: any, idx: number) => (
+              <div key={idx} className="bg-white/5 rounded-lg p-3 sm:p-4 border border-white/5">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white font-medium text-sm">{item.productName || item.name || 'Product'}</span>
+                    {item.category && (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        {item.category}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-gray-300 text-xs sm:text-sm">x{item.quantity || 1}</span>
+                </div>
+                {/* Captcha lines are priced in the Purchase Summary below —
+                    showing unit/total here would repeat the same numbers. */}
+                {!lineIsCaptcha(item) && (
+                  <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1.5">
+                    <span>Unit Price: {formatPrice((item.price || 0) / (item.quantity || 1), order.currency)}</span>
+                    <span>Total: {formatPrice(item.price || 0, order.currency)}</span>
+                    {isCryptoOrder(order) && item.usdtAmount && (
+                      <span className="text-gray-500">${item.usdtAmount?.toFixed?.(2) ?? (item.usdtAmount ?? 0)}</span>
+                    )}
+                  </div>
+                )}
+                {item.link && (
+                  <div className="mt-2 pt-2 border-t border-white/5 flex flex-col sm:flex-row sm:justify-between text-xs">
+                    <span className="text-gray-400 mb-1 sm:mb-0">Target Link:</span>
+                    <span className="text-cyan-300 break-all text-right font-mono">{item.link}</span>
+                  </div>
+                )}
+                {item.smmServiceId && (
+                  <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                    <span>Service ID:</span>
+                    <span className="text-orange-300 font-mono">{item.smmServiceId}</span>
+                  </div>
+                )}
+                {item.smmOrderId && (
+                  <div className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                    <span>SMM Order ID:</span>
+                    <span className="text-green-300 font-mono">{item.smmOrderId}</span>
+                  </div>
+                )}
+                {item.details && (
+                  <details className="text-xs mt-2 pt-2 border-t border-white/5">
+                    <summary className="text-blue-400 cursor-pointer hover:text-blue-300 font-medium">
+                      Service info & instructions
+                    </summary>
+                    <div className="mt-1 p-2 bg-gray-800/50 rounded-lg whitespace-pre-wrap text-gray-300 leading-relaxed">
+                      {item.details}
+                    </div>
+                  </details>
+                )}
+                {/* customData is rendered human-readable: applied add-ons as
+                    "Label: Yes (+30%)" rows, and the raw add-on bookkeeping
+                    keys (appliedAddons / addonPercent / addons) are never
+                    dumped as objects. */}
+                {(() => {
+                  const cd = item.customData;
+                  if (!cd || Object.keys(cd).length === 0) return null;
+                  const applied = Array.isArray(cd.appliedAddons) ? cd.appliedAddons : [];
+                  const entries = Object.entries(cd).filter(
+                    ([key]) => !['appliedAddons', 'addonPercent', 'addons'].includes(key),
+                  );
+                  if (applied.length === 0 && entries.length === 0) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-white/5">
+                      {applied.map((a: any) => (
+                        <div key={String(a?.key)} className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                          <span>{String(a?.label || a?.key || 'Add-on')}</span>
+                          <span className="text-purple-300">
+                            Yes{Number(a?.pricePercent) > 0 ? ` (+${a.pricePercent}%)` : ''}
+                          </span>
+                        </div>
+                      ))}
+                      {entries.map(([key, val]) => (
+                        <div key={key} className="flex flex-col sm:flex-row sm:justify-between text-xs text-gray-400 mt-1">
+                          <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+                          <span className="text-gray-200">{String(val)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CaptchaMaster Delivery — customer + KBL info, the delivered
+          package/API for THIS order, and the saved purchase breakdown. */}
+      {isCaptchaOrder && (
+        <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+              CaptchaMaster Delivery
+            </h3>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                captchaDelivered
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                  : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+              }`}
+            >
+              {captchaDelivered ? 'Delivered' : 'Pending'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Customer name / email are NOT repeated here — the Order
+                Information card above already shows Username and Email. */}
+
+            {/* Delivered API / package */}
+            <div className="space-y-2.5 text-xs sm:text-sm">
+              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Delivered API / Package</span>
+              <DetailRow label="Product:" value={captchaItem?.productName || captchaItem?.name || '-'} />
+              <DetailRow
+                label="Package/Plan:"
+                value={order.captchaPackage?.planName || captchaItem?.productName || captchaItem?.name || '-'}
+              />
+              <DetailRow label="Quantity:" value={captchaItem?.quantity ?? 1} />
+              {/* API Key separate section for better mobile layout */}
+              <div className="space-y-1.5">
+                <span className="text-gray-400 text-xs">API Key:</span>
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className="font-mono text-white break-all text-xs">
+                    {order.captchaApiKey || (
+                      <span className="text-yellow-400">Not delivered yet</span>
+                    )}
+                  </span>
+                  {order.captchaApiKey && (
+                    <CopyBtn fieldKey="captcha_api_key" value={order.captchaApiKey} />
+                  )}
+                </div>
+              </div>
+              <DetailRow
+                label="Delivery Status:"
+                value={
+                  <span className={captchaDelivered ? 'text-green-400' : 'text-yellow-400'}>
+                    {order.delivery?.status
+                      ? String(order.delivery.status)
+                        .charAt(0)
+                        .toUpperCase()
+                        .concat(String(order.delivery.status).slice(1))
+                      : captchaDelivered
+                        ? 'Delivered'
+                        : 'Pending'}
+                  </span>
+                }
+              />
+            </div>
+
+            {/* Purchase price breakdown — saved at purchase time */}
+            <div className="space-y-2.5 text-xs sm:text-sm">
+              <span className="text-gray-500 text-[11px] font-semibold uppercase tracking-wider">Purchase Summary</span>
+              <DetailRow label="Base Price:" value={formatPrice(captchaBase, order.currency)} />
+              <DetailRow
+                label="Kolotibablo Auto Login:"
+                value={
+                  <span className={captchaKbl && captchaAddonPercent > 0 ? 'text-green-400' : 'text-gray-400'}>
+                    {captchaKbl && captchaAddonPercent > 0
+                      ? `Yes (+${captchaAddonPercent}%)`
+                      : 'No'}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="KBL:"
+                value={<span className="font-mono">{String(captchaKbl)}</span>}
+              />
+              {captchaKbl && captchaAddonPercent > 0 && (
+                <DetailRow label="Auto Login Charge:" value={formatPrice(captchaCharge, order.currency)} />
+              )}
+              <DetailRow label="Final Price:" value={<span className="text-white font-medium">{formatPrice(captchaFinal, order.currency)}</span>} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes & Extras — the CaptchaMaster API key / KBL flag live in the
+          CaptchaMaster Delivery card above, so they are not repeated here. */}
+      {(order.notes || order.deliveryNote || (order as any).delivery?.status === 'failed' || (Array.isArray(order.items) && order.items.some((i: any) => (i.productName || i.name || '').includes('P2P Fee')))) && (
+        <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-4 sm:p-5 mb-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wider">Additional Info</h3>
+          <div className="space-y-2.5 text-xs sm:text-sm">
+            {order.deliveryNote && (
+              <DetailRow label="Delivery Note:" value={order.deliveryNote} />
+            )}
+            {order.notes && (
+              <DetailRow label="Notes:" value={order.notes} />
+            )}
+            {(order as any).delivery?.status === 'failed' && (
+              <DetailRow label="Delivery Error:" value={<span className="text-red-400">{(order as any).delivery?.errorMessage || 'Unknown delivery error'}</span>} />
+            )}
+            {Array.isArray(order.items) && order.items.some((item: any) =>
+              (item.productName || item.name || '').includes('P2P Fee')
+            ) && (
+              <div className="pt-2 border-t border-white/5 space-y-2">
+                <span className="text-gray-400 text-sm font-medium">P2P Trade Details:</span>
+                <div className="space-y-1.5">
+                  {order.p2pToken && <DetailRow label="Token:" value={order.p2pToken} />}
+                  {order.p2pNetwork && <DetailRow label="Network:" value={order.p2pNetwork} />}
+                  {order.p2pWalletAddress && (
+                    <DetailRow label="Wallet Address:" value={order.p2pWalletAddress} copyBtn={<CopyBtn fieldKey="p2p_wallet" value={order.p2pWalletAddress} />} />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Confirmation Modal */}
+      {showDeliverModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Confirm Delivery</h3>
+            {previewLoading && (
+              <p className="text-gray-500 text-xs mb-3">Loading delivery preview…</p>
+            )}
+            {!previewLoading && deliveryPreview?.isCaptchaMaster && (
+              <div className="mb-4 rounded-lg border border-purple-400/30 bg-purple-500/10 p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                  <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider">
+                    CaptchaMaster Delivery
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-gray-300">
+                  <div>
+                    <span className="text-gray-500">Customer Name: </span>
+                    <span className="text-white">{deliveryPreview.customerName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Customer Email: </span>
+                    <span className="text-white">{deliveryPreview.customerEmail}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Kolotibablo Auto Login: </span>
+                    <span className={deliveryPreview.kbl ? 'text-green-400' : 'text-gray-400'}>
+                      {deliveryPreview.kbl ? 'Yes' : 'No'}
+                    </span>
+                    <span className="text-gray-500 ml-1.5">
+                      (kbl: {String(deliveryPreview.kbl)})
+                    </span>
+                  </div>
+                  <div className="pt-1.5 border-t border-purple-400/20 font-mono text-[11px] text-purple-200 break-all">
+                    {JSON.stringify({
+                      customerName: deliveryPreview.customerName,
+                      customerEmail: deliveryPreview.customerEmail,
+                      kbl: deliveryPreview.kbl,
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="text-gray-400 text-sm mb-4">Add a note for the customer (optional):</p>
+            <textarea
+              value={deliverNote}
+              onChange={(e) => setDeliverNote(e.target.value)}
+              placeholder="Delivery note..."
+              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-gray-500 text-sm resize-none focus:outline-none focus:border-cyan-400/50 transition-colors"
+              rows={4}
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShowDeliverModal(false)}
+                className="flex-1 py-2 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeliver}
+                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors text-sm font-medium"
+              >
+                Confirm Delivery
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+    </div>
+  );
+}

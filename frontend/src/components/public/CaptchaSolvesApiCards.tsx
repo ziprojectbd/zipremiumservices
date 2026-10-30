@@ -1,0 +1,849 @@
+import React, { useState, useEffect } from "react";
+import { ShoppingCart, CheckCircle2, AlertCircle, Key, Eye, EyeOff, Copy, Package, Clock, Timer, History, ChevronDown } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { useShopContext } from "../../store/ShopContext";
+import api from "../../lib/axios";
+import { formatPrice } from "../../utils/formatPrice";
+
+interface CaptchaPlan {
+  id: string;
+  type: string;
+  code: string;
+  price: string;
+  priceValue: number;
+  validity: string;
+  recognition: string;
+  isPromo: boolean;
+  count?: number;
+  dailyLimit?: number;
+  rateLimit?: number;
+}
+
+const typeLabels: Record<string, string> = {
+  count: "Captcha Pack",
+  daily: "Daily Plan",
+  minute: "Rate Plan",
+};
+
+/**
+ * Fallback artwork for the plan cards.
+ *
+ * The reseller's pricing list carries no images, so one picture is configured in
+ * the admin CaptchaMaster settings and applied to every plan. This is only used
+ * until one is set, or if the configured URL fails to load.
+ */
+const DEFAULT_PRODUCT_IMAGE =
+  "https://res.cloudinary.com/dxilo3mlg/image/upload/f_auto,q_auto/v1778159344/trader-id-cards/zk3fxn23qji5irzwka80.webp";
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-white/10 bg-white/5 p-4 animate-pulse min-h-[380px] sm:min-h-[420px]"
+        >
+          <div className="h-[200px] rounded-xl bg-gradient-to-r from-white/5 via-white/10 to-white/5 bg-[length:200%_100%] animate-shimmer" />
+          <div className="mt-4 h-5 w-2/3 rounded bg-white/10" />
+          <div className="mt-2 h-4 w-1/2 rounded bg-white/10" />
+          <div className="mt-6 space-y-2">
+            <div className="h-3 w-full rounded bg-white/10" />
+            <div className="h-3 w-3/4 rounded bg-white/10" />
+          </div>
+          <div className="mt-6 h-10 w-full rounded-xl bg-white/10" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  message,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+}) {
+  return (
+    <div className="text-center py-16">
+      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+        {icon}
+      </div>
+      <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+      <p className="text-gray-400">{message}</p>
+    </div>
+  );
+}
+
+interface ActivePackage {
+  id: string;
+  planName: string;
+  planId?: string;
+  credits: number;
+  creditsUsed: number;
+  creditsRemaining: number;
+  captchaApiKey: string | null;
+  status: string;
+  expiresAt?: string;
+  activatedAt?: string;
+  packageType?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Countdowns
+//
+// Mirrors the official reseller dashboard: an expiry countdown driven by
+// `expiresAt` for every package, plus a daily refill countdown (next 10 PM)
+// only for `packageType === 'daily'` packages.
+// ---------------------------------------------------------------------------
+
+const DAILY_REFILL_HOUR = 22; // 10 PM — reseller resets daily packages here
+
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+function splitDuration(ms: number) {
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return { days, hours, minutes, seconds };
+}
+
+function ExpiryCountdown({ expiresAt }: { expiresAt?: string }) {
+  const target = expiresAt ? new Date(expiresAt).getTime() : NaN;
+  const valid = Number.isFinite(target);
+  const now = useNow(valid);
+
+  if (!valid) {
+    return <span className="text-gray-500 text-xs">No expiry date</span>;
+  }
+
+  const remaining = target - now;
+  if (remaining <= 0) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+        <Clock className="w-3.5 h-3.5" />
+        Expired
+      </span>
+    );
+  }
+
+  const { days, hours, minutes, seconds } = splitDuration(remaining);
+  const urgent = remaining <= 86_400_000; // last 24h
+
+  return (
+    <span
+      className={`flex items-center gap-1 text-xs font-mono tabular-nums ${
+        urgent ? "text-orange-400" : "text-gray-300"
+      }`}
+      title={`Expires ${new Date(target).toLocaleString()}`}
+    >
+      <Clock className={`w-3.5 h-3.5 ${urgent ? "text-orange-400" : "text-gray-500"}`} />
+      {days > 0 && <span>{days}d </span>}
+      <span>{hours}h </span>
+      <span>{minutes}m </span>
+      <span>{seconds}s</span>
+    </span>
+  );
+}
+
+function RefillCountdown({ packageType }: { packageType?: string }) {
+  const active = packageType === "daily";
+  const now = useNow(active);
+
+  if (!active) return null;
+
+  const next = new Date();
+  next.setHours(DAILY_REFILL_HOUR, 0, 0, 0);
+  if (next.getTime() <= now) next.setDate(next.getDate() + 1);
+
+  const remaining = next.getTime() - now;
+  if (remaining <= 0) return null;
+
+  const { hours, minutes, seconds } = splitDuration(remaining);
+
+  return (
+    <span
+      className="flex items-center gap-1 text-[10px] text-amber-400 font-mono tabular-nums"
+      title={`Next refill at ${DAILY_REFILL_HOUR - 12} PM`}
+    >
+      <Timer className="w-3 h-3" />
+      Refill in {hours}h {minutes}m {seconds}s
+    </span>
+  );
+}
+
+export default function CaptchaSolvesApiCards({
+  lastAddedProductId,
+  addToCart,
+}: {
+  lastAddedProductId: string | number | null;
+  addToCart: (product: any) => void;
+}) {
+  const { exchangeRate } = useShopContext();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const [plans, setPlans] = useState<CaptchaPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // "funcaptcha" is a service filter rather than a billing type: the reseller
+  // marks FunCaptcha plans with an F code (F1-F30) while the rest of the
+  // catalogue is D/C/P. It sits in the same row as the type tabs because from
+  // the customer's point of view it is just another way to slice the pricing.
+  const [pricingTab, setPricingTab] = useState<"all" | "daily" | "count" | "funcaptcha">("all");
+
+  const isFuncaptchaCode = (code: string) => /^F\d+$/i.test(String(code || '').trim());
+
+  const filteredPlans = plans.filter((plan) => {
+    if (pricingTab === "all") return true;
+    if (pricingTab === "funcaptcha") return isFuncaptchaCode(plan.code);
+    return plan.type === pricingTab;
+  });
+  const [activePackages, setActivePackages] = useState<ActivePackage[]>([]);
+  const [historyPackages, setHistoryPackages] = useState<ActivePackage[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [captchaDiscount, setCaptchaDiscount] = useState<{
+    discountPercent: number;
+    discountEnabled: boolean;
+    exchangeRate: number;
+    /** Configured in the admin CaptchaMaster settings; applies to every card. */
+    productImageUrl?: string;
+  }>({ discountPercent: 20, discountEnabled: true, exchangeRate: 0 });
+
+  // Only live packages belong under "Your Active API Keys". The backend already
+  // splits expired ones out, but re-checking here means a stale response or an
+  // unfiltered reseller payload can never surface a dead key as active.
+  const livePackages = activePackages.filter((pkg) => {
+    if (pkg.status === 'expired' || pkg.status === 'suspended') return false;
+    if (typeof pkg.creditsRemaining === 'number' && pkg.creditsRemaining <= 0) return false;
+    if (pkg.expiresAt) {
+      const target = new Date(pkg.expiresAt).getTime();
+      if (Number.isFinite(target) && target <= Date.now()) return false;
+    }
+    return true;
+  });
+
+  // Everything the user ever bought, minus the still-live ones — i.e. what the
+  // History panel shows. Derived from both lists so an entry can never appear in
+  // both places at once, even if the two fetches return slightly different data.
+  const liveIds = new Set(livePackages.map((p) => p.id));
+  const historyList = [
+    ...historyPackages,
+    ...activePackages.filter((p) => p.status !== 'suspended' && !liveIds.has(p.id)),
+  ].filter((pkg, index, arr) => arr.findIndex((x) => x.id === pkg.id) === index);
+
+  /** Dev tools / support: open the history panel straight away. */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('history') === '1') setShowHistory(true);
+  }, []);
+
+  useEffect(() => {
+    // Fetch pricing from OUR backend, which proxies the CaptchaMaster
+    // reseller pricing-plans endpoint server-side (no API key in the browser).
+    api.get("/public/captchamaster/pricing")
+      .then((res) => res.data)
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          setPlans(data.data);
+        } else {
+          setError("Failed to load pricing data");
+        }
+      })
+      .catch(() => setError("Failed to connect to pricing service"))
+      .finally(() => setLoading(false));
+
+    // Fetch captcha discount settings
+    api.get("/captcha-settings")
+      .then((res) => {
+        if (res.data?.success && res.data?.data) {
+          setCaptchaDiscount(res.data.data);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch the logged-in user's packages: the active list plus the expired
+    // ones behind the History toggle. Both are requested together so the
+    // toggle never triggers a second round trip.
+    if (isAuthenticated) {
+      setPackagesLoading(true);
+      Promise.all([
+        api.get("/customer/captchamaster/packages?limit=50"),
+        api.get("/customer/captchamaster/packages?limit=50&history=true"),
+      ])
+        .then(([activeRes, historyRes]) => {
+          const active = activeRes.data;
+          if (active?.success && Array.isArray(active.data)) {
+            setActivePackages(active.data);
+          } else {
+            setActivePackages([]);
+          }
+          const history = historyRes.data;
+          setHistoryPackages(history?.success && Array.isArray(history.data) ? history.data : []);
+        })
+        .catch(() => {})
+        .finally(() => setPackagesLoading(false));
+    } else {
+      setActivePackages([]);
+      setHistoryPackages([]);
+    }
+  }, [isAuthenticated]);
+
+  const toggleKeyVisibility = (id: string) => {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCopyKey = async (key: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(key);
+      setCopiedKey(id);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch {}
+  };
+
+  if (loading) return <SkeletonGrid />;
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={<AlertCircle className="w-8 h-8 text-red-400" />}
+        title="Unable to Load Plans"
+        message={error}
+      />
+    );
+  }
+
+  if (plans.length === 0) {
+    return (
+      <EmptyState
+        icon={<ShoppingCart className="w-8 h-8 text-gray-500" />}
+        title="No Plans Available"
+        message="Check back later for updated pricing."
+      />
+    );
+  }
+
+  return (
+    <>
+
+    {/* Active API Keys Section - logged in user's purchased packages */}
+    {isAuthenticated && packagesLoading && (
+      <div className="mt-0 mb-8 p-6 text-center text-gray-500 text-sm">
+        Loading your packages...
+      </div>
+    )}
+    {isAuthenticated && !packagesLoading && livePackages.length === 0 && historyList.length === 0 && (
+      <div className="mt-0 mb-8 p-8 bg-white/[0.03] rounded-xl border border-white/10 text-center">
+        <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active API Keys</h3>
+        <p className="text-gray-500 text-sm max-w-md mx-auto">
+          You haven't purchased any captcha packages yet. Buy a plan above to get your API key.
+        </p>
+      </div>
+    )}
+    {isAuthenticated && !packagesLoading && livePackages.length === 0 && historyList.length > 0 && (
+      <div className="mt-0 mb-8 p-8 bg-white/[0.03] rounded-xl border border-white/10 text-center">
+        <Key className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <h3 className="text-lg font-semibold text-gray-300 mb-2">No Active API Keys</h3>
+        <p className="text-gray-500 text-sm max-w-md mx-auto mb-5">
+          Your packages have all expired. Open History to see them.
+        </p>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white text-sm font-semibold transition-all"
+        >
+          <History className="w-4 h-4" />
+          View History ({historyList.length})
+        </button>
+      </div>
+    )}
+    {isAuthenticated && !packagesLoading && livePackages.length > 0 && (
+      <div className="mt-0 mb-8">
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center shadow-lg shadow-yellow-500/20">
+            <Key className="w-4 h-4 text-white" />
+          </div>
+          <h2 className="text-lg sm:text-xl font-bold text-white">
+            Your Active API Keys
+          </h2>
+          <span className="px-2.5 py-0.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full">
+            {livePackages.length} package{livePackages.length > 1 ? 's' : ''}
+          </span>
+
+          {/* History toggle — expired keys live behind this */}
+          {historyList.length > 0 && (
+            <button
+              onClick={() => setShowHistory((prev) => !prev)}
+              aria-expanded={showHistory}
+              title={showHistory ? 'Hide expired keys' : 'Show expired keys'}
+              className={`ml-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                showHistory
+                  ? 'bg-white/15 text-white border border-white/25'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-gray-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              History
+              <span className="rounded-full bg-black/30 px-1.5 py-0.5 text-[10px] leading-none font-bold">
+                {historyList.length}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        <div className="grid gap-4">
+          {livePackages.map((pkg) => (
+            <div
+              key={pkg.id}
+              className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl border border-white/10 p-5 hover:border-yellow-400/30 transition-all"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
+                    <Package className="w-4 h-4 text-yellow-400" />
+                    <h3 className="text-base font-bold text-white">{pkg.planName}</h3>
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/20 text-green-400">
+                      {pkg.status}
+                    </span>
+                  </div>
+
+                  {/* Credits info + countdowns */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-400 mb-3">
+                    <span>Credits: {pkg.creditsRemaining.toLocaleString()} / {pkg.credits.toLocaleString()}</span>
+                    {pkg.credits > 0 && (
+                      <span>{Math.round((pkg.creditsUsed / pkg.credits) * 100)}% used</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-3">
+                    <ExpiryCountdown expiresAt={pkg.expiresAt} />
+                    <RefillCountdown packageType={pkg.packageType} />
+                  </div>
+
+                  {/* API Key display */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-black/30 rounded-lg px-3 py-2.5 border border-white/5 w-full">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Key className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      <code className="text-xs sm:text-sm font-mono text-gray-200 break-all select-all">
+                        {visibleKeys.has(pkg.id)
+                          ? pkg.captchaApiKey
+                          : pkg.captchaApiKey
+                            ? `${pkg.captchaApiKey.slice(0, 12)}${".".repeat(20)}`
+                            : "No key"}
+                      </code>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0 self-end sm:self-auto">
+                      <button
+                        onClick={() => toggleKeyVisibility(pkg.id)}
+                        className="p-1.5 text-gray-500 hover:text-gray-200 transition-colors rounded-lg hover:bg-white/5"
+                        title={visibleKeys.has(pkg.id) ? "Hide API Key" : "Show API Key"}
+                      >
+                        {visibleKeys.has(pkg.id) ? (
+                          <EyeOff className="w-3.5 h-3.5" />
+                        ) : (
+                          <Eye className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      {pkg.captchaApiKey && (
+                        <button
+                          onClick={() => handleCopyKey(pkg.captchaApiKey!, pkg.id)}
+                          className="p-1.5 text-gray-500 hover:text-gray-200 transition-colors rounded-lg hover:bg-white/5"
+                          title="Copy API Key"
+                        >
+                          {copiedKey === pkg.id ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* History — expired/exhausted keys, hidden until the toggle is used */}
+        {showHistory && historyList.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <div className="flex flex-wrap items-center gap-2.5 mb-4">
+              <History className="w-4 h-4 text-gray-500" />
+              <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">
+                History
+              </h3>
+              <span className="px-2 py-0.5 bg-white/5 text-gray-500 text-[10px] font-semibold rounded-full">
+                {historyList.length} expired
+              </span>
+            </div>
+
+            <div className="grid gap-3">
+              {historyList.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="bg-white/[0.02] rounded-xl border border-white/5 p-4 opacity-70 hover:opacity-100 transition-all"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+                        <Package className="w-3.5 h-3.5 text-gray-500" />
+                        <h4 className="text-sm font-semibold text-gray-300">{pkg.planName}</h4>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/15 text-red-400/90">
+                          expired
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <span>
+                          Credits: {pkg.creditsRemaining.toLocaleString()} / {pkg.credits.toLocaleString()}
+                        </span>
+                        <ExpiryCountdown expiresAt={pkg.expiresAt} />
+                      </div>
+
+                      {pkg.captchaApiKey && (
+                        <div className="mt-2 flex items-center gap-2 min-w-0">
+                          <Key className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                          <code className="text-[11px] font-mono text-gray-600 truncate">
+                            {visibleKeys.has(pkg.id)
+                              ? pkg.captchaApiKey
+                              : `${pkg.captchaApiKey.slice(0, 12)}${".".repeat(16)}`}
+                          </code>
+                          <button
+                            onClick={() => toggleKeyVisibility(pkg.id)}
+                            className="p-1 text-gray-600 hover:text-gray-300 transition-colors rounded"
+                            title={visibleKeys.has(pkg.id) ? 'Hide API Key' : 'Show API Key'}
+                          >
+                            {visibleKeys.has(pkg.id) ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* Login prompt when not logged in */}
+    {!isAuthenticated && !authLoading && (
+      <div className="mt-0 mb-8 p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-500/20 text-center">
+        <p className="text-gray-400 text-sm">
+          <a href="/sign-in" className="text-blue-400 hover:text-blue-300 font-medium underline underline-offset-2">
+            Sign in
+          </a> to view your purchased API keys and manage your packages.
+        </p>
+      </div>
+    )}
+
+    {/* Pricing Heading & Tabs */}
+    <div className="flex items-center gap-3 mb-4">
+      <h2 className="text-2xl sm:text-3xl font-bold text-white">Pricing</h2>
+      <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs font-semibold rounded-full">
+        {filteredPlans.length} package{filteredPlans.length !== 1 ? 's' : ''}
+      </span>
+    </div>
+    <div className="flex items-center justify-center sm:justify-start mb-6">
+      <div className="flex flex-wrap justify-center sm:justify-start gap-2">
+        {(["all", "daily", "count", "funcaptcha"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setPricingTab(tab)}
+            aria-pressed={pricingTab === tab}
+            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+              pricingTab === tab
+                ? "bg-[#9CD321] text-black"
+                : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            {tab === "all"
+              ? "ALL"
+              : tab === "daily"
+                ? "DAILY"
+                : tab === "count"
+                  ? "COUNT"
+                  : "FUNCAPTCHA"}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {filteredPlans.length === 0 ? (
+      <div className="text-center py-16">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+          <ShoppingCart className="w-8 h-8 text-gray-500" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">No Plans Found</h3>
+        <p className="text-gray-400">
+          {pricingTab === "funcaptcha"
+            ? "No FunCaptcha plans available right now. Try another tab."
+            : `No ${pricingTab} plans available. Try another tab.`}
+        </p>
+      </div>
+    ) : (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+      {filteredPlans.map((plan) => {
+        const idNum = parseInt(
+          plan.id.replace(/\D/g, "").substring(0, 8) || "0",
+          10
+        );
+        const hue = (idNum * 47 + 185) % 360; // cyan-biased hue
+        const borderColor = `hsl(${hue}, 70%, 60%)`;
+        const glowColor = `hsla(${hue}, 70%, 60%, 0.15)`;
+        const accentFrom = `hsl(${hue}, 55%, 30%)`;
+        const accentTo = `hsl(${(hue + 40) % 360}, 55%, 30%)`;
+
+        const features: string[] = [];
+        if (plan.validity) features.push(`Valid for ${plan.validity}`);
+        if (plan.recognition)
+          features.push(`${plan.recognition} Recognition`);
+        if (plan.type === "count" && plan.count)
+          features.push(`${plan.count.toLocaleString()} Captchas`);
+        if (plan.type === "daily" && plan.dailyLimit)
+          features.push(`${plan.dailyLimit.toLocaleString()}/day limit`);
+        if (plan.type === "minute" && plan.rateLimit)
+          features.push(`${plan.rateLimit}/minute rate`);
+
+        return (
+          <div
+            key={plan.id}
+            className="group relative rounded-2xl overflow-hidden backdrop-blur-xl bg-white/[0.04] flex flex-col transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl"
+            style={{
+              border: `1px solid ${borderColor}`,
+              boxShadow: `0 4px 30px ${glowColor}`,
+            }}
+          >
+            {/* Animated accent line */}
+            <div
+              className="absolute top-0 left-0 w-full h-[3px] z-20"
+              style={{
+                background: `linear-gradient(90deg, hsl(${hue}, 70%, 55%), hsl(${(hue + 60) % 360}, 80%, 55%), hsl(${(hue + 120) % 360}, 70%, 55%))`,
+              }}
+            />
+            {/* Hover glow */}
+            <div
+              className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+              style={{ boxShadow: `0 0 50px 10px ${glowColor}` }}
+            />
+
+            {/* Header area with image */}
+            <div className="relative w-full h-[180px] sm:h-[240px] overflow-hidden">
+              <img
+                // Admin-configured image applies to every plan; the bundled
+                // default is used until one is set.
+                src={captchaDiscount.productImageUrl?.trim() || DEFAULT_PRODUCT_IMAGE}
+                alt={plan.code ? `${plan.code} plan` : 'Captcha plan'}
+                loading="lazy"
+                onError={(e) => {
+                  // A broken link must not leave an empty tile.
+                  const img = e.currentTarget;
+                  if (img.src !== DEFAULT_PRODUCT_IMAGE) img.src = DEFAULT_PRODUCT_IMAGE;
+                }}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/20" />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+
+              {/* Type badge */}
+              <div className="absolute top-3 left-3 z-10">
+                <span
+                  className="px-3 py-1 backdrop-blur-sm text-[10px] rounded-lg font-semibold border border-white/20 shadow-lg text-white"
+                  style={{
+                    backgroundColor: `hsla(${hue}, 40%, 35%, 0.6)`,
+                  }}
+                >
+                  {typeLabels[plan.type] || plan.type}
+                </span>
+              </div>
+
+              {/* Promo badge */}
+              {plan.isPromo && (
+                <div className="absolute top-3 right-3 z-10">
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full shadow-md shadow-amber-500/30">
+                    Promo
+                  </span>
+                </div>
+              )}
+
+              {/* Code badge */}
+              <div className="absolute top-12 left-3 z-10">
+                <span className="px-2 py-0.5 backdrop-blur-sm text-[9px] rounded-full font-semibold border border-white/20 shadow-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
+                  {plan.code}
+                </span>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-5 flex flex-col flex-1 space-y-3">
+              {/* Title */}
+              <h3 className="text-sm sm:text-base font-bold bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent line-clamp-1">
+                {plan.code} — {typeLabels[plan.type] || plan.type}
+              </h3>
+
+              {/* Features */}
+              <div className="space-y-1.5 flex-1 overflow-hidden">
+                {features.slice(0, 4).map((feature, idx) => (
+                  <div key={idx} className="flex items-start space-x-2">
+                    <div
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
+                      style={{
+                        backgroundColor: `hsl(${(hue + idx * 50) % 360}, 60%, 60%)`,
+                      }}
+                    />
+                    <span className="text-xs text-gray-400 line-clamp-1">
+                      {feature}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Price & Action */}
+              <div
+                className="pt-3"
+                style={{
+                  borderTop: `1px solid hsla(${hue}, 50%, 55%, 0.12)`,
+                }}
+              >
+                {/* Price block */}
+                <div
+                  className="rounded-xl p-3 text-center mb-3 relative overflow-hidden"
+                  style={{
+                    background: `linear-gradient(135deg, hsla(${hue}, 50%, 55%, 0.08), hsla(${(hue + 80) % 360}, 50%, 55%, 0.08))`,
+                    border: `1px solid hsla(${hue}, 50%, 55%, 0.12)`,
+                  }}
+                >
+                  {captchaDiscount.discountEnabled && captchaDiscount.discountPercent > 0 ? (
+                    <>
+                      {/* Discounted price */}
+                      <span
+                        className="text-base sm:text-lg font-extrabold"
+                        style={{
+                          backgroundImage: `linear-gradient(90deg, hsl(${(hue + 30) % 360}, 70%, 65%), hsl(${(hue + 90) % 360}, 80%, 65%))`,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                        }}
+                      >
+                        ${formatPrice(Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100, 2)} USD
+                      </span>
+                      {/* Original price struck through */}
+                      <div className="text-xs text-gray-500 line-through mt-0.5">
+                        ${formatPrice(plan.priceValue, 2)} USD
+                      </div>
+                      {/* Discount badge */}
+                      <div
+                        className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm"
+                        style={{ background: `linear-gradient(135deg, hsl(${(hue + 30) % 360}, 70%, 50%), hsl(${(hue + 90) % 360}, 80%, 50%))` }}
+                      >
+                        -{captchaDiscount.discountPercent}%
+                      </div>
+                    </>
+                  ) : (
+                    <span
+                      className="text-base sm:text-lg font-extrabold"
+                      style={{
+                        backgroundImage: `linear-gradient(90deg, hsl(${hue}, 70%, 70%), hsl(${(hue + 60) % 360}, 80%, 70%))`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                      }}
+                    >
+                      ${formatPrice(plan.priceValue, 2)} USD
+                    </span>
+                  )}
+                  <div
+                    className="absolute top-2 right-2 w-2 h-2 rounded-full opacity-60 animate-pulse"
+                    style={{ backgroundColor: borderColor }}
+                  />
+                </div>
+
+                {/* Add to Cart button — use discounted price */}
+                {(() => {
+                  const discountedPriceUSD = captchaDiscount.discountEnabled && captchaDiscount.discountPercent > 0
+                    ? Math.round(plan.priceValue * (1 - captchaDiscount.discountPercent / 100) * 100) / 100
+                    : plan.priceValue;
+                  const effectiveRate = captchaDiscount.exchangeRate || exchangeRate || 110;
+                  // Whole taka only — the BDT amount is rounded to an integer at
+                  // add-to-cart time so the cart/checkout BDT never shows decimals.
+                  const discountedPriceBDT = Math.round(discountedPriceUSD * effectiveRate);
+                  return (
+                  <button
+                    onClick={() =>
+                      addToCart({
+                        id: `cm-${plan.code}`,
+                        dbId: `cm-${plan.code}`,
+                        name: `Captcha Solver Api — ${plan.code}`,
+                        description: `${typeLabels[plan.type] || plan.type} — $${formatPrice(discountedPriceUSD, 2)}`,
+                        price: discountedPriceUSD,
+                        originalPrice: plan.priceValue,
+                        priceBDT: discountedPriceBDT,
+                        priceUSDT: discountedPriceUSD,
+                        category: 'Captcha Solver Api',
+                        productType: 'captchamaster',
+                        captchamasterPlanId: plan.id,
+                        features: features.slice(0, 3),
+                        available: true,
+                        addons: [
+                          {
+                            key: "kolotibablo-autologin",
+                            label: "Need Kolotibablo Auto Login Service?",
+                            description: "Optional +30% — enables automatic Kolotibablo login on every solved captcha.",
+                            pricePercent: 30,
+                            defaultSelected: false,
+                          },
+                        ],
+                      })
+                    }
+                  className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-white transition-all duration-300 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: `linear-gradient(135deg, hsl(${hue}, 60%, 45%), hsl(${(hue + 60) % 360}, 70%, 45%))`,
+                    boxShadow: `0 4px 20px hsla(${hue}, 70%, 50%, 0.25)`,
+                  }}
+                >
+                  {lastAddedProductId === `cm-${plan.code}` ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Added to Cart
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Add to Cart
+                    </>
+                  )}
+                </button>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    )}
+    </>
+  );
+}

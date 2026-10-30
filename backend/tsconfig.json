@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    /* File Layout */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* Environment */
+    "module": "preserve",
+    "target": "esnext",
+    "types": ["node"],
+    "lib": ["esnext"],
+    "moduleResolution": "bundler",
+
+    /* Output */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    /* Type Checking */
+    "strict": true,
+    "skipLibCheck": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noUncheckedSideEffectImports": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitReturns": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    /* Path Aliases */
+    "paths": {
+      "*": ["./*"],
+      "@/*": ["./src/*"],
+      "@db/*": ["./src/db/*"],
+      "@controllers/*": ["./src/controllers/*"],
+      "@services/*": ["./src/services/*"],
+      "@models/*": ["./src/models/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@middlewares/*": ["./src/middleware/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@config/*": ["./src/config/*"],
+      "@types/*": ["./src/types/*"],
+      "@interfaces/*": ["./src/interfaces/*"],
+      "@docs/*": ["./src/docs/*"],
+      "@jobs/*": ["./src/jobs/*"],
+      "@repositories/*": ["./src/repositories/*"],
+      "@socket/*": ["./src/socket/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

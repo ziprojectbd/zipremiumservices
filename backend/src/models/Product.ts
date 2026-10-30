@@ -1,0 +1,358 @@
+import mongoose from 'mongoose';
+
+const productSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  category: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  priceBDT: {
+    type: Number,
+    default: 0,
+  },
+  priceUSDT: {
+    type: Number,
+    default: 0,
+  },
+  stock: {
+    type: Number,
+    required: true,
+    min: 0,
+    default: 0,
+  },
+  description: {
+    type: String,
+    trim: true,
+  },
+  details: {
+    type: String,
+    trim: true,
+  },
+  imageUrl: {
+    type: String,
+    trim: true,
+  },
+  images: {
+    type: [String],
+    default: [],
+  },
+  seoTitle: {
+    type: String,
+    trim: true,
+    maxlength: 60,
+  },
+  seoDescription: {
+    type: String,
+    trim: true,
+    maxlength: 160,
+  },
+  seoKeywords: {
+    type: String,
+    trim: true,
+  },
+  seoSlug: {
+    type: String,
+    trim: true,
+  },
+  featured: {
+    type: Boolean,
+    default: false,
+  },
+  available: {
+    type: Boolean,
+    default: true,
+  },
+  showStock: {
+    type: Boolean,
+    default: true,
+  },
+  showImageSlider: {
+    type: Boolean,
+    default: true,
+  },
+  sales: {
+    type: Number,
+    default: 0,
+  },
+  revenue: {
+    type: Number,
+    default: 0,
+  },
+  trend: {
+    type: String,
+    default: '+0%',
+  },
+  smmServiceId: {
+    type: String,
+    index: true,
+    sparse: true,
+    default: null,
+  },
+  smmProvider: {
+    type: String,
+    default: null,
+  },
+  smmMin: {
+    type: Number,
+    default: null,
+  },
+  smmMax: {
+    type: Number,
+    default: null,
+  },
+  productType: {
+    type: String,
+    enum: ['standard', 'smm', 'captchamaster'],
+    default: 'standard',
+    index: true,
+    sparse: true,
+  },
+  captchamasterPlanId: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  // ---------------------------------------------------------------------
+  // Delivery instructions shown to the customer after the order is delivered.
+  //
+  // Used by products whose fulfilment is a download/install step rather than an
+  // API key (e.g. a browser extension). `deliveryLink` is the URL the customer
+  // is sent to, `deliveryLinkLabel` is the button text, and `deliveryMessage`
+  // is optional extra guidance rendered above the button.
+  // ---------------------------------------------------------------------
+  deliveryLink: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryLinkLabel: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryMessage: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  // Optional second delivery action, rendered next to `deliveryLink` as a
+  // sibling button. Used when a product ships as both a downloadable tool and
+  // a browser extension, so the customer sees two horizontal actions instead of
+  // one link that only covers half the setup.
+  deliveryLink2: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  deliveryLink2Label: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  orderFields: {
+    type: [{
+      key: { type: String, required: true },
+      label: { type: String, required: true },
+      type: {
+        type: String,
+        enum: ['text', 'textarea', 'number', 'url', 'email', 'select', 'radio', 'checkbox', 'date', 'time', 'password', 'hidden'],
+        default: 'text',
+      },
+      placeholder: { type: String },
+      required: { type: Boolean, default: false },
+      options: { type: [mongoose.Schema.Types.Mixed], default: undefined },
+      defaultValue: { type: mongoose.Schema.Types.Mixed },
+      validation: {
+        type: {
+          min: { type: Number },
+          max: { type: Number },
+          pattern: { type: String },
+        },
+        default: {},
+      },
+      showIf: {
+        type: {
+          field: { type: String },
+          equals: { type: String },
+        },
+        default: {},
+      },
+    }],
+    default: [],
+  },
+  // Optional paid extras offered on the cart line, e.g. "Kolotibablo Auto Login".
+  //
+  // Selecting one adds `pricePercent` to that line's unit price. The percentage
+  // is applied on the server too (see order.controller), so the client cannot
+  // change a price — the selection only chooses which add-ons are bought.
+  addons: {
+    type: [{
+      key: { type: String, required: true, trim: true },
+      label: { type: String, required: true, trim: true },
+      description: { type: String, default: '', trim: true },
+      /** Percentage added to the unit price when selected (30 = +30%). */
+      pricePercent: { type: Number, default: 0, min: 0, max: 1000 },
+      defaultSelected: { type: Boolean, default: false },
+    }],
+    default: [],
+  },
+}, {
+  timestamps: true,
+});
+
+
+// Revenue is updated manually via order verification; do not auto-calculate from sales and price
+
+// Virtual for formatted price
+productSchema.virtual('formattedPrice').get(function() {
+  return `$${this.price % 1 === 0 ? this.price.toFixed(0) : this.price.toFixed(2)}`;
+});
+
+// Virtual for formatted revenue
+productSchema.virtual('formattedRevenue').get(function() {
+  const revenue = this.revenue || 0;
+  return `$${revenue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+});
+
+productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
+
+const existingProductModel = mongoose.models.Product as mongoose.Model<any> | undefined;
+
+// In dev hot-reload, model can be cached with an older schema.
+// Ensure newly added fields are available without requiring a manual restart.
+if (existingProductModel && !existingProductModel.schema.path('imageUrl')) {
+  existingProductModel.schema.add({
+    imageUrl: {
+      type: String,
+      trim: true,
+    },
+    images: {
+      type: [String],
+      default: [],
+    },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('smmServiceId')) {
+  existingProductModel.schema.add({
+    smmServiceId: { type: String, index: true, sparse: true, default: null },
+    smmProvider: { type: String, default: null },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('smmMin')) {
+  existingProductModel.schema.add({
+    smmMin: { type: Number, default: null },
+    smmMax: { type: Number, default: null },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('orderFields')) {
+  existingProductModel.schema.add({
+    orderFields: {
+      type: [{
+        key: { type: String, required: true },
+        label: { type: String, required: true },
+        type: {
+          type: String,
+          enum: ['text', 'textarea', 'number', 'url', 'email', 'select', 'radio', 'checkbox', 'date', 'time', 'password', 'hidden'],
+          default: 'text',
+        },
+        placeholder: { type: String },
+        required: { type: Boolean, default: false },
+        options: { type: [mongoose.Schema.Types.Mixed], default: undefined },
+        defaultValue: { type: mongoose.Schema.Types.Mixed },
+        validation: {
+          type: {
+            min: { type: Number },
+            max: { type: Number },
+            pattern: { type: String },
+          },
+          default: {},
+        },
+        showIf: {
+          type: {
+            field: { type: String },
+            equals: { type: String },
+          },
+          default: {},
+        },
+      }],
+      default: [],
+    },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('productType')) {
+  existingProductModel.schema.add({
+    productType: {
+      type: String,
+      enum: ['standard', 'smm', 'captchamaster'],
+      default: 'standard',
+      index: true,
+      sparse: true,
+    },
+    captchamasterPlanId: { type: String, default: null, trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('deliveryLink')) {
+  existingProductModel.schema.add({
+    deliveryLink: { type: String, default: '', trim: true },
+    deliveryLinkLabel: { type: String, default: '', trim: true },
+    deliveryMessage: { type: String, default: '', trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('deliveryLink2')) {
+  existingProductModel.schema.add({
+    deliveryLink2: { type: String, default: '', trim: true },
+    deliveryLink2Label: { type: String, default: '', trim: true },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('addons')) {
+  existingProductModel.schema.add({
+    addons: {
+      type: [{
+        key: { type: String, required: true, trim: true },
+        label: { type: String, required: true, trim: true },
+        description: { type: String, default: '', trim: true },
+        pricePercent: { type: Number, default: 0, min: 0, max: 1000 },
+        defaultSelected: { type: Boolean, default: false },
+      }],
+      default: [],
+    },
+  });
+}
+if (existingProductModel && !existingProductModel.schema.path('seoTitle')) {
+  existingProductModel.schema.add({
+    seoTitle: {
+      type: String,
+      trim: true,
+      maxlength: 60,
+    },
+    seoDescription: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+    },
+    seoKeywords: {
+      type: String,
+      trim: true,
+    },
+    seoSlug: {
+      type: String,
+      trim: true,
+    },
+  });
+}
+
+const ProductModel: mongoose.Model<any> =
+  existingProductModel || mongoose.model('Product', productSchema);
+
+export default ProductModel;

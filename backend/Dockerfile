@@ -1,0 +1,72 @@
+# ============================================
+# ZI Premium Services — Backend Dockerfile
+# Multi-stage: Production-grade build
+# ============================================
+
+# ===== Build Stage =====
+FROM node:22-alpine AS builder
+
+# Corepack pins Yarn 1.x (classic) — matches the committed yarn.lock v1 format.
+# yarn install is dramatically faster than npm install and uses far less CPU/RAM.
+RUN corepack enable && corepack prepare yarn@1.22.22 --activate
+
+WORKDIR /app
+
+# Copy package files first (Docker layer caching)
+COPY package.json yarn.lock ./
+
+# Increase network timeout for unreliable build environments (Coolify)
+RUN yarn config set network-timeout 300000
+
+# Install all deps including dev for build step
+RUN yarn install --frozen-lockfile --non-interactive
+
+# Copy source code
+COPY tsconfig.json .npmrc ./
+COPY src ./src
+
+# Build (TypeScript → JS, then rewrite path aliases)
+RUN yarn build
+
+# Prune dev dependencies (keep only production)
+RUN yarn install --frozen-lockfile --non-interactive --production
+
+# ===== Production Stage =====
+FROM node:22-alpine AS runner
+
+# Security: proper init system + timezone support
+RUN apk add --no-cache dumb-init tzdata curl
+
+# Set timezone (configurable via build arg)
+ARG TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 --ingroup nodejs nodeuser
+
+# Copy production dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+
+# Copy built output from builder
+COPY --from=builder /app/dist ./dist
+
+# Create log directory with correct permissions
+RUN mkdir -p /app/logs && chown -R nodeuser:nodejs /app/logs
+
+# Expose port
+EXPOSE 5000
+
+# Switch to non-root user
+USER nodeuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f --max-time 3 http://localhost:5000/health/live || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "-r", "module-alias/register", "dist/server.js"]
