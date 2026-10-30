@@ -24,6 +24,7 @@ interface ShopContextType {
     convertPrice: (amount: number, from: 'BDT' | 'USD', to: 'BDT' | 'USD') => Promise<number>;
     isCartOpen: boolean;
     setIsCartOpen: (open: boolean) => void;
+    cartLoading: boolean;
     view: "home" | "checkout" | "orders" | "order-history" | "order-details";
     setView: React.Dispatch<React.SetStateAction<"home" | "checkout" | "orders" | "order-history" | "order-details">>;
     paymentMethod: string;
@@ -103,9 +104,19 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
     // Sync with AuthContext — ShopProvider is nested inside AuthProvider in App.tsx
-    const { isAuthenticated, user: authUser, logout: authLogout } = useAuth();
+    const { isAuthenticated, user: authUser, logout: authLogout, loading: authLoading } = useAuth();
 
     const [cart, setCart] = useState<CartItem[]>([]);
+    const [cartLoading, setCartLoading] = useState(true);
+    // Tracks which restoration paths have completed so the loading indicator
+    // only switches off once the cart's true contents are known.
+    const cartRestoreRef = useRef<{ local: boolean; db: boolean }>({ local: false, db: false });
+    // Monotonic freshness token bumped on every local cart write so a stale
+    // async response (load / validate) can never overwrite newer state.
+    const cartVersionRef = useRef(0);
+    // Set while a cart load from the DB is in flight.
+    const cartLoadInFlightRef = useRef(false);
+    const authReady = !authLoading;
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [view, setView] = useState<"home" | "checkout" | "orders" | "order-history" | "order-details">("home");
     const [paymentMethod, setPaymentMethod] = useState<string>("bkash");
@@ -242,6 +253,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const addToCart = useCallback((product: Product, customData?: Record<string, any>) => {
+        cartVersionRef.current++;
         setCart((prevCart) => {
             const existingItem = prevCart.find((item) => item.id === product.id);
             if (existingItem) {
@@ -295,6 +307,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const removeFromCart = useCallback((productId: string | number) => {
+        cartVersionRef.current++;
         setCart((prevCart) => {
             const existingItem = prevCart.find((item) => item.id === productId);
             const nextCart =
@@ -329,14 +342,17 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const updateCartItemLink = useCallback((productId: string | number, link: string) => {
+        cartVersionRef.current++;
         setCart((prevCart) => prevCart.map((item) => item.id === productId ? { ...item, link } : item));
     }, []);
 
     const updateCartItemQuantity = useCallback((productId: string | number, quantity: number) => {
+        cartVersionRef.current++;
         setCart((prevCart) => prevCart.map((item) => item.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item));
     }, []);
 
     const updateCartItemCustomData = useCallback((productId: string | number, customData: Record<string, any>) => {
+        cartVersionRef.current++;
         setCart((prevCart) => prevCart.map((item) => item.id === productId ? { ...item, customData } : item));
     }, []);
 
@@ -484,6 +500,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const validateCart = useCallback(async (opts?: { email?: string }) => {
         const emailForValidation = (opts?.email || userEmail || '').trim();
         if (!emailForValidation) return null;
+        const myVersion = cartVersionRef.current;
         try {
             const payload = {
                 email: emailForValidation,
@@ -520,19 +537,25 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
             const { items: serverItems, removedItems, coupon, subtotal, discountAmount: serverDiscount, total, itemCount } = data.data || {};
 
-            setCart((serverItems || []).map((item: any) => ({
-                ...item,
-                id: item.dbId || item.id,
-                price: item.priceBDT || item.price,
-                priceBDT: item.priceBDT || item.price,
-                campaignId: item.campaignId,
-                campaignSlug: item.campaignSlug,
-                couponCode: item.couponCode,
-                discountSource: item.discountSource,
-                discountType: item.discountType,
-                originalPrice: item.originalPrice,
-                expiresAt: item.expiresAt,
-            })));
+            // Never let a stale/empty server response wipe a populated local
+            // cart, and ignore responses that arrived after a local write.
+            const serverItemsList = serverItems || [];
+            const shouldReplaceCart = serverItemsList.length > 0 || cart.length === 0;
+            if (cartVersionRef.current === myVersion && shouldReplaceCart) {
+                setCart(serverItemsList.map((item: any) => ({
+                    ...item,
+                    id: item.dbId || item.id,
+                    price: item.priceBDT || item.price,
+                    priceBDT: item.priceBDT || item.price,
+                    campaignId: item.campaignId,
+                    campaignSlug: item.campaignSlug,
+                    couponCode: item.couponCode,
+                    discountSource: item.discountSource,
+                    discountType: item.discountType,
+                    originalPrice: item.originalPrice,
+                    expiresAt: item.expiresAt,
+                })));
+            }
 
             if (coupon) {
                 setCouponCode(coupon.code);
@@ -561,13 +584,31 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     }, [authLogout]);
 
     const cartLoadedRef = useRef(false);
+    // Load the cart from the database once auth is settled and the user is
+    // logged in. Stale responses are ignored via the cart version token so a
+    // slow/slow response can never overwrite newer local state.
     useEffect(() => {
+        if (!authReady) return;
+        if (!isLoggedIn || !userEmail) {
+            cartRestoreRef.current.db = true;
+            setCartLoading(false);
+            return;
+        }
+        if (cartLoadedRef.current) {
+            cartRestoreRef.current.db = true;
+            setCartLoading(false);
+            return;
+        }
+        cartLoadInFlightRef.current = true;
+        cartLoadedRef.current = true;
+        setCartLoading(true);
+        const myVersion = cartVersionRef.current;
         const loadCartFromDB = async () => {
-            if (cartLoadedRef.current || !isLoggedIn || !userEmail) return;
-            cartLoadedRef.current = true;
             try {
                 const res = await api.get(`/cart?email=${encodeURIComponent(userEmail)}`);
                 const data = res.data;
+                // Ignore stale responses: a local write happened while loading.
+                if (cartVersionRef.current !== myVersion) return;
                 if (data.success && data.data?.items && data.data.items.length > 0) {
                     setCart(prev => {
                         if (prev.length === 0) {
@@ -579,9 +620,6 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                                 productType: item.productType || '', captchamasterPlanId: item.captchamasterPlanId || '',
                                 details: item.details || '', stock: item.stock || 0,
                                 customData: item.customData || {},
-                                // Restore the add-ons and the selection so the
-                                // checkbox and the price survive a reload or a
-                                // different device.
                                 addons: Array.isArray(item.addons) ? item.addons : [],
                             }));
                         }
@@ -590,9 +628,13 @@ export function ShopProvider({ children }: { children: ReactNode }) {
                     setValidateTrigger((t) => t + 1);
                 }
             } catch (error) { devLog('Error loading cart from database:', error); }
+            cartLoadInFlightRef.current = false;
+            cartRestoreRef.current.db = true;
+            setCartLoading(false);
         };
         loadCartFromDB();
-    }, [isLoggedIn, userEmail]);
+        return () => { cartLoadInFlightRef.current = false; };
+    }, [authReady, isLoggedIn, userEmail]);
 
     // Restore the applied coupon + cart from the persisted ZI-Pay checkout
     // record after a page refresh or after returning from the ZI-Pay gateway.
@@ -600,9 +642,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         if (typeof window === 'undefined') return;
         try {
             const raw = localStorage.getItem('zi-pay-checkout-data');
-            if (!raw) return;
+            if (!raw) { cartRestoreRef.current.local = true; return; }
             const persisted = JSON.parse(raw);
-            if (!persisted?.cart?.length) return;
+            if (!persisted?.cart?.length) { cartRestoreRef.current.local = true; return; }
 
             const persistedCoupon = persisted.couponCode;
             const persistedDiscount = Number(persisted.couponDiscount || 0);
@@ -630,7 +672,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
             });
             setValidateTrigger((t) => t + 1);
         } catch { /* Non-blocking restore failure */ }
+        cartRestoreRef.current.local = true;
     }, []);
+
+    // Switch the cart-loading indicator off once every applicable restoration
+    // path has finished. For logged-in users the DB load owns the loading
+    // state; for guests the localStorage restore is the last word.
+    useEffect(() => {
+        if (!authReady || !cartRestoreRef.current.local) return;
+        if (isLoggedIn && !!userEmail) return;
+        cartRestoreRef.current.db = true;
+        setCartLoading(false);
+    }, [authReady, isLoggedIn, userEmail]);
 
     // Re-validate the restored cart against the server once the restored state
     // is committed, so expired discounts never resurrect on refresh/return.
@@ -642,6 +695,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const lastSavedCartRef = useRef<string>('');
     useEffect(() => {
         if (!isLoggedIn || !userEmail) return;
+        // Don't persist while a restore load is in flight; the version token
+        // in the load effect already protects against stale overwrites.
+        if (cartLoadInFlightRef.current) return;
         const currentCartJson = JSON.stringify(cart);
         if (currentCartJson === lastSavedCartRef.current) return;
         const saveCartToDB = async () => {
@@ -693,7 +749,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         <ShopContext.Provider value={{
             cart, setCart, addToCart, updateCartItemLink, updateCartItemQuantity, updateCartItemCustomData, removeFromCart,
             getTotalPrice, getSubtotalPrice, getBDTItemAmount, getTotalPriceUSD, getTotalItems, exchangeRate, convertPrice,
-            isCartOpen, setIsCartOpen, view, setView, paymentMethod, setPaymentMethod,
+            isCartOpen, setIsCartOpen, cartLoading, view, setView, paymentMethod, setPaymentMethod,
             cryptoCurrency, setCryptoCurrency, paymentType, setPaymentType,
             selectedNetwork, setSelectedNetwork, selectedPlatform, setSelectedPlatform,
             payerNumber, setPayerNumber, trxId, setTrxId, txHash, setTxHash, lastAddedProductId,

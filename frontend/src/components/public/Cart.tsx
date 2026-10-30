@@ -74,6 +74,7 @@ function getSmmLinkPlaceholder(category: string, details?: string): string {
 
 export interface CartProps {
   cart: CartItem[];
+  cartLoading: boolean;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
   addToCart: (product: Product) => void;
@@ -95,6 +96,7 @@ export interface CartProps {
 
 export default function CartView({
   cart,
+  cartLoading,
   isCartOpen,
   setIsCartOpen,
   addToCart,
@@ -217,7 +219,12 @@ export default function CartView({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 hide-scrollbar">
-            {cart.length === 0 ? (
+            {cartLoading ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                <Loader2 className="w-10 h-10 mb-3 animate-spin" />
+                <p className="text-sm">Loading your cart…</p>
+              </div>
+            ) : cart.length === 0 ? (
               <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
                 <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p>Your cart is empty</p>

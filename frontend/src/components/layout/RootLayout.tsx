@@ -9,6 +9,7 @@ import { useShopContext } from '../../store/ShopContext';
 export default function RootLayout() {
   const {
     cart,
+    cartLoading,
     isCartOpen,
     setIsCartOpen,
     addToCart,
@@ -37,6 +38,7 @@ export default function RootLayout() {
       <Footer />
       <CartView
         cart={cart}
+        cartLoading={cartLoading}
         isCartOpen={isCartOpen}
         setIsCartOpen={setIsCartOpen}
         addToCart={addToCart}
